@@ -13,7 +13,8 @@ type Registry map[string]config.Provider
 
 // Render substitutes {model}, {args}, {prompt} into the provider's command
 // template. Tokens whose placeholder resolves empty are dropped, along with
-// an immediately preceding flag token. The prompt is shell-quoted; the
+// an immediately preceding flag token (only if the flag came from the template,
+// not from placeholder substitution). The prompt is shell-quoted; the
 // template's own quotes around {prompt} are replaced by ours.
 func (r Registry) Render(name, model, args, prompt string) (string, error) {
 	p, ok := r[name]
@@ -26,24 +27,32 @@ func (r Registry) Render(name, model, args, prompt string) (string, error) {
 	vals := map[string]string{"model": model, "args": args, "prompt": ShellQuote(prompt)}
 
 	tokens := strings.Fields(p.Command)
-	var out []string
+	type token struct {
+		text    string
+		literal bool // true if from template, false if from placeholder
+	}
+	var out []token
 	for _, tok := range tokens {
 		key, isPlaceholder := placeholderKey(tok)
 		if !isPlaceholder {
-			out = append(out, tok)
+			out = append(out, token{text: tok, literal: true})
 			continue
 		}
 		v := vals[key]
 		if v == "" {
-			// Drop the placeholder; drop a preceding flag too.
-			if len(out) > 0 && strings.HasPrefix(out[len(out)-1], "-") {
+			// Drop the placeholder; drop a preceding literal flag token too.
+			if len(out) > 0 && out[len(out)-1].literal && strings.HasPrefix(out[len(out)-1].text, "-") {
 				out = out[:len(out)-1]
 			}
 			continue
 		}
-		out = append(out, v)
+		out = append(out, token{text: v, literal: false})
 	}
-	return strings.Join(out, " "), nil
+	var result []string
+	for _, t := range out {
+		result = append(result, t.text)
+	}
+	return strings.Join(result, " "), nil
 }
 
 // placeholderKey recognizes {x}, "{x}", '{x}' as placeholder tokens.

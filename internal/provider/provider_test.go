@@ -72,6 +72,17 @@ func TestRenderUnknownProvider(t *testing.T) {
 	}
 }
 
+func TestRenderEmptyPlaceholderKeepsSubstitutedValue(t *testing.T) {
+	r := Registry{"k": {Command: `k {args} {model} "{prompt}"`}}
+	got, err := r.Render("k", "", "-v", "hi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != `k -v 'hi'` {
+		t.Errorf("got %q, want %q (substituted -v must survive empty {model})", got, `k -v 'hi'`)
+	}
+}
+
 func TestShellQuote(t *testing.T) {
 	if got := ShellQuote(`a'b`); got != `'a'\''b'` {
 		t.Errorf("ShellQuote = %q", got)
