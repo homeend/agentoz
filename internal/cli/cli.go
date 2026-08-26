@@ -28,6 +28,10 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "version":
 		fmt.Fprintf(stdout, "erbrus %s\n", Version)
 		return 0
+	case "serve":
+		return runServe(args[1:], stdout, stderr)
+	case "init":
+		return runInit(args[1:], stdout, stderr)
 	case "msg":
 		return runMsg(args[1:], os.Stdin, stdout, stderr)
 	default:
