@@ -27,7 +27,7 @@ workspaces with full context.
   across projects.
 - CLI: `erbrus serve | start | init | msg send | msg read`.
 - Layered settings: global (`~/.config/erbrus/config.yaml`) + per-repo
-  (`<repo>/.erbrus.yaml`).
+  (`~/.erbrus/repos/<encoded-repo-path>/.erbrus.yaml`).
 
 ### Non-goals (parked for later milestones)
 
@@ -60,8 +60,12 @@ htmx is a vendored static asset. No Node toolchain.
 
 ### Data locations
 
-- Config: `~/.config/erbrus/config.yaml` (global), `<repo>/.erbrus.yaml`
-  (per project, committed to the repo if the team wants).
+- Config: `~/.config/erbrus/config.yaml` (global),
+  `~/.erbrus/repos/<encoded-repo-path>/.erbrus.yaml` (per project — kept
+  OUTSIDE the repo so working trees stay clean). The encoding replaces every
+  `/` in the repo's absolute path with `-`, keeping the leading dash — the
+  same scheme Claude uses for project dirs (e.g. `/home/homeend/git-focus`
+  → `-home-homeend-git-focus`).
 - State: `~/.local/share/erbrus/erbrus.db` (SQLite).
 - Artifacts: `~/.local/share/erbrus/artifacts/<message-id>/<filename>`.
 - Logs: `~/.local/share/erbrus/logs/`.
@@ -130,7 +134,7 @@ Template placeholders: `{model}`, `{args}`, `{prompt}`. An unset `{model}`
 with no `default_model` renders to nothing (flag and value are dropped —
 templates use a small renderer, not naive string replace).
 
-### Per-repo — `<repo>/.erbrus.yaml`
+### Per-repo — `~/.erbrus/repos/<encoded-repo-path>/.erbrus.yaml`
 
 ```yaml
 session: erbrus-webshop        # overrides session_pattern
@@ -242,7 +246,7 @@ erbrus start <preset> [flags]    # spawn a preset agent from the shell
     --model, --prompt, --args, --name, --channel   # overrides
     --fg                         # run in current terminal instead of tmux
     --no-create                  # fail instead of auto-configuring
-erbrus init                      # auto-configure only + scaffold .erbrus.yaml
+erbrus init                      # auto-configure only + scaffold the per-repo config in ~/.erbrus/repos/
 erbrus msg send [--report] [--file <path>] [--system] <text|stdin>
 erbrus msg read [--since <id>] [--limit N]
 ```
@@ -256,8 +260,8 @@ Run from anywhere inside a repo or worktree:
    (fallback: `git worktree list --porcelain` when `wt` is absent).
 2. Resolve the current worktree. No channel for it? Create it — named from
    the branch (`# wt/checkout-v2`); the main worktree maps to `# general`.
-3. Spawn the preset there using merged configs (global + repo's
-   `.erbrus.yaml`).
+3. Spawn the preset there using merged configs (global + the repo's config
+   from `~/.erbrus/repos/<encoded-repo-path>/.erbrus.yaml`).
 
 Everything auto-created is announced in the CLI output and appears in the
 web UI immediately. `start` requires a running server and says so plainly

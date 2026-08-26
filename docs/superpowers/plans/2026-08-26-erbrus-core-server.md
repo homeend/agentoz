@@ -3714,3 +3714,12 @@ Executed on branch `plan1-core` (700838d..2434d9c), 54 tests green under -race. 
 2. Remaining store-error collapses: ChannelByID/MessageByID errors map to 404 (messages, forward) and bearerRun maps store errors to 401 — return 500 on real errors.
 3. Plan 2's injected agent instructions should note stdlib-flag ordering: flags before positionals (`erbrus msg send --report "text"`).
 4. Timestamps are stored/served as UTC-naive strings — convert at render time in Plan 3.
+5. **Per-repo config relocation (user request, 2026-08-27):** per-repo config moves out of the
+   repo to `~/.erbrus/repos/<encoded-repo-path>/.erbrus.yaml`, where the encoding replaces every
+   `/` of the repo's absolute path with `-` keeping the leading dash (Claude's project-dir scheme:
+   `/home/homeend/git-focus` → `-home-homeend-git-focus`). Touches: `config.LoadRepo` (new path
+   resolution + `EncodeRepoPath(path string) string` helper), `server.handleAddProject`
+   (`config.LoadRepo(root)` call semantics unchanged — the function resolves the new location
+   itself), `cli.runInit` (scaffold at the new location, never in the repo). Spec already updated.
+   Migration nicety: if a legacy `<repo>/.erbrus.yaml` exists and the new file doesn't, read the
+   legacy one and print a deprecation note suggesting `erbrus init` to migrate.
