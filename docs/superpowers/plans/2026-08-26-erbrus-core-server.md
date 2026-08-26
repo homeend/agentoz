@@ -3703,3 +3703,14 @@ Do NOT merge to main. Do not push. Stop here and wait for the user's manual-test
 - Known simplifications, intentional: single-writer SQLite (`SetMaxOpenConns(1)`); SSE has no replay/reconnect state (clients re-fetch via `since`); `init` uses `wt.MainRoot` so running it from a worktree registers the main repo (channels for worktrees come from detection).
 - Parked for Plan 2: `erbrus start` will want `--channel` to accept a channel *name* (resolved via project context), not just an id; server-side handoff prompt-building reads artifact files by `store.Artifact.Path` directly.
 - Parked for Plan 3: no artifact-download endpoint exists yet — the UI's artifact chips need `GET /api/artifacts/{id}` added then.
+
+---
+
+## Post-execution carry-overs to Plan 2 (from final whole-branch review, 2026-08-27)
+
+Executed on branch `plan1-core` (700838d..2434d9c), 54 tests green under -race. Deferred to Plan 2's first server-touching task:
+
+1. Project-name collision: two repos with the same directory basename hit `projects.name UNIQUE` → raw 500. Detect and suffix the name or return 409.
+2. Remaining store-error collapses: ChannelByID/MessageByID errors map to 404 (messages, forward) and bearerRun maps store errors to 401 — return 500 on real errors.
+3. Plan 2's injected agent instructions should note stdlib-flag ordering: flags before positionals (`erbrus msg send --report "text"`).
+4. Timestamps are stored/served as UTC-naive strings — convert at render time in Plan 3.
