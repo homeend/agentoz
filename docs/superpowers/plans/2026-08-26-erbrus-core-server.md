@@ -368,8 +368,8 @@ func TestExpandHome(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test ./internal/config/ -v`
-Expected: FAIL — undefined symbols
+Run: `go get gopkg.in/yaml.v3 && go test ./internal/config/ -v`
+Expected: FAIL — undefined symbols (the `go get` first, so the failure is the right one)
 
 - [ ] **Step 3: Implement**
 
@@ -1390,8 +1390,8 @@ func TestRunLifecycle(t *testing.T) {
 
 - [ ] **Step 3: Run tests to verify they fail**
 
-Run: `go test ./internal/store/ -v`
-Expected: FAIL — undefined symbols
+Run: `go get modernc.org/sqlite && go test ./internal/store/ -v`
+Expected: FAIL — undefined symbols (the `go get` first, so the failure is the right one)
 
 - [ ] **Step 4: Implement**
 
@@ -1419,7 +1419,7 @@ var schema string
 type Store struct{ db *sql.DB }
 
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, err
 	}
@@ -1978,7 +1978,9 @@ func TestAddProjectDetectionFailureStillCreates(t *testing.T) {
 	failRun := func(dir, name string, args ...string) ([]byte, error) {
 		return nil, fmt.Errorf("boom")
 	}
-	srv := New(st, config.Defaults(), failRun)
+	cfg := config.Defaults()
+	cfg.DataDir = t.TempDir()
+	srv := New(st, cfg, failRun)
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 	root := t.TempDir()
@@ -2104,8 +2106,8 @@ func TestValidation(t *testing.T) {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `go test ./internal/server/ -v`
-Expected: FAIL — undefined `New`
+Run: `go get github.com/go-chi/chi/v5 && go test ./internal/server/ -v`
+Expected: FAIL — undefined `New` (the `go get` first, so the failure is the right one)
 
 - [ ] **Step 3: Implement server core**
 
@@ -3699,3 +3701,5 @@ Do NOT merge to main. Do not push. Stop here and wait for the user's manual-test
 - Spec coverage for Plan 1 scope: config ✔ (Task 2), providers/presets ✔ (3, 4), wt detection incl. fallback + failure warning ✔ (5, 7), store incl. runs schema for Plan 2 ✔ (6), API + tokens + artifacts ✔ (7), forward + SSE ✔ (8), CLI msg ✔ (9), serve/init/auto-configure/scaffold ✔ (10). Spawning, hooks, `start`, web UI: Plans 2–3 by design.
 - Type consistency: `wt.Runner` signature used identically in Tasks 5, 7, 10; JSON envelopes in Task 9 mirror Task 7 field-for-field; `store.AgentRun` fields match the Task 6 schema.
 - Known simplifications, intentional: single-writer SQLite (`SetMaxOpenConns(1)`); SSE has no replay/reconnect state (clients re-fetch via `since`); `init` uses `wt.MainRoot` so running it from a worktree registers the main repo (channels for worktrees come from detection).
+- Parked for Plan 2: `erbrus start` will want `--channel` to accept a channel *name* (resolved via project context), not just an id; server-side handoff prompt-building reads artifact files by `store.Artifact.Path` directly.
+- Parked for Plan 3: no artifact-download endpoint exists yet — the UI's artifact chips need `GET /api/artifacts/{id}` added then.
