@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"erbrus/internal/client"
+	"erbrus/internal/config"
 	"erbrus/internal/wt"
 )
 
@@ -51,13 +52,20 @@ func runInit(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stdout, "warning:", p.Warning)
 	}
 
-	scaffold := filepath.Join(root, ".erbrus.yaml")
+	scaffold := config.RepoConfigPath(root)
 	if _, err := os.Stat(scaffold); os.IsNotExist(err) {
+		if err := os.MkdirAll(filepath.Dir(scaffold), 0o755); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 1
+		}
 		if err := os.WriteFile(scaffold, []byte(scaffoldYAML), 0o644); err != nil {
 			fmt.Fprintln(stderr, err)
 			return 1
 		}
 		fmt.Fprintf(stdout, "scaffolded %s\n", scaffold)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".erbrus.yaml")); err == nil {
+		fmt.Fprintf(stdout, "note: legacy %s/.erbrus.yaml still read as fallback; move settings to %s\n", root, scaffold)
 	}
 	return 0
 }

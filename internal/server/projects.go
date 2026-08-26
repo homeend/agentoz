@@ -82,7 +82,7 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	repoCfg, _ := config.LoadRepo(root)
+	repoCfg, _, _ := config.LoadRepo(root)
 	perWorktree := repoCfg.ChannelPerWorktree == nil || *repoCfg.ChannelPerWorktree
 
 	if _, err := s.st.CreateChannel(p.ID, "general", root, mainBranch(wts)); err != nil {

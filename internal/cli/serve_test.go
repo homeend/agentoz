@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"erbrus/internal/config"
 )
 
 // TestServeStartsAndServes boots serve on a random port in a goroutine and
@@ -70,6 +72,7 @@ func TestInitAutoConfigures(t *testing.T) {
 	cfgPath := filepath.Join(tmp, "config.yaml")
 	os.WriteFile(cfgPath, []byte("port: 0\ndata_dir: "+tmp+"\n"), 0o644)
 	t.Setenv("ERBRUS_CONFIG", cfgPath)
+	t.Setenv("ERBRUS_HOME", tmp)
 
 	addrCh := make(chan string, 1)
 	serveAddrHook = func(addr string) { addrCh <- addr }
@@ -96,17 +99,17 @@ func TestInitAutoConfigures(t *testing.T) {
 	if !strings.Contains(out.String(), "general") {
 		t.Errorf("output %q should announce general channel", out.String())
 	}
-	if _, err := os.Stat(filepath.Join(repo, ".erbrus.yaml")); err != nil {
-		t.Error(".erbrus.yaml not scaffolded")
+	if _, err := os.Stat(config.RepoConfigPath(repo)); err != nil {
+		t.Error(".erbrus.yaml not scaffolded at new location")
 	}
 
 	// Second init: idempotent, no scaffold overwrite.
-	os.WriteFile(filepath.Join(repo, ".erbrus.yaml"), []byte("session: custom\n"), 0o644)
+	os.WriteFile(config.RepoConfigPath(repo), []byte("session: custom\n"), 0o644)
 	out.Reset()
 	if code := Run([]string{"init"}, &out, &errOut); code != 0 {
 		t.Fatalf("second init failed: %s", errOut.String())
 	}
-	data, _ := os.ReadFile(filepath.Join(repo, ".erbrus.yaml"))
+	data, _ := os.ReadFile(config.RepoConfigPath(repo))
 	if string(data) != "session: custom\n" {
 		t.Error("init must not overwrite an existing .erbrus.yaml")
 	}

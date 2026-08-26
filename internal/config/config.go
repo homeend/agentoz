@@ -86,21 +86,52 @@ func LoadGlobal(path string) (Global, error) {
 	return g, nil
 }
 
-// LoadRepo reads <repoRoot>/.erbrus.yaml. A missing file yields a zero Repo.
-func LoadRepo(repoRoot string) (Repo, error) {
+// EncodeRepoPath maps an absolute repo path to its per-repo config dir
+// name: every "/" becomes "-", keeping the leading dash (the same scheme
+// Claude uses for project directories).
+func EncodeRepoPath(repoRoot string) string {
+	return strings.ReplaceAll(repoRoot, "/", "-")
+}
+
+// erbrusHome is ~/.erbrus, overridable via ERBRUS_HOME (tests).
+func erbrusHome() string {
+	if h := os.Getenv("ERBRUS_HOME"); h != "" {
+		return h
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".erbrus")
+}
+
+// RepoConfigPath is where a repo's erbrus settings live — OUTSIDE the repo,
+// so working trees stay clean.
+func RepoConfigPath(repoRoot string) string {
+	return filepath.Join(erbrusHome(), "repos", EncodeRepoPath(repoRoot), ".erbrus.yaml")
+}
+
+// LoadRepo reads the repo's config from RepoConfigPath, falling back to the
+// legacy in-repo .erbrus.yaml (legacy=true) so callers can nudge migration.
+func LoadRepo(repoRoot string) (Repo, bool, error) {
 	var r Repo
-	path := filepath.Join(repoRoot, ".erbrus.yaml")
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return r, nil
+	for _, cand := range []struct {
+		path   string
+		legacy bool
+	}{
+		{RepoConfigPath(repoRoot), false},
+		{filepath.Join(repoRoot, ".erbrus.yaml"), true},
+	} {
+		data, err := os.ReadFile(cand.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return r, cand.legacy, err
+		}
+		if err := yaml.Unmarshal(data, &r); err != nil {
+			return r, cand.legacy, fmt.Errorf("parse %s: %w", cand.path, err)
+		}
+		return r, cand.legacy, nil
 	}
-	if err != nil {
-		return r, err
-	}
-	if err := yaml.Unmarshal(data, &r); err != nil {
-		return r, fmt.Errorf("parse %s: %w", path, err)
-	}
-	return r, nil
+	return r, false, nil
 }
 
 func (g Global) ResolvedDataDir() string {
