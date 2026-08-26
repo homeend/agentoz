@@ -233,3 +233,17 @@ func TestValidation(t *testing.T) {
 	}
 	resp2.Body.Close()
 }
+
+func TestPostMessageBadKind(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+
+	url := fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, chID)
+	mresp := postJSON(t, url, map[string]string{"kind": "bogus", "body": "x"})
+	if mresp.StatusCode != http.StatusBadRequest {
+		t.Errorf("bogus kind status = %d, want 400", mresp.StatusCode)
+	}
+	mresp.Body.Close()
+}

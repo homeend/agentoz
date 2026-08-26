@@ -78,6 +78,8 @@ func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
+
 	chID := chiInt64(r, "id")
 	if _, ok, _ := s.st.ChannelByID(chID); !ok {
 		httpError(w, http.StatusNotFound, "channel not found")

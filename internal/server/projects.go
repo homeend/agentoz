@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 
@@ -56,7 +57,10 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if p, ok, err := s.st.ProjectByPath(root); err == nil && ok {
+	if p, ok, err := s.st.ProjectByPath(root); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if ok {
 		pj, err := s.projectJSON(p, false, "")
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -94,7 +98,14 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				name = filepath.Base(w2.Path)
 			}
-			s.st.CreateChannel(p.ID, name, w2.Path, w2.Branch)
+			if _, err := s.st.CreateChannel(p.ID, name, w2.Path, w2.Branch); err != nil {
+				msg := fmt.Sprintf("failed to create channel %s: %s", name, err.Error())
+				if warning == "" {
+					warning = msg
+				} else {
+					warning = warning + "; " + msg
+				}
+			}
 		}
 	}
 
