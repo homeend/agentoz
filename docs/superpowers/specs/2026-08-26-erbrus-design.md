@@ -31,12 +31,10 @@ workspaces with full context.
 
 ### Non-goals (parked for later milestones)
 
-- Automated multi-stage pipelines (v1 handoffs are human-triggered).
 - Tickets / task tracking.
 - Structured knowledge store beyond channel history and artifacts.
 - Zellij and fully headless spawner implementations (interface allows them).
 - MCP adapter for the agent API.
-- Auth / multi-user / remote access. The server binds to localhost.
 
 ## Architecture
 
@@ -114,18 +112,18 @@ providers:
     command: 'kimi --model {model} {args} "{prompt}"'
 
 presets:
-  analyzer:
+  claude:
     provider: claude-code
     model: fable-5
-    prompt: "Analyze the requested task. Post a report when done."
-  implementer:
+  claude-f:
+    provider: claude-code
+  codex:
     provider: codex
-    prompt: "Implement the requested change. Post a report when done."
-  reviewer:
+    prompt: "just some text to have string here"
+  kimi:
     provider: kimi
     model: k3
     args: "--max-turns 30"
-    prompt: "Review the changes. Post findings as a report."
 ```
 
 Template placeholders: `{model}`, `{args}`, `{prompt}`. An unset `{model}`
@@ -139,7 +137,7 @@ session: erbrus-webshop        # overrides session_pattern
 attach_session: ""             # non-empty = attach mode into this session
 channel_per_worktree: true
 presets:                       # merged over global; same name overrides
-  implementer:
+  claude:
     provider: codex
     prompt: "Implement using this repo's conventions (see CLAUDE.md)."
 ```
