@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -246,4 +247,77 @@ func TestPostMessageBadKind(t *testing.T) {
 		t.Errorf("bogus kind status = %d, want 400", mresp.StatusCode)
 	}
 	mresp.Body.Close()
+}
+
+func TestAddProjectNameCollisionSuffixes(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rootA := filepath.Join(t.TempDir(), "webshop")
+	rootB := filepath.Join(t.TempDir(), "webshop") // same basename, different parent
+	os.MkdirAll(rootA, 0o755)
+	os.MkdirAll(rootB, 0o755)
+	run := func(dir, name string, args ...string) ([]byte, error) {
+		return []byte(fmt.Sprintf(`[{"path": %q, "branch": "refs/heads/main", "head": "a", "is_main": true}]`, dir)), nil
+	}
+	cfg := config.Defaults()
+	cfg.DataDir = t.TempDir()
+	ts := httptest.NewServer(New(st, cfg, run).Handler())
+	defer ts.Close()
+
+	r1 := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": rootA})
+	p1 := decode[map[string]any](t, r1)
+	r2 := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": rootB})
+	if r2.StatusCode != http.StatusOK {
+		t.Fatalf("second same-name project status = %d", r2.StatusCode)
+	}
+	p2 := decode[map[string]any](t, r2)
+	if p1["name"] != "webshop" || p2["name"] != "webshop-2" {
+		t.Errorf("names = %v, %v; want webshop, webshop-2", p1["name"], p2["name"])
+	}
+}
+
+func TestAddProjectRedetectsNewWorktrees(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	root := t.TempDir()
+	// Mutable worktree listing: starts with main only, grows a worktree later.
+	listing := fmt.Sprintf(`[{"path": %q, "branch": "refs/heads/main", "head": "a", "is_main": true}]`, root)
+	run := func(dir, name string, args ...string) ([]byte, error) { return []byte(listing), nil }
+	cfg := config.Defaults()
+	cfg.DataDir = t.TempDir()
+	ts := httptest.NewServer(New(st, cfg, run).Handler())
+	defer ts.Close()
+
+	r1 := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p1 := decode[map[string]any](t, r1)
+	if n := len(p1["channels"].([]any)); n != 1 {
+		t.Fatalf("initial channels = %d, want 1", n)
+	}
+
+	listing = fmt.Sprintf(`[
+	  {"path": %q, "branch": "refs/heads/main", "head": "a", "is_main": true},
+	  {"path": %q, "branch": "refs/heads/wt/feat", "head": "b", "is_main": false}
+	]`, root, root+"-wt-feat")
+
+	r2 := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p2 := decode[map[string]any](t, r2)
+	chans := p2["channels"].([]any)
+	if len(chans) != 2 {
+		t.Fatalf("after re-detection channels = %d, want 2", len(chans))
+	}
+	if chans[1].(map[string]any)["name"] != "wt/feat" {
+		t.Errorf("new channel = %v", chans[1])
+	}
+	// Third call: no duplicates.
+	r3 := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p3 := decode[map[string]any](t, r3)
+	if len(p3["channels"].([]any)) != 2 {
+		t.Error("re-detection must not duplicate channels")
+	}
 }

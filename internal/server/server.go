@@ -50,17 +50,21 @@ func httpError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// bearerRun resolves the Authorization header to a run. ok=false with
-// empty token means "no auth given" (human); an invalid token is an error.
-func (s *Server) bearerRun(r *http.Request) (store.AgentRun, bool, bool) {
+// bearerRun resolves the Authorization header to a run. failStatus is 0 on
+// success (including "no auth given", which means human), or an HTTP status
+// to fail the request with: 500 on store error, 401 on invalid token.
+func (s *Server) bearerRun(r *http.Request) (store.AgentRun, bool, int) {
 	h := r.Header.Get("Authorization")
 	if h == "" {
-		return store.AgentRun{}, false, true
+		return store.AgentRun{}, false, 0
 	}
 	token := strings.TrimPrefix(h, "Bearer ")
 	run, ok, err := s.st.RunByToken(token)
-	if err != nil || !ok {
-		return store.AgentRun{}, false, false
+	if err != nil {
+		return store.AgentRun{}, false, http.StatusInternalServerError
 	}
-	return run, true, true
+	if !ok {
+		return store.AgentRun{}, false, http.StatusUnauthorized
+	}
+	return run, true, 0
 }

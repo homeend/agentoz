@@ -59,7 +59,10 @@ func chiInt64(r *http.Request, name string) int64 {
 
 func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	chID := chiInt64(r, "id")
-	if _, ok, _ := s.st.ChannelByID(chID); !ok {
+	if _, ok, err := s.st.ChannelByID(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
 		httpError(w, http.StatusNotFound, "channel not found")
 		return
 	}
@@ -81,14 +84,17 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<20)
 
 	chID := chiInt64(r, "id")
-	if _, ok, _ := s.st.ChannelByID(chID); !ok {
+	if _, ok, err := s.st.ChannelByID(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
 		httpError(w, http.StatusNotFound, "channel not found")
 		return
 	}
 
-	run, isAgent, authOK := s.bearerRun(r)
-	if !authOK {
-		httpError(w, http.StatusUnauthorized, "invalid run token")
+	run, isAgent, failStatus := s.bearerRun(r)
+	if failStatus != 0 {
+		httpError(w, failStatus, "invalid run token")
 		return
 	}
 

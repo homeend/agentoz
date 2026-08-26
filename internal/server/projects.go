@@ -61,7 +61,8 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	} else if ok {
-		pj, err := s.projectJSON(p, false, "")
+		warning := s.ensureChannels(p)
+		pj, err := s.projectJSON(p, false, warning)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -70,25 +71,59 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	base := filepath.Base(root)
+	var p store.Project
+	name := base
+	for i := 2; ; i++ {
+		var cerr error
+		p, cerr = s.st.CreateProject(name, root)
+		if cerr == nil {
+			break
+		}
+		if i > 9 {
+			httpError(w, http.StatusInternalServerError, cerr.Error())
+			return
+		}
+		name = fmt.Sprintf("%s-%d", base, i)
+	}
+
+	warning := s.ensureChannels(p)
+
+	pj, err := s.projectJSON(p, true, warning)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, pj)
+}
+
+// ensureChannels runs worktree detection for p and creates any missing
+// channels. Returns a warning string ("" when clean).
+func (s *Server) ensureChannels(p store.Project) string {
 	warning := ""
-	wts, err := wt.List(s.run, s.cfg.WtBin, root)
+	wts, err := wt.List(s.run, s.cfg.WtBin, p.RepoPath)
 	if err != nil {
 		warning = "worktree detection failed: " + err.Error()
 	}
-
-	p, err := s.st.CreateProject(filepath.Base(root), root)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	repoCfg, _, _ := config.LoadRepo(root)
+	repoCfg, _, _ := config.LoadRepo(p.RepoPath)
 	perWorktree := repoCfg.ChannelPerWorktree == nil || *repoCfg.ChannelPerWorktree
 
-	if _, err := s.st.CreateChannel(p.ID, "general", root, mainBranch(wts)); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+	addWarn := func(msg string) {
+		if warning == "" {
+			warning = msg
+		} else {
+			warning += "; " + msg
+		}
 	}
+	ensure := func(name, path, branch string) {
+		if _, ok, err := s.st.ChannelByName(p.ID, name); err != nil || ok {
+			return
+		}
+		if _, err := s.st.CreateChannel(p.ID, name, path, branch); err != nil {
+			addWarn(fmt.Sprintf("failed to create channel %s: %s", name, err))
+		}
+	}
+	ensure("general", p.RepoPath, mainBranch(wts))
 	if perWorktree {
 		for _, w2 := range wts {
 			if w2.IsMain {
@@ -98,23 +133,10 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 			if name == "" {
 				name = filepath.Base(w2.Path)
 			}
-			if _, err := s.st.CreateChannel(p.ID, name, w2.Path, w2.Branch); err != nil {
-				msg := fmt.Sprintf("failed to create channel %s: %s", name, err.Error())
-				if warning == "" {
-					warning = msg
-				} else {
-					warning = warning + "; " + msg
-				}
-			}
+			ensure(name, w2.Path, w2.Branch)
 		}
 	}
-
-	pj, err := s.projectJSON(p, true, warning)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, pj)
+	return warning
 }
 
 func mainBranch(wts []wt.Worktree) string {

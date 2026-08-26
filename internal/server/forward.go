@@ -9,7 +9,11 @@ import (
 func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 	msgID := chiInt64(r, "id")
 	src, ok, err := s.st.MessageByID(msgID)
-	if err != nil || !ok {
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
 		httpError(w, http.StatusNotFound, "message not found")
 		return
 	}
@@ -20,7 +24,10 @@ func (s *Server) handleForward(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if _, ok, _ := s.st.ChannelByID(req.ChannelID); !ok {
+	if _, ok, err := s.st.ChannelByID(req.ChannelID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
 		httpError(w, http.StatusNotFound, "target channel not found")
 		return
 	}
