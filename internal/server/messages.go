@@ -142,7 +142,9 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	writeJSON(w, http.StatusCreated, s.messageJSON(saved))
+	mj := s.messageJSON(saved)
+	s.hub.Publish("message", mj)
+	writeJSON(w, http.StatusCreated, mj)
 }
 
 func (s *Server) saveArtifact(messageID int64, fh *multipart.FileHeader) error {

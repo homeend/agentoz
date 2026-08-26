@@ -20,10 +20,11 @@ type Server struct {
 	cfg     config.Global
 	run     wt.Runner
 	dataDir string
+	hub     *Hub
 }
 
 func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
-	return &Server{st: st, cfg: cfg, run: run, dataDir: cfg.ResolvedDataDir()}
+	return &Server{st: st, cfg: cfg, run: run, dataDir: cfg.ResolvedDataDir(), hub: NewHub()}
 }
 
 func (s *Server) Handler() http.Handler {
@@ -33,7 +34,9 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/projects", s.handleListProjects)
 		r.Get("/channels/{id}/messages", s.handleGetMessages)
 		r.Post("/channels/{id}/messages", s.handlePostMessage)
+		r.Post("/messages/{id}/forward", s.handleForward)
 	})
+	r.Get("/events", s.handleEvents)
 	return r
 }
 
