@@ -52,14 +52,15 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
+	ch, cancel := s.hub.Subscribe()
+	defer cancel()
+
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, ": connected\n\n")
 	fl.Flush()
 
-	ch, cancel := s.hub.Subscribe()
-	defer cancel()
 	for {
 		select {
 		case <-r.Context().Done():
