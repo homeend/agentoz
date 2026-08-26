@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"erbrus/internal/config"
 	"erbrus/internal/store"
@@ -80,7 +81,7 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		if cerr == nil {
 			break
 		}
-		if i > 9 {
+		if !isNameCollision(cerr) || i > 9 {
 			httpError(w, http.StatusInternalServerError, cerr.Error())
 			return
 		}
@@ -95,6 +96,12 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, pj)
+}
+
+// isNameCollision reports whether err is the projects.name UNIQUE
+// constraint violation (as opposed to any other store error).
+func isNameCollision(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed: projects.name")
 }
 
 // ensureChannels runs worktree detection for p and creates any missing
@@ -116,7 +123,12 @@ func (s *Server) ensureChannels(p store.Project) string {
 		}
 	}
 	ensure := func(name, path, branch string) {
-		if _, ok, err := s.st.ChannelByName(p.ID, name); err != nil || ok {
+		_, ok, err := s.st.ChannelByName(p.ID, name)
+		if err != nil {
+			addWarn(fmt.Sprintf("channel lookup %s failed: %s", name, err))
+			return
+		}
+		if ok {
 			return
 		}
 		if _, err := s.st.CreateChannel(p.ID, name, path, branch); err != nil {

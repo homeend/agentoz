@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -319,5 +320,23 @@ func TestAddProjectRedetectsNewWorktrees(t *testing.T) {
 	p3 := decode[map[string]any](t, r3)
 	if len(p3["channels"].([]any)) != 2 {
 		t.Error("re-detection must not duplicate channels")
+	}
+}
+
+func TestIsNameCollision(t *testing.T) {
+	nameErr := errors.New("constraint failed: UNIQUE constraint failed: projects.name (2067)")
+	if !isNameCollision(nameErr) {
+		t.Error("want true for a projects.name UNIQUE constraint error")
+	}
+	otherErr := errors.New("constraint failed: UNIQUE constraint failed: projects.repo_path (2067)")
+	if isNameCollision(otherErr) {
+		t.Error("want false for a projects.repo_path UNIQUE constraint error (not a name collision)")
+	}
+	transientErr := errors.New("database is locked")
+	if isNameCollision(transientErr) {
+		t.Error("want false for a non-collision store error (must not be retried as a suffix)")
+	}
+	if isNameCollision(nil) {
+		t.Error("want false for nil error")
 	}
 }
