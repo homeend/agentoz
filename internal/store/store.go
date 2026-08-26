@@ -273,8 +273,17 @@ func (s *Store) AddArtifact(a Artifact) (Artifact, error) {
 	if err != nil {
 		return Artifact{}, err
 	}
-	a.ID, _ = res.LastInsertId()
-	return a, nil
+	id, _ := res.LastInsertId()
+	// Query back to populate ID and CreatedAt like other Create methods
+	var art Artifact
+	var ts string
+	err = s.db.QueryRow(`SELECT id, message_id, filename, path, size, created_at FROM artifacts WHERE id = ?`, id).
+		Scan(&art.ID, &art.MessageID, &art.Filename, &art.Path, &art.Size, &ts)
+	if err != nil {
+		return Artifact{}, err
+	}
+	art.CreatedAt = parseTime(ts)
+	return art, nil
 }
 
 func (s *Store) ArtifactsByMessage(messageID int64) ([]Artifact, error) {

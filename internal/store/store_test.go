@@ -77,6 +77,9 @@ func TestMessagesSinceAndArtifacts(t *testing.T) {
 	if err != nil || a.ID == 0 {
 		t.Fatalf("AddArtifact: %v", err)
 	}
+	if a.CreatedAt.IsZero() {
+		t.Fatal("AddArtifact: CreatedAt not populated from DB")
+	}
 	msgs, err := s.MessagesSince(c.ID, 0, 100)
 	if err != nil || len(msgs) != 3 {
 		t.Fatalf("MessagesSince all: %v len=%d", err, len(msgs))
