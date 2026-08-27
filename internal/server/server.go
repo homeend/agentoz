@@ -75,6 +75,8 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/channels/{id}/runs-panel", s.handleUIRunsPanel)
 	r.Post("/ui/channels/{id}/messages", s.handleUIComposeMessage)
 	r.Post("/ui/runs/{id}/stop", s.handleUIStopRun)
+	r.Get("/ui/spawn", s.handleUISpawn)
+	r.Post("/ui/spawn", s.handleUISpawnPost)
 	return r
 }
 

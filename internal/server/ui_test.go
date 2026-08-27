@@ -217,6 +217,78 @@ func TestAppJSCarriesSSEContract(t *testing.T) {
 	}
 }
 
+func TestSpawnDialogRenders(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	m, _ := st.CreateMessage(store.Message{ChannelID: chID, Kind: "report", AuthorKind: "agent", AuthorName: "impl-x", Body: "origin report body"})
+
+	dresp, _ := http.Get(fmt.Sprintf("%s/ui/spawn?channel=%d&preset=kimi&origin=%d", ts.URL, chID, m.ID))
+	body := readBody(t, dresp)
+	dresp.Body.Close()
+	if dresp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", dresp.StatusCode)
+	}
+	for _, want := range []string{"target_channel", "kimi", "impl-x", "origin_message_id", "Spawn agent"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("dialog missing %q", want)
+		}
+	}
+}
+
+func TestSpawnDialogPost(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "ui:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	resp2, err := c.PostForm(ts.URL+"/ui/spawn", url.Values{
+		"target_channel": {fmt.Sprint(chID)}, "provider": {"codex"}, "prompt": {"from the dialog"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp2.StatusCode)
+	}
+	runs, _ := st.RunsByChannel(chID)
+	if len(runs) != 1 || runs[0].Provider != "codex" {
+		t.Fatalf("runs = %+v", runs)
+	}
+	if len(fs.specs) != 1 {
+		t.Fatal("spawner not called")
+	}
+}
+
+func TestSpawnDialogPostErrorRerenders(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "ui:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+
+	resp2, err := http.PostForm(ts.URL+"/ui/spawn", url.Values{
+		"target_channel": {fmt.Sprint(chID)}, "provider": {"nope"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp2)
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", resp2.StatusCode)
+	}
+	if !strings.Contains(body, "nope") {
+		t.Error("error page should echo the bad provider")
+	}
+}
+
 func readBody(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)
