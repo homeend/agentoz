@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 type Tmux struct{ run CmdRunner }
@@ -48,6 +49,12 @@ func (t *Tmux) Spawn(spec RunSpec) (Handle, error) {
 	return h, nil
 }
 
+// sendSettle is how long Send waits between the paste and the Enter.
+// Agent TUIs (Claude Code) swallow an Enter that arrives within ~1ms of
+// the bracketed-paste end, leaving the text sitting unsubmitted in the
+// input box — observed live 2026-08-28.
+var sendSettle = 300 * time.Millisecond
+
 // Send delivers text into the window as a bracketed paste (-p), then
 // presses Enter. Paste, not send-keys -l: interactive agents submit on
 // newline, so a multiline context block would otherwise fire line by line.
@@ -58,6 +65,7 @@ func (t *Tmux) Send(h Handle, text string) error {
 	if _, err := t.run("tmux", "paste-buffer", "-dp", "-t", string(h)); err != nil {
 		return fmt.Errorf("send to %s: %w", h, err)
 	}
+	time.Sleep(sendSettle)
 	if _, err := t.run("tmux", "send-keys", "-t", string(h), "Enter"); err != nil {
 		return fmt.Errorf("send Enter to %s: %w", h, err)
 	}

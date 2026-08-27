@@ -123,3 +123,13 @@ func TestForwardToAgent(t *testing.T) {
 		}
 	}
 }
+
+func TestChatReplySuffix(t *testing.T) {
+	got := ChatReplySuffix("/abs/erbrus")
+	if !strings.Contains(got, `/abs/erbrus msg send --report`) {
+		t.Fatalf("missing reply command: %s", got)
+	}
+	if !strings.HasPrefix(got, "\n\n(") {
+		t.Fatalf("suffix must be separated from the message body: %q", got[:8])
+	}
+}

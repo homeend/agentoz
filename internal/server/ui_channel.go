@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"erbrus/internal/config"
+	"erbrus/internal/integrate"
 	"erbrus/internal/preset"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
@@ -294,7 +295,7 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 
 	warning := ""
 	if msg.TargetLabel != "" {
-		warning = s.sendToRun(run, msg.Body)
+		warning = s.sendToRun(run, msg.Body+integrate.ChatReplySuffix(s.erbrusBin))
 	}
 	target := fmt.Sprintf("/ui/channels/%d", chID)
 	if warning != "" {

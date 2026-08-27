@@ -66,8 +66,13 @@ func TestComposerSendToAgent(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	if len(fs.sent) != 1 || fs.sent[0] != "s:5|fix the login bug" {
+	if len(fs.sent) != 1 || !strings.HasPrefix(fs.sent[0], "s:5|fix the login bug") {
 		t.Fatalf("sent = %q", fs.sent)
+	}
+	// Chat-delivered text carries reply routing — the agent can't otherwise
+	// tell it came from the channel and not the keyboard.
+	if !strings.Contains(fs.sent[0], `msg send --report`) {
+		t.Fatalf("delivery missing reply instructions: %q", fs.sent[0])
 	}
 	msgs, _ := st.MessagesSince(ch1, 0, 100)
 	last := msgs[len(msgs)-1]

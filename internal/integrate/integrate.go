@@ -34,6 +34,16 @@ func AssemblePrompt(preamble, prompt, context string) string {
 	return strings.Join(parts, "\n\n")
 }
 
+// ChatReplySuffix is appended to every composer message delivered into a
+// running agent's terminal. The agent cannot tell chat input from typed
+// input, and the spawn-time preamble is out of focus by the end of a long
+// task — observed live: an agent answered in-terminal only and the channel
+// got nothing. This puts the routing right next to the question.
+func ChatReplySuffix(erbrusBin string) string {
+	return fmt.Sprintf("\n\n(sent from the erbrus chat — the sender sees only the channel, not this terminal; post your answer with (flags before the text): %s msg send --report \"your answer\")",
+		erbrusBin)
+}
+
 // ForwardToAgent builds the text typed into a RUNNING agent's terminal when
 // a message is forwarded to it: where it came from (project, channel, git
 // coordinates), the body and artifacts, and how to reply — the origin
