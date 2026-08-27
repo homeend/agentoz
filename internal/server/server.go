@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 	r.Route("/api", func(r chi.Router) {
 		r.Post("/projects", s.handleAddProject)
 		r.Get("/projects", s.handleListProjects)
+		r.Delete("/projects/{id}", s.handleDeleteProject)
 		r.Get("/channels/{id}/messages", s.handleGetMessages)
 		r.Post("/channels/{id}/messages", s.handlePostMessage)
 		r.Post("/messages/{id}/forward", s.handleForward)
@@ -100,6 +101,8 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/projects", s.handleUIProjects)
 	r.Post("/ui/projects", s.handleUIAddProject)
 	r.Post("/ui/projects/{id}/git-init", s.handleUIGitInit)
+	r.Get("/ui/projects/{id}/delete", s.handleUIDeleteConfirm)
+	r.Post("/ui/projects/{id}/delete", s.handleUIDeleteProject)
 	r.Get("/ui/channels/{id}", s.handleUIChannel)
 	r.Get("/ui/channels/{id}/stream", s.handleUIChannelStream)
 	r.Get("/ui/channels/{id}/runs-panel", s.handleUIRunsPanel)

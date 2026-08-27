@@ -1,0 +1,28 @@
+{{define "title"}}delete project · erbrus{{end}}
+{{define "content"}}
+<header class="topbar">
+  <a class="brand" href="/ui/projects">erbrus</a>
+  <span class="crumb">/ delete project</span>
+  <span class="spacer"></span>
+</header>
+<main class="page">
+  <div class="dialog">
+    <h1>Delete {{.Project.Name}}?</h1>
+    <div class="mono muted">{{.Project.RepoPath}}</div>
+    <div class="context">
+      This removes {{.Stats.Channels}} channels, {{.Stats.Messages}} messages,
+      {{.Stats.Artifacts}} artifacts and {{.Stats.Runs}} runs from erbrus,
+      including stored artifact files. The repository itself is not touched.
+    </div>
+    {{if .Stats.ActiveRuns}}
+    <div class="banner">{{.Stats.ActiveRuns}} agent(s) still running in this project — they will be stopped.</div>
+    {{end}}
+    <form method="post" action="/ui/projects/{{.Project.ID}}/delete">
+      <div class="foot">
+        <a class="btn" href="/ui/projects">Cancel</a>
+        <button class="btn danger" type="submit">Delete project</button>
+      </div>
+    </form>
+  </div>
+</main>
+{{end}}

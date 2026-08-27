@@ -28,6 +28,9 @@
         <li><a href="/ui/channels/{{.ID}}"># {{.Name}}</a></li>
         {{end}}
       </ul>
+      <div class="cardfoot">
+        <a class="btn danger small" href="/ui/projects/{{.Project.ID}}/delete">Delete</a>
+      </div>
     </div>
     {{end}}
     <form class="card addform" method="post" action="/ui/projects">

@@ -1,0 +1,120 @@
+package server
+
+import (
+	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+
+	"erbrus/internal/spawn"
+	"erbrus/internal/store"
+)
+
+// deleteProjectCore stops the project's active agents (best-effort), deletes
+// the project and all dependent rows in one transaction, then removes the
+// now-unreachable artifact and run directories under dataDir (best-effort;
+// failures land in warning). status is 0 on success.
+func (s *Server) deleteProjectCore(id int64) (warning string, status int, errMsg string) {
+	_, ok, err := s.st.ProjectByID(id)
+	if err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+	if !ok {
+		return "", http.StatusNotFound, "project not found"
+	}
+
+	warn := func(msg string) {
+		if warning == "" {
+			warning = msg
+		} else {
+			warning += "; " + msg
+		}
+	}
+
+	active, err := s.st.ActiveRunsByProject(id)
+	if err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+	for _, r := range active {
+		if r.TmuxTarget == "" || s.spawner == nil {
+			continue
+		}
+		if err := s.spawner.Stop(spawn.Handle(r.TmuxTarget)); err != nil {
+			warn(fmt.Sprintf("stop of %s reported: %s", r.AgentName, err))
+		}
+	}
+
+	// Collect before the delete; the rows are gone afterwards. Directories
+	// are derived from IDs, never from the stored path column.
+	artifactMsgIDs, runIDs, err := s.st.ProjectCleanupIDs(id)
+	if err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+
+	if err := s.st.DeleteProject(id); err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+
+	for _, msgID := range artifactMsgIDs {
+		if err := os.RemoveAll(filepath.Join(s.dataDir, "artifacts", fmt.Sprint(msgID))); err != nil {
+			warn(fmt.Sprintf("artifact cleanup: %s", err))
+		}
+	}
+	for _, runID := range runIDs {
+		if err := os.RemoveAll(filepath.Join(s.dataDir, "runs", fmt.Sprint(runID))); err != nil {
+			warn(fmt.Sprintf("run cleanup: %s", err))
+		}
+	}
+	return warning, 0, ""
+}
+
+func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	warning, status, errMsg := s.deleteProjectCore(id)
+	if status != 0 {
+		httpError(w, status, errMsg)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "warning": warning})
+}
+
+type deletePage struct {
+	Project store.Project
+	Stats   store.ProjectStatsRow
+}
+
+// handleUIDeleteConfirm renders the confirmation page: what the delete
+// removes, with a highlighted warning when agents are still running.
+func (s *Server) handleUIDeleteConfirm(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	p, ok, err := s.st.ProjectByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "project not found")
+		return
+	}
+	stats, err := s.st.ProjectStats(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.render(w, "project_delete", deletePage{Project: p, Stats: stats})
+}
+
+func (s *Server) handleUIDeleteProject(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	warning, status, errMsg := s.deleteProjectCore(id)
+	if status != 0 {
+		httpError(w, status, errMsg)
+		return
+	}
+	target := "/ui/projects"
+	if warning != "" {
+		target += "?warning=" + url.QueryEscape(warning)
+	}
+	http.Redirect(w, r, target, http.StatusFound)
+}
