@@ -5,9 +5,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"erbrus/internal/config"
 	"erbrus/internal/store"
 )
 
@@ -325,6 +328,82 @@ func TestForwardDialogAndPost(t *testing.T) {
 	}
 	if !found {
 		t.Error("forwarded copy not in target channel")
+	}
+}
+
+func TestSettingsRoundtrip(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("ERBRUS_HOME", tmp)
+	cfgPath := filepath.Join(tmp, "config.yaml")
+	os.WriteFile(cfgPath, []byte("port: 7420\n"), 0o644)
+
+	ts, _, root := newTestServer(t)
+	testSrv.SetConfigPath(cfgPath)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	resp.Body.Close()
+
+	gresp, _ := http.Get(ts.URL + "/ui/settings")
+	body := readBody(t, gresp)
+	gresp.Body.Close()
+	if gresp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", gresp.StatusCode)
+	}
+	for _, want := range []string{"restarting", "port: 7420", ".erbrus.yaml"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("settings page missing %q", want)
+		}
+	}
+
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	r2, err := c.PostForm(ts.URL+"/ui/settings/global", url.Values{"content": {"port: 9999\n"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2.Body.Close()
+	if r2.StatusCode != http.StatusFound {
+		t.Fatalf("valid save status = %d", r2.StatusCode)
+	}
+	data, _ := os.ReadFile(cfgPath)
+	if !strings.Contains(string(data), "9999") {
+		t.Errorf("global config not written: %q", data)
+	}
+
+	r3, _ := http.PostForm(ts.URL+"/ui/settings/global", url.Values{"content": {"port: [broken"}})
+	b3 := readBody(t, r3)
+	r3.Body.Close()
+	if r3.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid save status = %d, want 422", r3.StatusCode)
+	}
+	if !strings.Contains(b3, "yaml") && !strings.Contains(b3, "parse") {
+		t.Error("error page should mention the parse failure")
+	}
+	data, _ = os.ReadFile(cfgPath)
+	if strings.Contains(string(data), "broken") {
+		t.Error("invalid YAML must not be written")
+	}
+}
+
+func TestSettingsRepoSave(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("ERBRUS_HOME", tmp)
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	resp.Body.Close()
+	projects, _ := st.Projects()
+
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	r2, err := c.PostForm(fmt.Sprintf("%s/ui/settings/repo?project=%d", ts.URL, projects[0].ID),
+		url.Values{"content": {"session: from-ui\n"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2.Body.Close()
+	if r2.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", r2.StatusCode)
+	}
+	repoCfg, legacy, err := config.LoadRepo(projects[0].RepoPath)
+	if err != nil || legacy || repoCfg.Session != "from-ui" {
+		t.Errorf("repo config not written to new location: %+v legacy=%v err=%v", repoCfg, legacy, err)
 	}
 }
 

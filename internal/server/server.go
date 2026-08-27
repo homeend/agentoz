@@ -29,6 +29,8 @@ type Server struct {
 	spawner   spawn.Spawner
 	erbrusBin string
 	baseURL   string
+
+	configPath string
 }
 
 func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
@@ -47,6 +49,13 @@ func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
 // Server without SetRuntime simply has no spawner (tmux spawns 503).
 func (s *Server) SetRuntime(sp spawn.Spawner, erbrusBin, baseURL string) {
 	s.spawner, s.erbrusBin, s.baseURL = sp, erbrusBin, baseURL
+}
+
+// SetConfigPath wires the global config.yaml path (from cli's configPath())
+// so the settings page can show and edit it. Unset, the global section
+// renders read-only with a note.
+func (s *Server) SetConfigPath(p string) {
+	s.configPath = p
 }
 
 func (s *Server) Handler() http.Handler {
@@ -79,6 +88,9 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/ui/spawn", s.handleUISpawnPost)
 	r.Get("/ui/forward", s.handleUIForward)
 	r.Post("/ui/forward", s.handleUIForwardPost)
+	r.Get("/ui/settings", s.handleUISettings)
+	r.Post("/ui/settings/global", s.handleUISettingsGlobal)
+	r.Post("/ui/settings/repo", s.handleUISettingsRepo)
 	return r
 }
 

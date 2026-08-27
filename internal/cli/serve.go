@@ -45,6 +45,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	defer st.Close()
 
 	srv := server.New(st, cfg, wt.ExecRunner)
+	srv.SetConfigPath(configPath())
 	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", cfg.Port))
 	if err != nil {
 		fmt.Fprintln(stderr, err)
