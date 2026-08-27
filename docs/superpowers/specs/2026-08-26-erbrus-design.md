@@ -17,7 +17,7 @@ workspaces with full context.
 
 ## v1 scope
 
-- Go server + web UI (server-rendered, htmx, SSE).
+- Go server + web UI (server-rendered, small vanilla-JS layer, SSE).
 - Projects bound to git repos; channels bound to repos and worktrees.
 - Worktree detection via the `wt` tool (`wt list --json`).
 - Agent presets: partially preconfigured spawnable agents.
@@ -50,13 +50,13 @@ internal/preset/     agent presets (merge of global + project presets)
 internal/spawn/      AgentSpawner interface, TmuxSpawner, exec wrapper
 internal/integrate/  per-provider integration: prompt preamble, hooks
 internal/server/     HTTP API + SSE + web UI handlers
-internal/web/        html/template templates, htmx partials, static assets
+internal/web/        html/template templates, static assets (CSS + small JS)
 internal/client/     client-side API calls used by CLI subcommands
 internal/wt/         worktree detection (wt list --json, git fallback)
 ```
 
 Dependencies kept minimal: chi (router), modernc.org/sqlite, gopkg.in/yaml.v3.
-htmx is a vendored static asset. No Node toolchain.
+The UI uses a small hand-written vanilla-JS layer (SSE refresh, form posts) — no htmx, no vendored framework, no Node toolchain.
 
 ### Data locations
 
@@ -269,7 +269,7 @@ when it is absent (no auto-daemonize in v1).
 
 ## Web UI
 
-Server-rendered Go templates + htmx; SSE (`/events`) pushes new messages and
+Server-rendered Go templates + a small vanilla-JS layer; SSE (`/events`) pushes new messages and
 run-status changes into open channel views. Screens (see wireframes):
 
 1. **Channel view** — sidebar (projects → channels), message stream
