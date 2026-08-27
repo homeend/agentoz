@@ -14,12 +14,14 @@ func TestPreamble(t *testing.T) {
 		"review-kimi",
 		"wt/feat",
 		"/abs/bin/erbrus msg send --report",
-		"/abs/bin/erbrus msg read",
 		"before the message text",
 	} {
 		if !strings.Contains(p, want) {
 			t.Errorf("preamble missing %q\n%s", want, p)
 		}
+	}
+	if strings.Contains(p, "msg read") {
+		t.Error("preamble must not tell agents to read channel history (removed by request)")
 	}
 }
 

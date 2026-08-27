@@ -18,10 +18,8 @@ Report progress and results to the channel with this exact command (flags go bef
   %s msg send --report "what you did"
 Attach a produced document with --file:
   %s msg send --report --file /abs/path/to/report.md "summary"
-Read the channel history with:
-  %s msg read
 Post a report as your FINAL step — the next agent picks up from it.`,
-		agentName, channelName, erbrusBin, erbrusBin, erbrusBin)
+		agentName, channelName, erbrusBin, erbrusBin)
 }
 
 func AssemblePrompt(preamble, prompt, context string) string {
