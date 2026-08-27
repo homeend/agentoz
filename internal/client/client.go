@@ -157,6 +157,29 @@ func (c *Client) ListProjects() ([]Project, error) {
 	return ps, err
 }
 
+// RunResult is a union of the server's runJSON (tmux path) and fgJSON (fg
+// path) response shapes. Run is non-nil only on the fg path, where the
+// server nests the run under "run" alongside cmd_file/env.
+type RunResult struct {
+	ID         int64             `json:"id"`
+	ChannelID  int64             `json:"channel_id"`
+	Provider   string            `json:"provider"`
+	AgentName  string            `json:"agent_name"`
+	Status     string            `json:"status"`
+	TmuxTarget string            `json:"tmux_target,omitempty"`
+	Run        *RunResult        `json:"run,omitempty"`
+	CmdFile    string            `json:"cmd_file,omitempty"`
+	Env        map[string]string `json:"env,omitempty"`
+}
+
+// SpawnRun starts an agent run via POST /api/runs. req is marshaled as-is,
+// letting callers build the request incrementally (only set what applies).
+func (c *Client) SpawnRun(req map[string]any) (RunResult, error) {
+	var res RunResult
+	err := c.postJSON("/api/runs", req, &res)
+	return res, err
+}
+
 // ReportExit posts a run's exit status; used by the wrap mode.
 func (c *Client) ReportExit(runID int64, code int) error {
 	return c.postJSON(fmt.Sprintf("/api/runs/%d/exit", runID), map[string]int{"code": code}, nil)

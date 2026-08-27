@@ -14,6 +14,7 @@ const usage = `usage: erbrus <command> [flags]
 commands:
   serve      run the server
   init       register the current repo as a project (auto-configure)
+  start      spawn an agent run from a preset
   msg        send/read channel messages (msg send | msg read)
   version    print version
 `
@@ -32,6 +33,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runServe(args[1:], stdout, stderr)
 	case "init":
 		return runInit(args[1:], stdout, stderr)
+	case "start":
+		return runStart(args[1:], stdout, stderr)
 	case "msg":
 		return runMsg(args[1:], os.Stdin, stdout, stderr)
 	case "wrap":
