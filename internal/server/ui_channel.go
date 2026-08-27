@@ -154,6 +154,12 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 
 func (s *Server) handleUIChannel(w http.ResponseWriter, r *http.Request) {
 	chID := chiInt64(r, "id")
+	// Viewing a channel reads it; before the sidebar is built, so this
+	// channel's own badge is already clear.
+	if err := s.st.MarkChannelRead(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	data, status, errMsg := s.buildChannelPage(chID)
 	if status != 0 {
 		httpError(w, status, errMsg)
@@ -181,7 +187,15 @@ func (s *Server) renderChannelPartial(w http.ResponseWriter, chID int64, name st
 }
 
 func (s *Server) handleUIChannelStream(w http.ResponseWriter, r *http.Request) {
-	s.renderChannelPartial(w, chiInt64(r, "id"), "_messages.html")
+	chID := chiInt64(r, "id")
+	// The stream partial is fetched by the open channel view on every SSE
+	// message event — messages arriving while the user watches never count
+	// as unread.
+	if err := s.st.MarkChannelRead(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.renderChannelPartial(w, chID, "_messages.html")
 }
 
 func (s *Server) handleUIRunsPanel(w http.ResponseWriter, r *http.Request) {

@@ -25,7 +25,7 @@
       {{end}}
       <ul class="chanlist">
         {{range .Channels}}
-        <li><a href="/ui/channels/{{.ID}}"># {{.Name}}</a></li>
+        <li><a href="/ui/channels/{{.ID}}"># {{.Name}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}">{{.Unread}}</span>{{end}}</a></li>
         {{end}}
       </ul>
       <div class="cardfoot">

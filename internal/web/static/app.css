@@ -65,3 +65,5 @@ a:hover { text-decoration: underline; }
 .badgerow .badge { margin-top: 0; }
 .btn.small { padding: 2px 8px; font-size: 12px; }
 .cardfoot { margin-top: 10px; display: flex; justify-content: flex-end; }
+.unreadb { display: inline-block; min-width: 18px; text-align: center; font-size: 11px; line-height: 16px; border-radius: 8px; background: #7a8699; color: #fff; margin-left: 6px; padding: 0 5px; vertical-align: 1px; }
+.unreadb.attn { background: #c0392b; }

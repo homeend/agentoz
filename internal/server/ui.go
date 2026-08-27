@@ -32,9 +32,17 @@ func (s *Server) render(w http.ResponseWriter, page string, data any) {
 	}
 }
 
+// channelView is a channel plus its unread badge state for sidebars and
+// project cards.
+type channelView struct {
+	store.Channel
+	Unread    int64
+	Attention bool
+}
+
 type projectCard struct {
 	Project  store.Project
-	Channels []store.Channel
+	Channels []channelView
 	// PathMissing: the repo path no longer exists on disk. NoGit: the path
 	// exists but holds no git repo — agents can still spawn there, and the
 	// card offers an "Init git" button.
@@ -53,13 +61,22 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 	if err != nil {
 		return projectsPage{}, err
 	}
+	unread, err := s.st.UnreadByChannel()
+	if err != nil {
+		return projectsPage{}, err
+	}
 	page := projectsPage{Error: errMsg}
 	for _, p := range list {
 		chans, err := s.st.ChannelsByProject(p.ID)
 		if err != nil {
 			return projectsPage{}, err
 		}
-		card := projectCard{Project: p, Channels: chans}
+		views := make([]channelView, 0, len(chans))
+		for _, c := range chans {
+			views = append(views, channelView{Channel: c,
+				Unread: unread[c.ID].Count, Attention: unread[c.ID].Attention})
+		}
+		card := projectCard{Project: p, Channels: views}
 		if fi, err := os.Stat(p.RepoPath); err != nil || !fi.IsDir() {
 			card.PathMissing = true
 		} else if _, err := os.Stat(filepath.Join(p.RepoPath, ".git")); err != nil {
