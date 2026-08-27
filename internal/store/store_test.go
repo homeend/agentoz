@@ -134,4 +134,19 @@ func TestRunLifecycle(t *testing.T) {
 	if len(running) != 0 {
 		t.Fatal("finished run still listed as running")
 	}
+
+	r2, err := s.CreateRun(AgentRun{
+		ChannelID: c.ID, Provider: "codex", AgentName: "impl2",
+		Workdir: "/x", Status: "starting", Spawner: "tmux",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.StartRun(r2.ID, "x:1"); err != nil {
+		t.Fatal(err)
+	}
+	got2, _, _ := s.RunByID(r2.ID)
+	if got2.Status != "running" || got2.TmuxTarget != "x:1" {
+		t.Fatalf("after StartRun: %+v", got2)
+	}
 }

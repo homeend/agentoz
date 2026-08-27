@@ -1,0 +1,284 @@
+package server
+
+import (
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"erbrus/internal/config"
+	"erbrus/internal/integrate"
+	"erbrus/internal/preset"
+	"erbrus/internal/provider"
+	"erbrus/internal/spawn"
+	"erbrus/internal/store"
+)
+
+type runRequest struct {
+	ChannelID       int64  `json:"channel_id"`
+	Preset          string `json:"preset"`
+	Provider        string `json:"provider"`
+	Name            string `json:"name"`
+	Model           string `json:"model"`
+	Args            string `json:"args"`
+	Prompt          string `json:"prompt"`
+	Workdir         string `json:"workdir"`
+	Fg              bool   `json:"fg"`
+	OriginMessageID int64  `json:"origin_message_id"`
+}
+
+type runJSON struct {
+	ID         int64  `json:"id"`
+	ChannelID  int64  `json:"channel_id"`
+	Provider   string `json:"provider"`
+	AgentName  string `json:"agent_name"`
+	Status     string `json:"status"`
+	TmuxTarget string `json:"tmux_target,omitempty"`
+	ExitCode   *int64 `json:"exit_code,omitempty"`
+}
+
+type fgJSON struct {
+	Run     runJSON           `json:"run"`
+	CmdFile string            `json:"cmd_file"`
+	Env     map[string]string `json:"env"`
+}
+
+func toRunJSON(r store.AgentRun) runJSON {
+	rj := runJSON{ID: r.ID, ChannelID: r.ChannelID, Provider: r.Provider,
+		AgentName: r.AgentName, Status: r.Status, TmuxTarget: r.TmuxTarget}
+	if r.HasExit {
+		v := r.ExitCode
+		rj.ExitCode = &v
+	}
+	return rj
+}
+
+// system posts a system message to a channel and publishes it.
+func (s *Server) system(channelID int64, body string) {
+	m, err := s.st.CreateMessage(store.Message{ChannelID: channelID, Kind: "system", AuthorKind: "system", Body: body})
+	if err == nil {
+		s.hub.Publish("message", s.messageJSON(m))
+	}
+}
+
+// firstNonEmpty returns the first non-empty value: explicit beats preset,
+// preset beats zero.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// joinNonEmpty joins a and b with sep, skipping either side if empty.
+func joinNonEmpty(a, b, sep string) string {
+	if a == "" {
+		return b
+	}
+	if b == "" {
+		return a
+	}
+	return a + sep + b
+}
+
+func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
+	var req runRequest
+	if err := decodeBody(r, &req); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Step 1: channel + project lookup.
+	channel, ok, err := s.st.ChannelByID(req.ChannelID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	project, ok, err := s.st.ProjectByID(channel.ProjectID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "project not found")
+		return
+	}
+
+	// Step 2: preset overlay, provider resolution.
+	repoCfg, _, _ := config.LoadRepo(project.RepoPath)
+	presets := preset.Merge(s.cfg.Presets, repoCfg.Presets)
+	var presetCfg config.Preset
+	if req.Preset != "" {
+		presetCfg, err = preset.Resolve(req.Preset, presets)
+		if err != nil {
+			httpError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	providerName := firstNonEmpty(req.Provider, presetCfg.Provider)
+	if providerName == "" {
+		httpError(w, http.StatusBadRequest, "provider is required")
+		return
+	}
+	if _, ok := s.cfg.Providers[providerName]; !ok {
+		httpError(w, http.StatusBadRequest, fmt.Sprintf("unknown provider %q", providerName))
+		return
+	}
+	model := firstNonEmpty(req.Model, presetCfg.Model)
+	argsStr := firstNonEmpty(req.Args, presetCfg.Args)
+	promptText := firstNonEmpty(req.Prompt, presetCfg.Prompt)
+	agentName := firstNonEmpty(req.Name, presetCfg.Name, req.Preset, providerName)
+
+	// Step 3: workdir default.
+	workdir := firstNonEmpty(req.Workdir, channel.WorktreePath, project.RepoPath)
+
+	// Step 4: create the run row.
+	spawnerKind := "tmux"
+	if req.Fg {
+		spawnerKind = "fg"
+	}
+	run, err := s.st.CreateRun(store.AgentRun{
+		ChannelID: req.ChannelID, PresetName: req.Preset, Provider: providerName,
+		AgentName: agentName, Model: model, ExtraArgs: argsStr, Prompt: promptText,
+		Workdir: workdir, Status: "starting", Spawner: spawnerKind,
+		OriginMessageID: req.OriginMessageID,
+	})
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Step 5: run dir + handoff.
+	runDir := filepath.Join(s.dataDir, "runs", fmt.Sprint(run.ID))
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var handoffContext string
+	if req.OriginMessageID != 0 {
+		msg, ok, err := s.st.MessageByID(req.OriginMessageID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok {
+			httpError(w, http.StatusNotFound, "origin message not found")
+			return
+		}
+		originChannel, _, err := s.st.ChannelByID(msg.ChannelID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		artifacts, err := s.st.ArtifactsByMessage(msg.ID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		var artifactPaths []string
+		for _, a := range artifacts {
+			artifactPaths = append(artifactPaths, a.Path)
+		}
+		handoffContext = integrate.HandoffContext(project.Name, originChannel.Name, msg.AuthorName,
+			msg.CreatedAt.Format("2006-01-02 15:04:05"), msg.Body, artifactPaths)
+		s.system(msg.ChannelID, fmt.Sprintf("report handed off to #%s (run %d)", channel.Name, run.ID))
+	}
+
+	// Step 6: provider hook + args.
+	hookArgs, _ := integrate.ProviderHook(providerName, runDir, s.erbrusBin)
+	fullArgs := joinNonEmpty(argsStr, hookArgs, " ")
+
+	// Step 7: assemble prompt, render command.
+	preamble := integrate.Preamble(s.erbrusBin, agentName, channel.Name)
+	fullPrompt := integrate.AssemblePrompt(preamble, promptText, handoffContext)
+	command, err := provider.Registry(s.cfg.Providers).Render(providerName, model, fullArgs, fullPrompt)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Step 8: write cmd.sh.
+	cmdPath := filepath.Join(runDir, "cmd.sh")
+	cmdContent := fmt.Sprintf("#!/bin/sh\nexec %s\n", command)
+	if err := os.WriteFile(cmdPath, []byte(cmdContent), 0o755); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Step 9: env.
+	env := map[string]string{
+		"ERBRUS_URL":     s.baseURL,
+		"ERBRUS_TOKEN":   run.Token,
+		"ERBRUS_CHANNEL": fmt.Sprint(req.ChannelID),
+		"ERBRUS_RUN_ID":  fmt.Sprint(run.ID),
+	}
+
+	// Step 10: fg path — no spawner needed, run stays "starting".
+	if req.Fg {
+		writeJSON(w, http.StatusCreated, fgJSON{Run: toRunJSON(run), CmdFile: cmdPath, Env: env})
+		return
+	}
+
+	// Step 11: tmux path.
+	if s.spawner == nil {
+		httpError(w, http.StatusServiceUnavailable, "no spawner configured")
+		return
+	}
+	session := repoCfg.Session
+	if session == "" {
+		session = strings.ReplaceAll(s.cfg.SessionPattern, "{project}", project.Name)
+	}
+	spec := spawn.RunSpec{
+		Session:       session,
+		AttachSession: repoCfg.AttachSession,
+		WindowName:    agentName,
+		Workdir:       workdir,
+		Env:           env,
+		Command:       []string{s.erbrusBin, "wrap", cmdPath},
+	}
+	handle, err := s.spawner.Spawn(spec)
+	if err != nil {
+		s.st.FinishRun(run.ID, "failed", -1)
+		s.system(req.ChannelID, fmt.Sprintf("spawn failed: %s", err))
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.st.StartRun(run.ID, string(handle)); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	run.Status = "running"
+	run.TmuxTarget = string(handle)
+	s.system(req.ChannelID, fmt.Sprintf("%s spawned in tmux %s", agentName, handle))
+	rj := toRunJSON(run)
+	s.hub.Publish("run", rj)
+	writeJSON(w, http.StatusCreated, rj)
+}
+
+func (s *Server) handleChannelRuns(w http.ResponseWriter, r *http.Request) {
+	chID := chiInt64(r, "id")
+	if _, ok, err := s.st.ChannelByID(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
+		httpError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	runs, err := s.st.RunsByChannel(chID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	out := []runJSON{}
+	for _, run := range runs {
+		out = append(out, toRunJSON(run))
+	}
+	writeJSON(w, http.StatusOK, out)
+}

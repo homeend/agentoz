@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"erbrus/internal/config"
+	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 	"erbrus/internal/wt"
 )
@@ -21,10 +22,21 @@ type Server struct {
 	run     wt.Runner
 	dataDir string
 	hub     *Hub
+
+	spawner   spawn.Spawner
+	erbrusBin string
+	baseURL   string
 }
 
 func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
 	return &Server{st: st, cfg: cfg, run: run, dataDir: cfg.ResolvedDataDir(), hub: NewHub()}
+}
+
+// SetRuntime wires the spawn runtime (spawner, erbrus binary path, and the
+// base URL agents call back to). Called by serve; nil-safe fields — a
+// Server without SetRuntime simply has no spawner (tmux spawns 503).
+func (s *Server) SetRuntime(sp spawn.Spawner, erbrusBin, baseURL string) {
+	s.spawner, s.erbrusBin, s.baseURL = sp, erbrusBin, baseURL
 }
 
 func (s *Server) Handler() http.Handler {
@@ -35,6 +47,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/channels/{id}/messages", s.handleGetMessages)
 		r.Post("/channels/{id}/messages", s.handlePostMessage)
 		r.Post("/messages/{id}/forward", s.handleForward)
+		r.Post("/runs", s.handleSpawnRun)
+		r.Get("/channels/{id}/runs", s.handleChannelRuns)
 	})
 	r.Get("/events", s.handleEvents)
 	return r

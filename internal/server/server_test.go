@@ -22,6 +22,10 @@ const wtJSON = `[
   {"path": "%s", "branch": "refs/heads/wt/feat", "head": "def", "is_main": false}
 ]`
 
+// testSrv holds the last *Server built by newTestServer, so tests can reach
+// SetRuntime (not exposed via the HTTP API).
+var testSrv *Server
+
 // newTestServer returns the server, its store, and a fake repo root whose
 // worktree listing contains main + one worktree.
 func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
@@ -41,7 +45,15 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	}
 	cfg := config.Defaults()
 	cfg.DataDir = t.TempDir()
+	cfg.Providers = map[string]config.Provider{
+		"codex": {Command: `codex {args} "{prompt}"`},
+		"kimi":  {Command: `kimi --model {model} {args} "{prompt}"`},
+	}
+	cfg.Presets = map[string]config.Preset{
+		"kimi": {Provider: "kimi", Model: "k3"},
+	}
 	srv := New(st, cfg, run)
+	testSrv = srv
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return ts, st, root

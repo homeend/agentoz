@@ -393,3 +393,9 @@ func (s *Store) FinishRun(id int64, status string, exitCode int64) error {
 		status, exitCode, id)
 	return err
 }
+
+// StartRun marks a run running and records its tmux target.
+func (s *Store) StartRun(id int64, tmuxTarget string) error {
+	_, err := s.db.Exec(`UPDATE agent_runs SET status = 'running', tmux_target = ? WHERE id = ?`, tmuxTarget, id)
+	return err
+}
