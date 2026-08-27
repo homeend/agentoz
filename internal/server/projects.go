@@ -52,28 +52,39 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "repo_path is required")
 		return
 	}
-	root, err := filepath.Abs(config.ExpandHome(req.RepoPath))
-	if err != nil {
-		httpError(w, http.StatusBadRequest, err.Error())
+
+	p, warning, created, status, errMsg := s.addProjectCore(req.RepoPath)
+	if status != 0 {
+		httpError(w, status, errMsg)
 		return
 	}
 
-	if p, ok, err := s.st.ProjectByPath(root); err != nil {
+	pj, err := s.projectJSON(p, created, warning)
+	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
+	}
+	writeJSON(w, http.StatusOK, pj)
+}
+
+// addProjectCore: everything handleAddProject does after decoding —
+// absolutize+ExpandHome, lookup (500 on store error), create with the
+// isNameCollision suffix loop, ensureChannels. created reports whether a
+// new row was made; warning is ensureChannels' warning string.
+func (s *Server) addProjectCore(repoPath string) (p store.Project, warning string, created bool, status int, errMsg string) {
+	root, err := filepath.Abs(config.ExpandHome(repoPath))
+	if err != nil {
+		return store.Project{}, "", false, http.StatusBadRequest, err.Error()
+	}
+
+	if existing, ok, err := s.st.ProjectByPath(root); err != nil {
+		return store.Project{}, "", false, http.StatusInternalServerError, err.Error()
 	} else if ok {
-		warning := s.ensureChannels(p)
-		pj, err := s.projectJSON(p, false, warning)
-		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		writeJSON(w, http.StatusOK, pj)
-		return
+		warning := s.ensureChannels(existing)
+		return existing, warning, false, 0, ""
 	}
 
 	base := filepath.Base(root)
-	var p store.Project
 	name := base
 	for i := 2; ; i++ {
 		var cerr error
@@ -82,20 +93,13 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if !isNameCollision(cerr) || i > 9 {
-			httpError(w, http.StatusInternalServerError, cerr.Error())
-			return
+			return store.Project{}, "", false, http.StatusInternalServerError, cerr.Error()
 		}
 		name = fmt.Sprintf("%s-%d", base, i)
 	}
 
-	warning := s.ensureChannels(p)
-
-	pj, err := s.projectJSON(p, true, warning)
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	writeJSON(w, http.StatusOK, pj)
+	warning = s.ensureChannels(p)
+	return p, warning, true, 0, ""
 }
 
 // isNameCollision reports whether err is the projects.name UNIQUE

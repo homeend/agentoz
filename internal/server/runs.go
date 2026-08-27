@@ -109,49 +109,52 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	payload, status, errMsg := s.spawnRunCore(req)
+	if status != 0 {
+		httpError(w, status, errMsg)
+		return
+	}
+	writeJSON(w, http.StatusCreated, payload)
+}
+
+// spawnRunCore: everything handleSpawnRun does after decoding. payload is
+// runJSON (tmux) or fgJSON (fg) on success with status 0.
+func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg string) {
 	// Step 1: channel + project lookup.
 	channel, ok, err := s.st.ChannelByID(req.ChannelID)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 	if !ok {
-		httpError(w, http.StatusNotFound, "channel not found")
-		return
+		return nil, http.StatusNotFound, "channel not found"
 	}
 	project, ok, err := s.st.ProjectByID(channel.ProjectID)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 	if !ok {
-		httpError(w, http.StatusNotFound, "project not found")
-		return
+		return nil, http.StatusNotFound, "project not found"
 	}
 
 	// Step 2: repo config, preset overlay, provider resolution.
 	repoCfg, _, err := config.LoadRepo(project.RepoPath)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, "repo config invalid: "+err.Error())
-		return
+		return nil, http.StatusBadRequest, "repo config invalid: " + err.Error()
 	}
 	presets := preset.Merge(s.cfg.Presets, repoCfg.Presets)
 	var presetCfg config.Preset
 	if req.Preset != "" {
 		presetCfg, err = preset.Resolve(req.Preset, presets)
 		if err != nil {
-			httpError(w, http.StatusBadRequest, err.Error())
-			return
+			return nil, http.StatusBadRequest, err.Error()
 		}
 	}
 	providerName := firstNonEmpty(req.Provider, presetCfg.Provider)
 	if providerName == "" {
-		httpError(w, http.StatusBadRequest, "provider is required")
-		return
+		return nil, http.StatusBadRequest, "provider is required"
 	}
 	if _, ok := s.cfg.Providers[providerName]; !ok {
-		httpError(w, http.StatusBadRequest, fmt.Sprintf("unknown provider %q", providerName))
-		return
+		return nil, http.StatusBadRequest, fmt.Sprintf("unknown provider %q", providerName)
 	}
 	model := firstNonEmpty(req.Model, presetCfg.Model)
 	argsStr := firstNonEmpty(req.Args, presetCfg.Args)
@@ -162,12 +165,10 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	// generated hook args are appended) land unquoted in the rendered
 	// command — reject shell metacharacters before anything is created.
 	if !validModel(model) {
-		httpError(w, http.StatusBadRequest, "invalid model")
-		return
+		return nil, http.StatusBadRequest, "invalid model"
 	}
 	if !validArgs(argsStr) {
-		httpError(w, http.StatusBadRequest, "args contains shell metacharacters")
-		return
+		return nil, http.StatusBadRequest, "args contains shell metacharacters"
 	}
 
 	// Step 3: workdir default.
@@ -177,8 +178,7 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	// and the origin-message lookup. Neither must leave an orphaned
 	// "starting" run row behind on failure.
 	if !req.Fg && s.spawner == nil {
-		httpError(w, http.StatusServiceUnavailable, "no spawner configured")
-		return
+		return nil, http.StatusServiceUnavailable, "no spawner configured"
 	}
 	var handoffContext string
 	var originMsg store.Message
@@ -186,31 +186,25 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	if haveOrigin {
 		msg, ok, err := s.st.MessageByID(req.OriginMessageID)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
+			return nil, http.StatusInternalServerError, err.Error()
 		}
 		if !ok {
-			httpError(w, http.StatusNotFound, "origin message not found")
-			return
+			return nil, http.StatusNotFound, "origin message not found"
 		}
 		originChannel, _, err := s.st.ChannelByID(msg.ChannelID)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
+			return nil, http.StatusInternalServerError, err.Error()
 		}
 		originProject, ok, err := s.st.ProjectByID(originChannel.ProjectID)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
+			return nil, http.StatusInternalServerError, err.Error()
 		}
 		if !ok {
-			httpError(w, http.StatusNotFound, "origin project not found")
-			return
+			return nil, http.StatusNotFound, "origin project not found"
 		}
 		artifacts, err := s.st.ArtifactsByMessage(msg.ID)
 		if err != nil {
-			httpError(w, http.StatusInternalServerError, err.Error())
-			return
+			return nil, http.StatusInternalServerError, err.Error()
 		}
 		var artifactPaths []string
 		for _, a := range artifacts {
@@ -233,15 +227,13 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 		OriginMessageID: req.OriginMessageID,
 	})
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 
 	// Step 5: run dir.
 	runDir := filepath.Join(s.dataDir, "runs", fmt.Sprint(run.ID))
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 
 	// Step 6: provider hook + args.
@@ -253,16 +245,14 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	fullPrompt := integrate.AssemblePrompt(preamble, promptText, handoffContext)
 	command, err := provider.Registry(s.cfg.Providers).Render(providerName, model, fullArgs, fullPrompt)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 
 	// Step 8: write cmd.sh.
 	cmdPath := filepath.Join(runDir, "cmd.sh")
 	cmdContent := fmt.Sprintf("#!/bin/sh\nexec %s\n", command)
 	if err := os.WriteFile(cmdPath, []byte(cmdContent), 0o755); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 
 	// Step 9: env.
@@ -285,8 +275,7 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	// Step 10: fg path — no spawner needed, run stays "starting".
 	if req.Fg {
 		announceHandoff()
-		writeJSON(w, http.StatusCreated, fgJSON{Run: toRunJSON(run), CmdFile: cmdPath, Env: env})
-		return
+		return fgJSON{Run: toRunJSON(run), CmdFile: cmdPath, Env: env}, 0, ""
 	}
 
 	// Step 11: tmux path (spawner-nil already checked above).
@@ -306,12 +295,10 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.st.FinishRun(run.ID, "failed", -1)
 		s.system(req.ChannelID, fmt.Sprintf("spawn failed: %s", err))
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 	if err := s.st.StartRun(run.ID, string(handle)); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 	run.Status = "running"
 	run.TmuxTarget = string(handle)
@@ -319,7 +306,7 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	announceHandoff()
 	rj := toRunJSON(run)
 	s.hub.Publish("run", rj)
-	writeJSON(w, http.StatusCreated, rj)
+	return rj, 0, ""
 }
 
 // Reconcile marks tmux runs whose window no longer exists as failed, with a
@@ -392,18 +379,25 @@ func (s *Server) handleRunExit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request) {
 	id := chiInt64(r, "id")
+	rj, status, errMsg := s.stopRunCore(id)
+	if status != 0 {
+		httpError(w, status, errMsg)
+		return
+	}
+	writeJSON(w, http.StatusOK, rj)
+}
+
+// stopRunCore: everything handleRunStop does after the id parse.
+func (s *Server) stopRunCore(id int64) (rj runJSON, status int, errMsg string) {
 	run, ok, err := s.st.RunByID(id)
 	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return runJSON{}, http.StatusInternalServerError, err.Error()
 	}
 	if !ok {
-		httpError(w, http.StatusNotFound, "run not found")
-		return
+		return runJSON{}, http.StatusNotFound, "run not found"
 	}
 	if run.Status != "starting" && run.Status != "running" {
-		httpError(w, http.StatusConflict, "run already finished")
-		return
+		return runJSON{}, http.StatusConflict, "run already finished"
 	}
 	if run.TmuxTarget != "" && s.spawner != nil {
 		if err := s.spawner.Stop(spawn.Handle(run.TmuxTarget)); err != nil {
@@ -411,13 +405,12 @@ func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := s.st.FinishRun(run.ID, "stopped", -1); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
+		return runJSON{}, http.StatusInternalServerError, err.Error()
 	}
 	s.system(run.ChannelID, fmt.Sprintf("%s stopped by user", run.AgentName))
 	got, _, _ := s.st.RunByID(run.ID)
 	s.hub.Publish("run", toRunJSON(got))
-	writeJSON(w, http.StatusOK, toRunJSON(got))
+	return toRunJSON(got), 0, ""
 }
 
 func (s *Server) handleChannelRuns(w http.ResponseWriter, r *http.Request) {
