@@ -17,12 +17,12 @@ type channelOption struct {
 }
 
 type spawnPage struct {
-	Channel  store.Channel     // dialog's default target
-	Project  store.Project     // default target's project (whose presets are listed)
-	Channels []channelOption   // ALL channels across ALL projects, default first
-	Presets  []string          // merged for the DEFAULT project (pinned limitation, help text says so)
-	Preset   string            // preselected via ?preset=
-	Origin   *msgView          // context banner when ?origin= given
+	Channel  store.Channel   // dialog's default target
+	Project  store.Project   // default target's project (whose presets are listed)
+	Channels []channelOption // ALL channels across ALL projects, default first
+	Presets  []string        // merged for the DEFAULT project (pinned limitation, help text says so)
+	Preset   string          // preselected via ?preset=
+	Origin   *msgView        // context banner when ?origin= given
 	OriginID int64
 	Error    string
 	Form     map[string]string // echo-back on error

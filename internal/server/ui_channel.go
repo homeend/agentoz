@@ -20,6 +20,7 @@ type msgView struct {
 	IsReport  bool
 	IsSystem  bool
 	Artifacts []store.Artifact
+	Origin    string // "report from <project> / #<channel> by <author>", "" if not a forward or lookup failed
 }
 
 type runView struct {
@@ -64,7 +65,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		return channelPage{}, http.StatusInternalServerError, err.Error()
 	}
 
-	msgs, err := s.st.MessagesSince(chID, 0, 500)
+	msgs, err := s.st.MessagesLatest(chID, 500)
 	if err != nil {
 		return channelPage{}, http.StatusInternalServerError, err.Error()
 	}
@@ -74,6 +75,23 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		if err != nil {
 			return channelPage{}, http.StatusInternalServerError, err.Error()
 		}
+
+		var origin string
+		if m.OriginMessageID != 0 {
+			if src, ok, err := s.st.MessageByID(m.OriginMessageID); err == nil && ok {
+				if srcChan, ok, err := s.st.ChannelByID(src.ChannelID); err == nil && ok {
+					if srcProj, ok, err := s.st.ProjectByID(srcChan.ProjectID); err == nil && ok {
+						origin = fmt.Sprintf("%s from %s / #%s by %s", src.Kind, srcProj.Name, srcChan.Name, src.AuthorName)
+					}
+				}
+			}
+			if len(arts) == 0 {
+				if originArts, err := s.st.ArtifactsByMessage(m.OriginMessageID); err == nil {
+					arts = originArts
+				}
+			}
+		}
+
 		msgViews = append(msgViews, msgView{
 			ID:        m.ID,
 			Kind:      m.Kind,
@@ -83,6 +101,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			IsReport:  m.Kind == "report",
 			IsSystem:  m.Kind == "system",
 			Artifacts: arts,
+			Origin:    origin,
 		})
 	}
 

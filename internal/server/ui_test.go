@@ -1,8 +1,10 @@
 package server
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -74,6 +76,22 @@ func TestProjectsPageAddForm(t *testing.T) {
 	projects, _ := st.Projects()
 	if len(projects) != 1 {
 		t.Fatalf("projects = %d, want 1", len(projects))
+	}
+}
+
+func TestProjectsPageWarningBanner(t *testing.T) {
+	ts, _, _ := newTestServer(t)
+	resp, err := http.Get(ts.URL + "/ui/projects?warning=xyz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, `<div class="banner">xyz</div>`) {
+		t.Errorf("warning banner missing from page: %s", body)
 	}
 }
 
@@ -328,6 +346,49 @@ func TestForwardDialogAndPost(t *testing.T) {
 	}
 	if !found {
 		t.Error("forwarded copy not in target channel")
+	}
+}
+
+func TestForwardedMessageShowsProvenanceAndArtifacts(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chans := p["channels"].([]any)
+	src := int64(chans[0].(map[string]any)["id"].(float64))
+	dst := int64(chans[1].(map[string]any)["id"].(float64))
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	w.WriteField("kind", "report")
+	w.WriteField("body", "the source report")
+	fw, _ := w.CreateFormFile("file", "provenance.md")
+	io.WriteString(fw, "# findings")
+	w.Close()
+	mresp, err := http.Post(fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, src), w.FormDataContentType(), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := decode[map[string]any](t, mresp)
+	msgID := int64(m["id"].(float64))
+
+	fresp := postJSON(t, fmt.Sprintf("%s/api/messages/%d/forward", ts.URL, msgID), map[string]int64{"channel_id": dst})
+	fresp.Body.Close()
+
+	projectName := p["name"].(string)
+
+	dresp, err := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, dst))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, dresp)
+	dresp.Body.Close()
+	if dresp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", dresp.StatusCode)
+	}
+	for _, want := range []string{"the source report", projectName, "provenance.md"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("target channel page missing %q: %s", want, body)
+		}
 	}
 }
 

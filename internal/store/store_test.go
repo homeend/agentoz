@@ -101,6 +101,36 @@ func TestMessagesSinceAndArtifacts(t *testing.T) {
 	}
 }
 
+func TestMessagesLatest(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("x", "/x")
+	c, _ := s.CreateChannel(p.ID, "general", "", "")
+	var ids []int64
+	for _, body := range []string{"one", "two", "three", "four", "five"} {
+		m, err := s.CreateMessage(Message{ChannelID: c.ID, Kind: "message", AuthorKind: "human", Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids = append(ids, m.ID)
+	}
+	msgs, err := s.MessagesLatest(c.ID, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("len = %d, want 3", len(msgs))
+	}
+	wantBodies := []string{"three", "four", "five"}
+	for i, want := range wantBodies {
+		if msgs[i].Body != want {
+			t.Errorf("msgs[%d].Body = %q, want %q (must be oldest-first)", i, msgs[i].Body, want)
+		}
+	}
+	if msgs[0].ID != ids[2] || msgs[2].ID != ids[4] {
+		t.Errorf("ids = %+v, want tail of %+v", msgs, ids)
+	}
+}
+
 func TestRunLifecycle(t *testing.T) {
 	s := open(t)
 	p, _ := s.CreateProject("x", "/x")

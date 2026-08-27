@@ -9,6 +9,7 @@
     {{if .IsReport}}<span class="tag">REPORT</span>{{end}}
     <span>{{.When}}</span>
   </div>
+  {{if .Origin}}<div class="muted small">↳ {{.Origin}}</div>{{end}}
   <div class="body">{{.Body}}</div>
   {{range .Artifacts}}
   <a class="artifact" href="/api/artifacts/{{.ID}}">{{.Filename}} ({{.Size}} B)</a>

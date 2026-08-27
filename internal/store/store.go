@@ -267,6 +267,36 @@ func (s *Store) MessagesSince(channelID, sinceID int64, limit int) ([]Message, e
 	return out, rows.Err()
 }
 
+// MessagesLatest returns the newest `limit` messages, oldest-first.
+func (s *Store) MessagesLatest(channelID int64, limit int) ([]Message, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+	// Fetch newest-first (so LIMIT keeps the tail of the channel), then
+	// reverse in Go to hand back the usual oldest-first order.
+	rows, err := s.db.Query(`SELECT `+msgCols+` FROM messages
+		WHERE channel_id = ? ORDER BY id DESC LIMIT ?`, channelID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Message
+	for rows.Next() {
+		m, err := scanMessage(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, nil
+}
+
 func (s *Store) AddArtifact(a Artifact) (Artifact, error) {
 	res, err := s.db.Exec(`INSERT INTO artifacts (message_id, filename, path, size) VALUES (?, ?, ?, ?)`,
 		a.MessageID, a.Filename, a.Path, a.Size)

@@ -9,7 +9,7 @@
 
   function refresh(el, path) {
     fetch(path)
-      .then(function (r) { return r.text(); })
+      .then(function (r) { if (!r.ok) throw new Error('refresh failed'); return r.text(); })
       .then(function (html) {
         el.innerHTML = html;
         if (el === messages) el.scrollTop = el.scrollHeight;

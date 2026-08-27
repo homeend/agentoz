@@ -8,6 +8,7 @@
 </header>
 <main class="page">
   {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+  {{if .Warning}}<div class="banner">{{.Warning}}</div>{{end}}
   <div class="cards">
     {{range .Projects}}
     <div class="card">

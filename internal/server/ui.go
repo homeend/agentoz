@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"net/url"
 	"time"
 
 	"erbrus/internal/store"
@@ -37,6 +38,7 @@ type projectCard struct {
 type projectsPage struct {
 	Projects []projectCard
 	Error    string
+	Warning  string
 }
 
 func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
@@ -61,6 +63,7 @@ func (s *Server) handleUIProjects(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	data.Warning = r.URL.Query().Get("warning")
 	s.render(w, "projects", data)
 }
 
@@ -70,8 +73,13 @@ func (s *Server) handleUIAddProject(w http.ResponseWriter, r *http.Request) {
 		s.renderProjectsError(w, "repo_path is required")
 		return
 	}
-	if _, _, _, status, errMsg := s.addProjectCore(repoPath); status != 0 {
+	_, warning, _, status, errMsg := s.addProjectCore(repoPath)
+	if status != 0 {
 		s.renderProjectsError(w, errMsg)
+		return
+	}
+	if warning != "" {
+		http.Redirect(w, r, "/ui/projects?warning="+url.QueryEscape(warning), http.StatusFound)
 		return
 	}
 	http.Redirect(w, r, "/ui/projects", http.StatusFound)

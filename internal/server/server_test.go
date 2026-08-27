@@ -407,6 +407,43 @@ func TestArtifactDownload(t *testing.T) {
 	nresp.Body.Close()
 }
 
+func TestOriginGuard(t *testing.T) {
+	ts, _, root := newTestServer(t)
+
+	postWithOrigin := func(origin string) *http.Response {
+		t.Helper()
+		b, _ := json.Marshal(map[string]string{"repo_path": root})
+		req, _ := http.NewRequest("POST", ts.URL+"/api/projects", bytes.NewReader(b))
+		req.Header.Set("Content-Type", "application/json")
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return resp
+	}
+
+	evil := postWithOrigin("https://evil.example")
+	evil.Body.Close()
+	if evil.StatusCode != http.StatusForbidden {
+		t.Errorf("evil origin status = %d, want 403", evil.StatusCode)
+	}
+
+	local := postWithOrigin("http://127.0.0.1:7420")
+	local.Body.Close()
+	if local.StatusCode != http.StatusOK {
+		t.Errorf("local origin status = %d, want 200", local.StatusCode)
+	}
+
+	none := postWithOrigin("")
+	none.Body.Close()
+	if none.StatusCode != http.StatusOK {
+		t.Errorf("no origin status = %d, want 200", none.StatusCode)
+	}
+}
+
 func TestIsNameCollision(t *testing.T) {
 	nameErr := errors.New("constraint failed: UNIQUE constraint failed: projects.name (2067)")
 	if !isNameCollision(nameErr) {

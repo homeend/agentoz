@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -58,8 +59,27 @@ func (s *Server) SetConfigPath(p string) {
 	s.configPath = p
 }
 
+// originGuard rejects state-changing requests whose Origin header names a
+// non-local origin. Requests with NO Origin header (curl, agents, same-site
+// form posts from older browsers) are always allowed.
+func originGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if o := r.Header.Get("Origin"); o != "" {
+				u, err := url.Parse(o)
+				if err != nil || (u.Hostname() != "127.0.0.1" && u.Hostname() != "localhost" && u.Hostname() != "::1") {
+					httpError(w, http.StatusForbidden, "cross-origin request rejected")
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
+	r.Use(originGuard)
 	r.Route("/api", func(r chi.Router) {
 		r.Post("/projects", s.handleAddProject)
 		r.Get("/projects", s.handleListProjects)
