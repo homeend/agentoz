@@ -71,6 +71,25 @@ func TestProjectsPageAddForm(t *testing.T) {
 	}
 }
 
+func TestProjectsPageAddFormErrorRerenders(t *testing.T) {
+	ts, _, _ := newTestServer(t)
+	resp, err := http.PostForm(ts.URL+"/ui/projects", url.Values{"repo_path": {""}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", resp.StatusCode)
+	}
+	if !strings.Contains(body, "repo_path is required") {
+		t.Errorf("error message missing from re-render: %q", body[:min(300, len(body))])
+	}
+	if !strings.Contains(body, "Add project") {
+		t.Error("re-render should still be the projects page")
+	}
+}
+
 func readBody(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)
