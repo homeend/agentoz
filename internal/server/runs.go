@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"erbrus/internal/config"
@@ -84,6 +85,23 @@ func joinNonEmpty(a, b, sep string) string {
 	return a + sep + b
 }
 
+var modelRe = regexp.MustCompile(`^[A-Za-z0-9._:-]*$`)
+
+// validModel reports whether model is safe to splice unquoted into a
+// rendered shell command (provider templates place {model} bare).
+func validModel(model string) bool {
+	return modelRe.MatchString(model)
+}
+
+// shellMetaChars are bytes that must not appear in request/preset-supplied
+// args, since they land unquoted inside the rendered command. Server-
+// generated hook args are appended after this check and are trusted.
+const shellMetaChars = ";|&$()`<>\n"
+
+func validArgs(args string) bool {
+	return !strings.ContainsAny(args, shellMetaChars)
+}
+
 func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	var req runRequest
 	if err := decodeBody(r, &req); err != nil {
@@ -111,8 +129,12 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 2: preset overlay, provider resolution.
-	repoCfg, _, _ := config.LoadRepo(project.RepoPath)
+	// Step 2: repo config, preset overlay, provider resolution.
+	repoCfg, _, err := config.LoadRepo(project.RepoPath)
+	if err != nil {
+		httpError(w, http.StatusBadRequest, "repo config invalid: "+err.Error())
+		return
+	}
 	presets := preset.Merge(s.cfg.Presets, repoCfg.Presets)
 	var presetCfg config.Preset
 	if req.Preset != "" {
@@ -136,33 +158,32 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	promptText := firstNonEmpty(req.Prompt, presetCfg.Prompt)
 	agentName := firstNonEmpty(req.Name, presetCfg.Name, req.Preset, providerName)
 
+	// model/args (the overlaid, request-or-preset values, BEFORE server-
+	// generated hook args are appended) land unquoted in the rendered
+	// command — reject shell metacharacters before anything is created.
+	if !validModel(model) {
+		httpError(w, http.StatusBadRequest, "invalid model")
+		return
+	}
+	if !validArgs(argsStr) {
+		httpError(w, http.StatusBadRequest, "args contains shell metacharacters")
+		return
+	}
+
 	// Step 3: workdir default.
 	workdir := firstNonEmpty(req.Workdir, channel.WorktreePath, project.RepoPath)
 
-	// Step 4: create the run row.
-	spawnerKind := "tmux"
-	if req.Fg {
-		spawnerKind = "fg"
-	}
-	run, err := s.st.CreateRun(store.AgentRun{
-		ChannelID: req.ChannelID, PresetName: req.Preset, Provider: providerName,
-		AgentName: agentName, Model: model, ExtraArgs: argsStr, Prompt: promptText,
-		Workdir: workdir, Status: "starting", Spawner: spawnerKind,
-		OriginMessageID: req.OriginMessageID,
-	})
-	if err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	// Step 5: run dir + handoff.
-	runDir := filepath.Join(s.dataDir, "runs", fmt.Sprint(run.ID))
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		httpError(w, http.StatusInternalServerError, err.Error())
+	// Hoisted ahead of CreateRun: the spawner-nil check (tmux path only)
+	// and the origin-message lookup. Neither must leave an orphaned
+	// "starting" run row behind on failure.
+	if !req.Fg && s.spawner == nil {
+		httpError(w, http.StatusServiceUnavailable, "no spawner configured")
 		return
 	}
 	var handoffContext string
-	if req.OriginMessageID != 0 {
+	var originMsg store.Message
+	haveOrigin := req.OriginMessageID != 0
+	if haveOrigin {
 		msg, ok, err := s.st.MessageByID(req.OriginMessageID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -188,7 +209,30 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 		}
 		handoffContext = integrate.HandoffContext(project.Name, originChannel.Name, msg.AuthorName,
 			msg.CreatedAt.Format("2006-01-02 15:04:05"), msg.Body, artifactPaths)
-		s.system(msg.ChannelID, fmt.Sprintf("report handed off to #%s (run %d)", channel.Name, run.ID))
+		originMsg = msg
+	}
+
+	// Step 4: create the run row.
+	spawnerKind := "tmux"
+	if req.Fg {
+		spawnerKind = "fg"
+	}
+	run, err := s.st.CreateRun(store.AgentRun{
+		ChannelID: req.ChannelID, PresetName: req.Preset, Provider: providerName,
+		AgentName: agentName, Model: model, ExtraArgs: argsStr, Prompt: promptText,
+		Workdir: workdir, Status: "starting", Spawner: spawnerKind,
+		OriginMessageID: req.OriginMessageID,
+	})
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// Step 5: run dir.
+	runDir := filepath.Join(s.dataDir, "runs", fmt.Sprint(run.ID))
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	// Step 6: provider hook + args.
@@ -220,17 +264,23 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 		"ERBRUS_RUN_ID":  fmt.Sprint(run.ID),
 	}
 
+	// announceHandoff posts the origin-channel note only once the run
+	// actually exists and (on the tmux path) actually spawned — a failed
+	// spawn must not announce a handoff that never happened.
+	announceHandoff := func() {
+		if haveOrigin {
+			s.system(originMsg.ChannelID, fmt.Sprintf("report handed off to #%s (run %d)", channel.Name, run.ID))
+		}
+	}
+
 	// Step 10: fg path — no spawner needed, run stays "starting".
 	if req.Fg {
+		announceHandoff()
 		writeJSON(w, http.StatusCreated, fgJSON{Run: toRunJSON(run), CmdFile: cmdPath, Env: env})
 		return
 	}
 
-	// Step 11: tmux path.
-	if s.spawner == nil {
-		httpError(w, http.StatusServiceUnavailable, "no spawner configured")
-		return
-	}
+	// Step 11: tmux path (spawner-nil already checked above).
 	session := repoCfg.Session
 	if session == "" {
 		session = strings.ReplaceAll(s.cfg.SessionPattern, "{project}", project.Name)
@@ -257,6 +307,7 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	run.Status = "running"
 	run.TmuxTarget = string(handle)
 	s.system(req.ChannelID, fmt.Sprintf("%s spawned in tmux %s", agentName, handle))
+	announceHandoff()
 	rj := toRunJSON(run)
 	s.hub.Publish("run", rj)
 	writeJSON(w, http.StatusCreated, rj)
