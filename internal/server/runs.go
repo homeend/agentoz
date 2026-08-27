@@ -172,7 +172,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 
 	// Step 3: workdir default.
-	workdir := firstNonEmpty(req.Workdir, channel.WorktreePath, project.RepoPath)
+	workdir := firstNonEmpty(config.TranslateUserPath(req.Workdir), channel.WorktreePath, project.RepoPath)
 
 	// Hoisted ahead of CreateRun: the spawner-nil check (tmux path only)
 	// and the origin-message lookup. Neither must leave an orphaned

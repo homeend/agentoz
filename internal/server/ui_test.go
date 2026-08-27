@@ -476,3 +476,43 @@ func readBody(t *testing.T, resp *http.Response) string {
 	}
 	return string(b)
 }
+
+func TestAddProjectNonexistentPathIs400(t *testing.T) {
+	ts, st, _ := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": `t:\definitely\missing\dir`})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	projects, _ := st.Projects()
+	if len(projects) != 0 {
+		t.Errorf("no project row must be created, got %d", len(projects))
+	}
+}
+
+func TestProjectCardNoGitBadgeAndInit(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	// root is a plain temp dir with no .git — the card must flag it.
+	postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root}).Body.Close()
+
+	resp, err := http.Get(ts.URL + "/ui/projects")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp)
+	resp.Body.Close()
+	if !strings.Contains(body, "no git repo") || !strings.Contains(body, "git-init") {
+		t.Errorf("card missing no-git badge or init button:\n%s", body)
+	}
+
+	projects, _ := st.Projects()
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	r2, err := c.PostForm(fmt.Sprintf("%s/ui/projects/%d/git-init", ts.URL, projects[0].ID), url.Values{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2.Body.Close()
+	if r2.StatusCode != http.StatusFound {
+		t.Fatalf("git-init status = %d, want 302", r2.StatusCode)
+	}
+}

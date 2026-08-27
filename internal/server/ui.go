@@ -3,6 +3,8 @@ package server
 import (
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"time"
 
 	"erbrus/internal/store"
@@ -33,6 +35,11 @@ func (s *Server) render(w http.ResponseWriter, page string, data any) {
 type projectCard struct {
 	Project  store.Project
 	Channels []store.Channel
+	// PathMissing: the repo path no longer exists on disk. NoGit: the path
+	// exists but holds no git repo — agents can still spawn there, and the
+	// card offers an "Init git" button.
+	PathMissing bool
+	NoGit       bool
 }
 
 type projectsPage struct {
@@ -52,9 +59,41 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 		if err != nil {
 			return projectsPage{}, err
 		}
-		page.Projects = append(page.Projects, projectCard{Project: p, Channels: chans})
+		card := projectCard{Project: p, Channels: chans}
+		if fi, err := os.Stat(p.RepoPath); err != nil || !fi.IsDir() {
+			card.PathMissing = true
+		} else if _, err := os.Stat(filepath.Join(p.RepoPath, ".git")); err != nil {
+			// .git is a dir in a main checkout and a file in a linked
+			// worktree; either satisfies the Stat.
+			card.NoGit = true
+		}
+		page.Projects = append(page.Projects, card)
 	}
 	return page, nil
+}
+
+// handleUIGitInit runs `git init -b main` in a project's directory and
+// refreshes its channels. Shown on cards whose path holds no git repo.
+func (s *Server) handleUIGitInit(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	p, ok, err := s.st.ProjectByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "project not found")
+		return
+	}
+	if _, err := s.run(p.RepoPath, "git", "init", "-b", "main"); err != nil {
+		http.Redirect(w, r, "/ui/projects?warning="+url.QueryEscape("git init failed: "+err.Error()), http.StatusFound)
+		return
+	}
+	target := "/ui/projects"
+	if warning := s.ensureChannels(p); warning != "" {
+		target += "?warning=" + url.QueryEscape(warning)
+	}
+	http.Redirect(w, r, target, http.StatusFound)
 }
 
 func (s *Server) handleUIProjects(w http.ResponseWriter, r *http.Request) {

@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -72,7 +73,7 @@ func (s *Server) handleAddProject(w http.ResponseWriter, r *http.Request) {
 // isNameCollision suffix loop, ensureChannels. created reports whether a
 // new row was made; warning is ensureChannels' warning string.
 func (s *Server) addProjectCore(repoPath string) (p store.Project, warning string, created bool, status int, errMsg string) {
-	root, err := filepath.Abs(config.ExpandHome(repoPath))
+	root, err := filepath.Abs(config.ExpandHome(config.TranslateUserPath(repoPath)))
 	if err != nil {
 		return store.Project{}, "", false, http.StatusBadRequest, err.Error()
 	}
@@ -82,6 +83,14 @@ func (s *Server) addProjectCore(repoPath string) (p store.Project, warning strin
 	} else if ok {
 		warning := s.ensureChannels(existing)
 		return existing, warning, false, 0, ""
+	}
+
+	// A nonexistent directory is a hard error (nothing could ever run
+	// there); a directory that merely isn't a git repo stays allowed —
+	// detection failure is a warning and agents can still spawn in it.
+	if fi, serr := os.Stat(root); serr != nil || !fi.IsDir() {
+		return store.Project{}, "", false, http.StatusBadRequest,
+			"path does not exist or is not a directory: " + root
 	}
 
 	base := filepath.Base(root)
@@ -114,7 +123,9 @@ func (s *Server) ensureChannels(p store.Project) string {
 	warning := ""
 	wts, err := wt.List(s.run, s.cfg.WtBin, p.RepoPath)
 	if err != nil {
-		warning = "worktree detection failed: " + err.Error()
+		// err already reads "worktree detection failed (wt and git): ..." —
+		// don't double the prefix.
+		warning = err.Error()
 	}
 	repoCfg, _, _ := config.LoadRepo(p.RepoPath)
 	perWorktree := repoCfg.ChannelPerWorktree == nil || *repoCfg.ChannelPerWorktree

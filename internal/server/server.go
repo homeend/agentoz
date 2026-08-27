@@ -99,6 +99,7 @@ func (s *Server) Handler() http.Handler {
 	r.Handle("/static/*", http.StripPrefix("/static/", web.Static()))
 	r.Get("/ui/projects", s.handleUIProjects)
 	r.Post("/ui/projects", s.handleUIAddProject)
+	r.Post("/ui/projects/{id}/git-init", s.handleUIGitInit)
 	r.Get("/ui/channels/{id}", s.handleUIChannel)
 	r.Get("/ui/channels/{id}/stream", s.handleUIChannelStream)
 	r.Get("/ui/channels/{id}/runs-panel", s.handleUIRunsPanel)

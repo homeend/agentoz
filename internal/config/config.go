@@ -14,6 +14,37 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// winToPosix converts a Windows drive path (T:\a\b or T:/a/b) to its WSL
+// form (/mnt/t/a/b). ok is false when p is not a Windows drive path.
+func winToPosix(p string) (string, bool) {
+	if len(p) < 3 {
+		return "", false
+	}
+	drive := p[0]
+	if !((drive >= 'a' && drive <= 'z') || (drive >= 'A' && drive <= 'Z')) {
+		return "", false
+	}
+	if p[1] != ':' || (p[2] != '\\' && p[2] != '/') {
+		return "", false
+	}
+	rest := strings.ReplaceAll(p[2:], `\`, "/")
+	return filepath.Clean("/mnt/" + strings.ToLower(string(drive)) + rest), true
+}
+
+// TranslateUserPath maps a user-supplied Windows drive path to the
+// environment's native form (WSL /mnt/<drive>/...) when that translated
+// directory actually exists; any other input is returned unchanged.
+func TranslateUserPath(p string) string {
+	cand, ok := winToPosix(p)
+	if !ok {
+		return p
+	}
+	if fi, err := os.Stat(cand); err == nil && fi.IsDir() {
+		return cand
+	}
+	return p
+}
+
 type Provider struct {
 	Command      string `yaml:"command"`
 	DefaultModel string `yaml:"default_model"`

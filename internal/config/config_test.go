@@ -211,3 +211,34 @@ func TestLoadRepoMissingBothIsZero(t *testing.T) {
 		t.Errorf("want zero Repo: %+v legacy=%v err=%v", r, legacy, err)
 	}
 }
+
+func TestWinToPosix(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{`T:\others\gigagit.media\`, "/mnt/t/others/gigagit.media", true},
+		{`t:\others\x`, "/mnt/t/others/x", true},
+		{"C:/Users/me/repo", "/mnt/c/Users/me/repo", true},
+		{"/mnt/t/others/x", "", false},
+		{"relative/path", "", false},
+		{"~/repo", "", false},
+		{"t:", "", false},
+	}
+	for _, c := range cases {
+		got, ok := winToPosix(c.in)
+		if ok != c.ok || (ok && got != c.want) {
+			t.Errorf("winToPosix(%q) = (%q, %v), want (%q, %v)", c.in, got, ok, c.want, c.ok)
+		}
+	}
+}
+
+func TestTranslateUserPath(t *testing.T) {
+	if got := TranslateUserPath(`Q:\definitely\missing\dir`); got != `Q:\definitely\missing\dir` {
+		t.Errorf("nonexistent translation must return original, got %q", got)
+	}
+	if got := TranslateUserPath("/plain/posix"); got != "/plain/posix" {
+		t.Errorf("posix path must pass through, got %q", got)
+	}
+}
