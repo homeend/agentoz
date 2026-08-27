@@ -286,6 +286,20 @@ func (s *Store) AddArtifact(a Artifact) (Artifact, error) {
 	return art, nil
 }
 
+// ArtifactByID fetches one artifact row.
+func (s *Store) ArtifactByID(id int64) (Artifact, bool, error) {
+	var a Artifact
+	var ts string
+	err := s.db.QueryRow(`SELECT id, message_id, filename, path, size, created_at
+		FROM artifacts WHERE id = ?`, id).
+		Scan(&a.ID, &a.MessageID, &a.Filename, &a.Path, &a.Size, &ts)
+	if err == sql.ErrNoRows {
+		return a, false, nil
+	}
+	a.CreatedAt = parseTime(ts)
+	return a, err == nil, err
+}
+
 func (s *Store) ArtifactsByMessage(messageID int64) ([]Artifact, error) {
 	rows, err := s.db.Query(`SELECT id, message_id, filename, path, size, created_at
 		FROM artifacts WHERE message_id = ? ORDER BY id`, messageID)

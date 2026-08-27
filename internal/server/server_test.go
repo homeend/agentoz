@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"erbrus/internal/config"
@@ -333,6 +334,61 @@ func TestAddProjectRedetectsNewWorktrees(t *testing.T) {
 	if len(p3["channels"].([]any)) != 2 {
 		t.Error("re-detection must not duplicate channels")
 	}
+}
+
+func TestArtifactDownload(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	w.WriteField("kind", "report")
+	w.WriteField("body", "with artifact")
+	fw, _ := w.CreateFormFile("file", "dl.md")
+	io.WriteString(fw, "download me")
+	w.Close()
+	mresp, err := http.Post(fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, chID), w.FormDataContentType(), &buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := decode[map[string]any](t, mresp)
+	artID := int64(m["artifacts"].([]any)[0].(map[string]any)["id"].(float64))
+
+	dresp, err := http.Get(fmt.Sprintf("%s/api/artifacts/%d", ts.URL, artID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dresp.Body.Close()
+	if dresp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", dresp.StatusCode)
+	}
+	body, _ := io.ReadAll(dresp.Body)
+	if string(body) != "download me" {
+		t.Errorf("body = %q", body)
+	}
+	if cd := dresp.Header.Get("Content-Disposition"); !strings.Contains(cd, "dl.md") {
+		t.Errorf("Content-Disposition = %q", cd)
+	}
+
+	// Path-safety: a doctored row pointing outside the artifacts dir is 404.
+	msgID := int64(m["id"].(float64))
+	bad, err := st.AddArtifact(store.Artifact{MessageID: msgID, Filename: "evil", Path: "/etc/passwd", Size: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bresp, _ := http.Get(fmt.Sprintf("%s/api/artifacts/%d", ts.URL, bad.ID))
+	if bresp.StatusCode != http.StatusNotFound {
+		t.Errorf("doctored path status = %d, want 404", bresp.StatusCode)
+	}
+	bresp.Body.Close()
+
+	nresp, _ := http.Get(ts.URL + "/api/artifacts/424242")
+	if nresp.StatusCode != http.StatusNotFound {
+		t.Errorf("unknown artifact status = %d, want 404", nresp.StatusCode)
+	}
+	nresp.Body.Close()
 }
 
 func TestIsNameCollision(t *testing.T) {

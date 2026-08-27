@@ -153,6 +153,27 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, mj)
 }
 
+func (s *Server) handleArtifactDownload(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	a, ok, err := s.st.ArtifactByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+	base := filepath.Join(s.dataDir, "artifacts")
+	rel, err := filepath.Rel(base, a.Path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, "../") {
+		httpError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", a.Filename))
+	http.ServeFile(w, r, a.Path)
+}
+
 func (s *Server) saveArtifact(messageID int64, fh *multipart.FileHeader) error {
 	dir := filepath.Join(s.dataDir, "artifacts", fmt.Sprint(messageID))
 	if err := os.MkdirAll(dir, 0o755); err != nil {

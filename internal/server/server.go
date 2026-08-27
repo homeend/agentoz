@@ -51,6 +51,7 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/runs/{id}/exit", s.handleRunExit)
 		r.Post("/runs/{id}/stop", s.handleRunStop)
 		r.Get("/channels/{id}/runs", s.handleChannelRuns)
+		r.Get("/artifacts/{id}", s.handleArtifactDownload)
 	})
 	r.Get("/events", s.handleEvents)
 	return r

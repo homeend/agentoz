@@ -150,3 +150,18 @@ func TestRunLifecycle(t *testing.T) {
 		t.Fatalf("after StartRun: %+v", got2)
 	}
 }
+
+func TestArtifactByID(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("x", "/x")
+	c, _ := s.CreateChannel(p.ID, "general", "", "")
+	m, _ := s.CreateMessage(Message{ChannelID: c.ID, Kind: "report", AuthorKind: "human", Body: "b"})
+	a, _ := s.AddArtifact(Artifact{MessageID: m.ID, Filename: "f.md", Path: "/data/f.md", Size: 2})
+	got, ok, err := s.ArtifactByID(a.ID)
+	if err != nil || !ok || got.Filename != "f.md" {
+		t.Fatalf("ArtifactByID: %v %v %+v", err, ok, got)
+	}
+	if _, ok, _ := s.ArtifactByID(999); ok {
+		t.Fatal("unknown id must be ok=false")
+	}
+}
