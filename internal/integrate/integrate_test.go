@@ -15,6 +15,7 @@ func TestPreamble(t *testing.T) {
 		"wt/feat",
 		"/abs/bin/erbrus msg send --report",
 		"before the message text",
+		"Do not start any work on your own",
 	} {
 		if !strings.Contains(p, want) {
 			t.Errorf("preamble missing %q\n%s", want, p)

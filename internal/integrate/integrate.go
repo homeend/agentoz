@@ -14,6 +14,7 @@ import (
 
 func Preamble(erbrusBin, agentName, channelName string) string {
 	return fmt.Sprintf(`You are agent %q working in the erbrus channel #%s.
+Do not start any work on your own until you are explicitly asked to do something.
 Report progress and results to the channel with this exact command (flags go before the message text):
   %s msg send --report "what you did"
 Attach a produced document with --file:
