@@ -11,15 +11,21 @@ type Tmux struct{ run CmdRunner }
 
 func NewTmux(run CmdRunner) *Tmux { return &Tmux{run: run} }
 
+// exact prefixes a tmux target with "=" to force exact-name matching.
+// Without it tmux falls back to PREFIX matching: with no session named
+// "erbrus", `-t erbrus` silently resolves to "erbrus-gigagit" — observed
+// live 2026-08-28, spawning a global-session agent into a project session.
+func exact(target string) string { return "=" + target }
+
 func (t *Tmux) Spawn(spec RunSpec) (Handle, error) {
 	session := spec.Session
 	if spec.AttachSession != "" {
 		session = spec.AttachSession
-		if _, err := t.run("tmux", "has-session", "-t", session); err != nil {
+		if _, err := t.run("tmux", "has-session", "-t", exact(session)); err != nil {
 			return "", fmt.Errorf("attach_session %q not found: %w", session, err)
 		}
 	} else {
-		if _, err := t.run("tmux", "has-session", "-t", session); err != nil {
+		if _, err := t.run("tmux", "has-session", "-t", exact(session)); err != nil {
 			if _, err := t.run("tmux", "new-session", "-d", "-s", session, "-c", spec.Workdir); err != nil {
 				return "", fmt.Errorf("create session %q: %w", session, err)
 			}
@@ -27,7 +33,7 @@ func (t *Tmux) Spawn(spec RunSpec) (Handle, error) {
 	}
 
 	args := []string{"new-window", "-d", "-P", "-F", "#{session_name}:#{window_index}",
-		"-t", session + ":", "-n", spec.WindowName, "-c", spec.Workdir}
+		"-t", exact(session) + ":", "-n", spec.WindowName, "-c", spec.Workdir}
 	keys := make([]string, 0, len(spec.Env))
 	for k := range spec.Env {
 		keys = append(keys, k)
@@ -43,7 +49,7 @@ func (t *Tmux) Spawn(spec RunSpec) (Handle, error) {
 		return "", fmt.Errorf("open window: %w", err)
 	}
 	h := Handle(strings.TrimSpace(string(out)))
-	if _, err := t.run("tmux", "set-option", "-t", string(h), "remain-on-exit", "on"); err != nil {
+	if _, err := t.run("tmux", "set-option", "-t", exact(string(h)), "remain-on-exit", "on"); err != nil {
 		return h, nil // cosmetic option; the run is already up
 	}
 	return h, nil
@@ -62,18 +68,18 @@ func (t *Tmux) Send(h Handle, text string) error {
 	if _, err := t.run("tmux", "set-buffer", "--", text); err != nil {
 		return fmt.Errorf("send to %s: %w", h, err)
 	}
-	if _, err := t.run("tmux", "paste-buffer", "-dp", "-t", string(h)); err != nil {
+	if _, err := t.run("tmux", "paste-buffer", "-dp", "-t", exact(string(h))); err != nil {
 		return fmt.Errorf("send to %s: %w", h, err)
 	}
 	time.Sleep(sendSettle)
-	if _, err := t.run("tmux", "send-keys", "-t", string(h), "Enter"); err != nil {
+	if _, err := t.run("tmux", "send-keys", "-t", exact(string(h)), "Enter"); err != nil {
 		return fmt.Errorf("send Enter to %s: %w", h, err)
 	}
 	return nil
 }
 
 func (t *Tmux) Stop(h Handle) error {
-	_, err := t.run("tmux", "kill-window", "-t", string(h))
+	_, err := t.run("tmux", "kill-window", "-t", exact(string(h)))
 	return err
 }
 
@@ -82,7 +88,7 @@ func (t *Tmux) Alive(h Handle) (bool, error) {
 	if !ok {
 		return false, fmt.Errorf("malformed handle %q", h)
 	}
-	out, err := t.run("tmux", "list-windows", "-t", session, "-F", "#{session_name}:#{window_index}")
+	out, err := t.run("tmux", "list-windows", "-t", exact(session), "-F", "#{session_name}:#{window_index}")
 	if err != nil {
 		return false, nil // session gone => not alive, not an error
 	}

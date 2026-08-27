@@ -53,10 +53,10 @@ func TestSpawnManagedCreatesSession(t *testing.T) {
 		t.Errorf("handle = %q", h)
 	}
 	want := []string{
-		"tmux has-session -t erbrus-webshop",
+		"tmux has-session -t =erbrus-webshop",
 		"tmux new-session -d -s erbrus-webshop -c /code/webshop",
-		"tmux new-window -d -P -F #{session_name}:#{window_index} -t erbrus-webshop: -n review-kimi -c /code/webshop -e ERBRUS_CHANNEL=3 -e ERBRUS_URL=http://127.0.0.1:7420 -- /abs/erbrus wrap /data/runs/7/cmd.sh",
-		"tmux set-option -t erbrus-webshop:1 remain-on-exit on",
+		"tmux new-window -d -P -F #{session_name}:#{window_index} -t =erbrus-webshop: -n review-kimi -c /code/webshop -e ERBRUS_CHANNEL=3 -e ERBRUS_URL=http://127.0.0.1:7420 -- /abs/erbrus wrap /data/runs/7/cmd.sh",
+		"tmux set-option -t =erbrus-webshop:1 remain-on-exit on",
 	}
 	if len(rec.calls) != len(want) {
 		t.Fatalf("calls = %v", rec.calls)
@@ -91,7 +91,7 @@ func TestSpawnAttachMode(t *testing.T) {
 	if h != "main:9" {
 		t.Errorf("handle = %q", h)
 	}
-	if !strings.Contains(rec.calls[1], "-t main:") {
+	if !strings.Contains(rec.calls[1], "-t =main:") {
 		t.Errorf("window not opened in attach session: %v", rec.calls)
 	}
 }
@@ -115,7 +115,7 @@ func TestStopKillsWindow(t *testing.T) {
 	if err := NewTmux(rec.run).Stop("erbrus-webshop:3"); err != nil {
 		t.Fatal(err)
 	}
-	if rec.calls[0] != "tmux kill-window -t erbrus-webshop:3" {
+	if rec.calls[0] != "tmux kill-window -t =erbrus-webshop:3" {
 		t.Errorf("calls = %v", rec.calls)
 	}
 }
@@ -144,8 +144,8 @@ func TestSendKeys(t *testing.T) {
 	}
 	want := []string{
 		"tmux set-buffer -- fix the tests",
-		"tmux paste-buffer -dp -t erbrus-x:3",
-		"tmux send-keys -t erbrus-x:3 Enter",
+		"tmux paste-buffer -dp -t =erbrus-x:3",
+		"tmux send-keys -t =erbrus-x:3 Enter",
 	}
 	if len(rec.calls) != 3 || rec.calls[0] != want[0] || rec.calls[1] != want[1] || rec.calls[2] != want[2] {
 		t.Fatalf("calls = %q, want %q", rec.calls, want)
@@ -157,5 +157,26 @@ func TestSendKeysError(t *testing.T) {
 	tm := NewTmux(rec.run)
 	if err := tm.Send(Handle("erbrus-x:3"), "hi"); err == nil {
 		t.Fatal("want error when window is gone")
+	}
+}
+
+// Every tmux target must use "=" exact-match syntax: without it tmux
+// prefix-matches, and a global session "erbrus" silently resolves to an
+// existing "erbrus-<project>" session.
+func TestAllTargetsUseExactMatch(t *testing.T) {
+	rec := &recorder{out: map[string]string{"tmux new-window": "erbrus:1\n"}}
+	tm := NewTmux(rec.run)
+	s := spec()
+	s.Session = "erbrus"
+	if _, err := tm.Spawn(s); err != nil {
+		t.Fatal(err)
+	}
+	_ = tm.Send("erbrus:1", "hi")
+	_ = tm.Stop("erbrus:1")
+	_, _ = tm.Alive("erbrus:1")
+	for _, c := range rec.calls {
+		if i := strings.Index(c, "-t "); i >= 0 && !strings.HasPrefix(c[i+3:], "=") {
+			t.Errorf("target without exact-match prefix: %q", c)
+		}
 	}
 }
