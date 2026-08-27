@@ -303,10 +303,10 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 		// Window named after the directory the agent works in (worktree
 		// when the channel has one), so a session full of agents reads as
 		// a list of workspaces, not identical agent names.
-		WindowName:    filepath.Base(workdir),
-		Workdir:       workdir,
-		Env:           env,
-		Command:       []string{s.erbrusBin, "wrap", cmdPath},
+		WindowName: filepath.Base(workdir),
+		Workdir:    workdir,
+		Env:        env,
+		Command:    []string{s.erbrusBin, "wrap", cmdPath},
 	}
 	handle, err := s.spawner.Spawn(spec)
 	if err != nil {
