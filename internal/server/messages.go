@@ -170,6 +170,10 @@ func (s *Server) handleArtifactDownload(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusNotFound, "artifact not found")
 		return
 	}
+	if fi, err := os.Stat(a.Path); err != nil || !fi.Mode().IsRegular() {
+		httpError(w, http.StatusNotFound, "artifact not found")
+		return
+	}
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", a.Filename))
 	http.ServeFile(w, r, a.Path)
 }

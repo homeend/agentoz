@@ -384,6 +384,22 @@ func TestArtifactDownload(t *testing.T) {
 	}
 	bresp.Body.Close()
 
+	// Path-safety: a doctored row pointing at a directory (not a regular
+	// file) inside the artifacts tree is also 404, not a directory listing.
+	realArt, ok, err := st.ArtifactByID(artID)
+	if err != nil || !ok {
+		t.Fatalf("ArtifactByID(%d): %v %v", artID, err, ok)
+	}
+	dirBad, err := st.AddArtifact(store.Artifact{MessageID: msgID, Filename: "dir", Path: filepath.Dir(realArt.Path), Size: 0})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dresp2, _ := http.Get(fmt.Sprintf("%s/api/artifacts/%d", ts.URL, dirBad.ID))
+	if dresp2.StatusCode != http.StatusNotFound {
+		t.Errorf("directory path status = %d, want 404", dresp2.StatusCode)
+	}
+	dresp2.Body.Close()
+
 	nresp, _ := http.Get(ts.URL + "/api/artifacts/424242")
 	if nresp.StatusCode != http.StatusNotFound {
 		t.Errorf("unknown artifact status = %d, want 404", nresp.StatusCode)
