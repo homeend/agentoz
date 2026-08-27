@@ -14,7 +14,7 @@
     <div class="card">
       <h2>{{.Project.Name}}</h2>
       <div class="mono muted">{{.Project.RepoPath}}</div>
-      {{if .RunningAgents}}<div class="badge run">{{.RunningAgents}} agents running</div>{{end}}
+      {{if .RunningAgents}}<div class="badge run">{{.RunningAgents}} agent{{if ne .RunningAgents 1}}s{{end}} running</div>{{end}}
       {{if .PathMissing}}<div class="badge warn">path missing</div>{{end}}
       {{if .NoGit}}
       <div class="badgerow">
