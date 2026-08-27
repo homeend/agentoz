@@ -1,0 +1,36 @@
+{{define "title"}}# {{.Channel.Name}} · erbrus{{end}}
+{{define "content"}}
+<header class="topbar">
+  <a class="brand" href="/ui/projects">erbrus</a>
+  <span class="crumb">/ {{.Project.Name}} / # {{.Channel.Name}}</span>
+  <span class="spacer"></span>
+  <a class="btn primary" href="/ui/spawn?channel={{.Channel.ID}}">+ Spawn agent</a>
+</header>
+<div class="shell">
+  <nav class="sidebar">
+    {{range .Sidebar}}
+    <div class="proj">{{.Project.Name}}</div>
+    {{range .Channels}}
+    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}"># {{.Name}}</a>
+    {{end}}
+    {{end}}
+  </nav>
+  <section class="stream">
+    <div id="messages" data-channel="{{.Channel.ID}}">{{template "_messages.html" .}}</div>
+    <form class="composer" method="post" action="/ui/channels/{{.Channel.ID}}/messages">
+      <textarea name="body" placeholder="Message # {{.Channel.Name}} as human…" required></textarea>
+      <select name="kind"><option value="message">message</option><option value="report">report</option></select>
+      <button class="btn primary" type="submit">Send</button>
+    </form>
+  </section>
+  <aside class="rail">
+    <h3>Agents in channel</h3>
+    <div id="runs" data-channel="{{.Channel.ID}}">{{template "_runs.html" .}}</div>
+    <h3>Presets</h3>
+    {{range .Presets}}
+    <div class="presetrow"><span>{{.}}</span><a class="btn" href="/ui/spawn?channel={{$.Channel.ID}}&amp;preset={{.}}">Spawn</a></div>
+    {{end}}
+    {{if .AttachCmd}}<h3>Attach</h3><div class="mono">{{.AttachCmd}}</div>{{end}}
+  </aside>
+</div>
+{{end}}

@@ -1,0 +1,14 @@
+{{define "_runs.html"}}
+{{range .Runs}}
+<div class="runcard{{if .Running}} running{{end}}">
+  <span class="dot"></span><strong>{{.AgentName}}</strong>
+  <div class="muted small">{{.Provider}} · {{.Status}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
+  {{if .Running}}
+  <form method="post" action="/ui/runs/{{.ID}}/stop">
+    <input type="hidden" name="channel" value="{{$.Channel.ID}}">
+    <button class="btn danger small" type="submit">Stop</button>
+  </form>
+  {{end}}
+</div>
+{{end}}
+{{end}}

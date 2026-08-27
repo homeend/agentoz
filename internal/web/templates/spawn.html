@@ -1,0 +1,71 @@
+{{define "title"}}spawn agent · erbrus{{end}}
+{{define "content"}}
+<header class="topbar">
+  <a class="brand" href="/ui/projects">erbrus</a>
+  <span class="crumb">/ spawn agent</span>
+  <span class="spacer"></span>
+</header>
+<main class="page">
+  <div class="dialog">
+    <h1>Spawn agent</h1>
+    {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+    {{if .Origin}}
+    <div class="context">
+      report from {{.Origin.Author}} — attached as context{{if .Origin.Artifacts}} · {{len .Origin.Artifacts}} artifact(s){{end}}
+      <div class="mono muted">{{.Origin.Body}}</div>
+    </div>
+    {{end}}
+    <form method="post" action="/ui/spawn">
+      <label>Target channel</label>
+      <select name="target_channel">
+        {{range .Channels}}
+        <option value="{{.ID}}"{{if eq .ID $.Channel.ID}} selected{{end}}>{{.Label}}</option>
+        {{end}}
+      </select>
+
+      <label>Preset</label>
+      <select name="preset">
+        <option value=""></option>
+        {{range .Presets}}
+        <option value="{{.}}"{{if eq . $.Preset}} selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      <div class="muted small">presets listed for {{.Project.Name}} — changing the target project does not refresh this list</div>
+
+      <div class="row">
+        <div>
+          <label>Provider</label>
+          <input type="text" name="provider" value="{{index .Form "provider"}}">
+        </div>
+        <div>
+          <label>Name</label>
+          <input type="text" name="name" value="{{index .Form "name"}}">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>Model</label>
+          <input type="text" name="model" value="{{index .Form "model"}}">
+        </div>
+        <div>
+          <label>Args</label>
+          <input type="text" name="args" value="{{index .Form "args"}}">
+        </div>
+      </div>
+
+      <label>Workdir</label>
+      <input type="text" name="workdir" value="{{index .Form "workdir"}}" placeholder="{{.Channel.WorktreePath}}">
+
+      <label>Prompt</label>
+      <textarea name="prompt">{{index .Form "prompt"}}</textarea>
+
+      <input type="hidden" name="origin_message_id" value="{{.OriginID}}">
+
+      <div class="foot">
+        <a class="btn" href="/ui/channels/{{.Channel.ID}}">Cancel</a>
+        <button class="btn primary" type="submit">Spawn agent</button>
+      </div>
+    </form>
+  </div>
+</main>
+{{end}}

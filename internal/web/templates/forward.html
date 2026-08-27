@@ -1,0 +1,33 @@
+{{define "title"}}forward message · erbrus{{end}}
+{{define "content"}}
+<header class="topbar">
+  <a class="brand" href="/ui/projects">erbrus</a>
+  <span class="crumb">/ forward message</span>
+  <span class="spacer"></span>
+</header>
+<main class="page">
+  <div class="dialog">
+    <h1>Forward message</h1>
+    {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+    <div class="context">
+      {{.Source.Kind}} from {{.Source.Author}}{{if .Source.Artifacts}} · {{len .Source.Artifacts}} artifact(s){{end}}
+      <div class="mono muted">{{.Source.Body}}</div>
+    </div>
+    <form method="post" action="/ui/forward">
+      <label>Target channel</label>
+      <select name="target_channel">
+        {{range .Channels}}
+        <option value="{{.ID}}">{{.Label}}</option>
+        {{end}}
+      </select>
+
+      <input type="hidden" name="message_id" value="{{.Source.ID}}">
+
+      <div class="foot">
+        <a class="btn" href="/ui/channels/{{.SourceChannelID}}">Cancel</a>
+        <button class="btn primary" type="submit">Forward</button>
+      </div>
+    </form>
+  </div>
+</main>
+{{end}}

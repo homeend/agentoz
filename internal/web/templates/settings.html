@@ -1,0 +1,40 @@
+{{define "title"}}settings · erbrus{{end}}
+{{define "content"}}
+<header class="topbar">
+  <a class="brand" href="/ui/projects">erbrus</a>
+  <span class="crumb">/ settings</span>
+  <span class="spacer"></span>
+</header>
+<main class="page settings">
+  <div class="banner">changes take effect after restarting erbrus serve</div>
+  {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+
+  <div class="card">
+    <h2>Global</h2>
+    {{if .GlobalReadOnly}}
+      <div class="muted small">no global config path configured; this section is read-only.</div>
+    {{else}}
+      <div class="mono muted">{{.ConfigPath}}</div>
+      <form method="post" action="/ui/settings/global">
+        <textarea name="content" spellcheck="false">{{.GlobalContent}}</textarea>
+        <div class="foot">
+          <button class="btn primary" type="submit">Save</button>
+        </div>
+      </form>
+    {{end}}
+  </div>
+
+  {{range .Projects}}
+  <div class="card">
+    <h2>{{.ProjectName}}</h2>
+    <div class="mono muted">{{.Path}}</div>
+    <form method="post" action="/ui/settings/repo?project={{.ProjectID}}">
+      <textarea name="content" spellcheck="false">{{.Content}}</textarea>
+      <div class="foot">
+        <button class="btn primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+  {{end}}
+</main>
+{{end}}
