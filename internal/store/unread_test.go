@@ -143,3 +143,33 @@ func TestMessageTargetLabel(t *testing.T) {
 		t.Fatalf("plain message TargetLabel = %q, want empty", got2.TargetLabel)
 	}
 }
+
+func TestActiveRunCountByChannel(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("ac", "/ac")
+	ch1, _ := s.CreateChannel(p.ID, "general", "/ac", "main")
+	ch2, _ := s.CreateChannel(p.ID, "feat", "/ac", "feat")
+	mk := func(chID int64, status string) AgentRun {
+		r, err := s.CreateRun(AgentRun{ChannelID: chID, Provider: "codex",
+			AgentName: "a", Workdir: "/ac", Status: status, Spawner: "tmux"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	mk(ch1.ID, "running")
+	mk(ch1.ID, "starting")
+	mk(ch1.ID, "done")
+	mk(ch2.ID, "failed")
+
+	got, err := s.ActiveRunCountByChannel()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got[ch1.ID] != 2 {
+		t.Fatalf("ch1 = %d, want 2", got[ch1.ID])
+	}
+	if _, ok := got[ch2.ID]; ok {
+		t.Fatalf("ch2 should be absent, got %d", got[ch2.ID])
+	}
+}

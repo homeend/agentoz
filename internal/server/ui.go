@@ -36,13 +36,16 @@ func (s *Server) render(w http.ResponseWriter, page string, data any) {
 // project cards.
 type channelView struct {
 	store.Channel
-	Unread    int64
-	Attention bool
+	Unread     int64
+	Attention  bool
+	ActiveRuns int64
 }
 
 type projectCard struct {
-	Project  store.Project
-	Channels []channelView
+	Project store.Project
+	// RunningAgents sums ActiveRuns over the project's channels.
+	RunningAgents int64
+	Channels      []channelView
 	// PathMissing: the repo path no longer exists on disk. NoGit: the path
 	// exists but holds no git repo — agents can still spawn there, and the
 	// card offers an "Init git" button.
@@ -65,6 +68,10 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 	if err != nil {
 		return projectsPage{}, err
 	}
+	active, err := s.st.ActiveRunCountByChannel()
+	if err != nil {
+		return projectsPage{}, err
+	}
 	page := projectsPage{Error: errMsg}
 	for _, p := range list {
 		chans, err := s.st.ChannelsByProject(p.ID)
@@ -72,11 +79,14 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 			return projectsPage{}, err
 		}
 		views := make([]channelView, 0, len(chans))
+		var agents int64
 		for _, c := range chans {
 			views = append(views, channelView{Channel: c,
-				Unread: unread[c.ID].Count, Attention: unread[c.ID].Attention})
+				Unread: unread[c.ID].Count, Attention: unread[c.ID].Attention,
+				ActiveRuns: active[c.ID]})
+			agents += active[c.ID]
 		}
-		card := projectCard{Project: p, Channels: views}
+		card := projectCard{Project: p, RunningAgents: agents, Channels: views}
 		if fi, err := os.Stat(p.RepoPath); err != nil || !fi.IsDir() {
 			card.PathMissing = true
 		} else if _, err := os.Stat(filepath.Join(p.RepoPath, ".git")); err != nil {

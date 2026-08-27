@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"erbrus/internal/config"
 	"erbrus/internal/integrate"
@@ -332,8 +333,29 @@ func (s *Server) Reconcile() error {
 			return err
 		}
 		s.system(r.ChannelID, fmt.Sprintf("%s orphaned (tmux window %s gone) — marked failed", r.AgentName, r.TmuxTarget))
+		if got, ok, _ := s.st.RunByID(r.ID); ok {
+			s.hub.Publish("run", toRunJSON(got))
+		}
 	}
 	return nil
+}
+
+// StartReconcileLoop re-runs Reconcile every interval until stop is closed,
+// so runs whose tmux window died mid-flight show as failed within seconds
+// instead of lingering "running" until the next server restart.
+func (s *Server) StartReconcileLoop(interval time.Duration, stop <-chan struct{}) {
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+				_ = s.Reconcile() // transient tmux errors retry next tick
+			}
+		}
+	}()
 }
 
 func (s *Server) handleRunExit(w http.ResponseWriter, r *http.Request) {

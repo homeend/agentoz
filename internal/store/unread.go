@@ -32,6 +32,27 @@ func (s *Store) UnreadByChannel() (map[int64]UnreadInfo, error) {
 	return out, rows.Err()
 }
 
+// ActiveRunCountByChannel counts starting/running runs per channel, keyed
+// by channel ID; channels with none are absent. Feeds the presence dots in
+// the sidebar and the per-project agent badges.
+func (s *Store) ActiveRunCountByChannel() (map[int64]int64, error) {
+	rows, err := s.db.Query(`SELECT channel_id, COUNT(*) FROM agent_runs
+		WHERE status IN ('starting','running') GROUP BY channel_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[int64]int64{}
+	for rows.Next() {
+		var chID, n int64
+		if err := rows.Scan(&chID, &n); err != nil {
+			return nil, err
+		}
+		out[chID] = n
+	}
+	return out, rows.Err()
+}
+
 // MarkChannelRead moves a channel's last-read mark to its newest message.
 func (s *Store) MarkChannelRead(channelID int64) error {
 	_, err := s.db.Exec(`UPDATE channels SET last_read_message_id =

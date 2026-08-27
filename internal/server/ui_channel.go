@@ -34,6 +34,10 @@ type runView struct {
 	Status     string
 	TmuxTarget string
 	Running    bool
+	Started    string // localtime spawn moment
+	Finished   string // localtime finish moment, "" while running
+	HasExit    bool
+	ExitCode   int64
 }
 
 type channelPage struct {
@@ -115,16 +119,39 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 	if err != nil {
 		return channelPage{}, http.StatusInternalServerError, err.Error()
 	}
-	runViews := make([]runView, 0, len(runs))
-	for _, r := range runs {
-		runViews = append(runViews, runView{
+	// Active runs first, then only the newest few finished ones — the full
+	// history stays in the DB, the rail is a status panel, not an archive.
+	const recentFinished = 10
+	toView := func(r store.AgentRun) runView {
+		v := runView{
 			ID:         r.ID,
 			AgentName:  r.AgentName,
 			Provider:   r.Provider,
 			Status:     r.Status,
 			TmuxTarget: r.TmuxTarget,
 			Running:    r.Status == "starting" || r.Status == "running",
-		})
+			Started:    r.CreatedAt.Local().Format("Jan _2 15:04"),
+			HasExit:    r.HasExit,
+			ExitCode:   r.ExitCode,
+		}
+		if !v.Running && !r.FinishedAt.IsZero() {
+			v.Finished = r.FinishedAt.Local().Format("Jan _2 15:04")
+		}
+		return v
+	}
+	var runViews []runView
+	for _, r := range runs {
+		if r.Status == "starting" || r.Status == "running" {
+			runViews = append(runViews, toView(r))
+		}
+	}
+	finished := 0
+	for i := len(runs) - 1; i >= 0 && finished < recentFinished; i-- {
+		if runs[i].Status == "starting" || runs[i].Status == "running" {
+			continue
+		}
+		runViews = append(runViews, toView(runs[i]))
+		finished++
 	}
 
 	repoCfg, _, _ := config.LoadRepo(project.RepoPath)

@@ -1,13 +1,15 @@
 {{define "_runs.html"}}
 {{range .Runs}}
-<div class="runcard{{if .Running}} running{{end}}">
+<div class="runcard st-{{.Status}}{{if .Running}} running{{end}}">
   <span class="dot"></span><strong>{{.AgentName}}</strong>
-  <div class="muted small">{{.Provider}} · {{.Status}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
   {{if .Running}}
+  <div class="muted small">{{.Provider}} · {{.Status}} · since {{.Started}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
   <form method="post" action="/ui/runs/{{.ID}}/stop">
     <input type="hidden" name="channel" value="{{$.Channel.ID}}">
     <button class="btn danger small" type="submit">Stop</button>
   </form>
+  {{else}}
+  <div class="muted small">{{.Provider}} · {{.Status}}{{if .HasExit}} · exit {{.ExitCode}}{{end}}{{if .Finished}} · {{.Finished}}{{end}}</div>
   {{end}}
 </div>
 {{end}}

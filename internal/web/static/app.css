@@ -48,6 +48,11 @@ a:hover { text-decoration: underline; }
 .runcard { border: 1px solid #2c2f35; border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; font-size: 13px; }
 .runcard .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #565b64; }
 .runcard.running .dot { background: #4cb371; }
+.runcard.st-done .dot { background: #3f7d58; }
+.runcard.st-failed .dot { background: #d05446; }
+.runcard.st-stopped .dot { background: #d9b45c; }
+.agentdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4cb371; margin-left: 6px; vertical-align: 2px; }
+.badge.run { border-color: #3f7d58; color: #67c98a; background: #17251d; }
 .runcard form { display: inline; }
 .presetrow { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
 /* dialogs & settings */

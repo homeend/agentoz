@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"erbrus/internal/config"
 	"erbrus/internal/server"
@@ -62,6 +63,7 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	if err := srv.Reconcile(); err != nil {
 		fmt.Fprintln(stderr, "reconcile:", err)
 	}
+	srv.StartReconcileLoop(30*time.Second, make(chan struct{}))
 
 	fmt.Fprintf(stdout, "erbrus serving on http://%s (data: %s)\n", ln.Addr(), dataDir)
 	if serveAddrHook != nil {
