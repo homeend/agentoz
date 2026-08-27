@@ -10,6 +10,7 @@ import (
 
 	"erbrus/internal/config"
 	"erbrus/internal/server"
+	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 	"erbrus/internal/wt"
 )
@@ -49,6 +50,18 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 1
 	}
+
+	bin, err := os.Executable()
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	// ln is already bound at this point; its address is the base URL.
+	srv.SetRuntime(spawn.NewTmux(spawn.ExecCmdRunner), bin, "http://"+ln.Addr().String())
+	if err := srv.Reconcile(); err != nil {
+		fmt.Fprintln(stderr, "reconcile:", err)
+	}
+
 	fmt.Fprintf(stdout, "erbrus serving on http://%s (data: %s)\n", ln.Addr(), dataDir)
 	if serveAddrHook != nil {
 		serveAddrHook(ln.Addr().String())

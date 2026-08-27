@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"erbrus/internal/spawn"
+	"erbrus/internal/store"
 )
 
 type fakeSpawner struct {
@@ -423,5 +424,51 @@ func TestSpawnRunFg(t *testing.T) {
 	fg := decode[map[string]any](t, r)
 	if fg["cmd_file"] == "" || fg["env"].(map[string]any)["ERBRUS_TOKEN"] == "" {
 		t.Errorf("fg spec incomplete: %v", fg)
+	}
+}
+
+func TestReconcileMarksOrphans(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+
+	alive, _ := st.CreateRun(store.AgentRun{ChannelID: chID, Provider: "codex", AgentName: "a",
+		Workdir: root, Status: "running", Spawner: "tmux", TmuxTarget: "s:1"})
+	dead, _ := st.CreateRun(store.AgentRun{ChannelID: chID, Provider: "codex", AgentName: "b",
+		Workdir: root, Status: "running", Spawner: "tmux", TmuxTarget: "s:2"})
+	fgRun, _ := st.CreateRun(store.AgentRun{ChannelID: chID, Provider: "codex", AgentName: "c",
+		Workdir: root, Status: "starting", Spawner: "fg"})
+	// Overwrite targets/status via StartRun where needed:
+	st.StartRun(alive.ID, "s:1")
+	st.StartRun(dead.ID, "s:2")
+
+	fs := &fakeSpawner{alive: map[spawn.Handle]bool{"s:1": true}}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	if err := testSrv.Reconcile(); err != nil {
+		t.Fatal(err)
+	}
+
+	a, _, _ := st.RunByID(alive.ID)
+	d, _, _ := st.RunByID(dead.ID)
+	f, _, _ := st.RunByID(fgRun.ID)
+	if a.Status != "running" {
+		t.Errorf("alive run flipped: %q", a.Status)
+	}
+	if d.Status != "failed" {
+		t.Errorf("orphan not failed: %q", d.Status)
+	}
+	if f.Status != "starting" {
+		t.Errorf("fg run must be untouched: %q", f.Status)
+	}
+	msgs, _ := st.MessagesSince(chID, 0, 100)
+	found := false
+	for _, m := range msgs {
+		if m.Kind == "system" && strings.Contains(m.Body, "orphaned") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no orphan system message")
 	}
 }

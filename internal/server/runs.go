@@ -313,6 +313,33 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, rj)
 }
 
+// Reconcile marks tmux runs whose window no longer exists as failed, with a
+// system message. fg runs are left alone (their wrapper may still report).
+// Called by serve after SetRuntime; no-op when spawner is nil.
+func (s *Server) Reconcile() error {
+	if s.spawner == nil {
+		return nil
+	}
+	runs, err := s.st.RunningRuns()
+	if err != nil {
+		return err
+	}
+	for _, r := range runs {
+		if r.Spawner != "tmux" || r.TmuxTarget == "" {
+			continue
+		}
+		ok, err := s.spawner.Alive(spawn.Handle(r.TmuxTarget))
+		if err != nil || ok {
+			continue
+		}
+		if err := s.st.FinishRun(r.ID, "failed", -1); err != nil {
+			return err
+		}
+		s.system(r.ChannelID, fmt.Sprintf("%s orphaned (tmux window %s gone) — marked failed", r.AgentName, r.TmuxTarget))
+	}
+	return nil
+}
+
 func (s *Server) handleRunExit(w http.ResponseWriter, r *http.Request) {
 	id := chiInt64(r, "id")
 	run, ok, err := s.st.RunByID(id)
