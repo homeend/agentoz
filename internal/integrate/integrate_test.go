@@ -105,3 +105,21 @@ func TestProviderHookCodex(t *testing.T) {
 		t.Errorf("notify script must be executable, mode = %o", info.Mode())
 	}
 }
+
+func TestForwardToAgent(t *testing.T) {
+	got := ForwardToAgent("/abs/erbrus", 7, "webshop", "general", "main", "/code/webshop",
+		"claude", "2026-08-27 10:00:00", "auth is done", []string{"/data/artifacts/3/report.md"})
+	for _, want := range []string{
+		"forwarded from webshop / #general",
+		"branch main",
+		"worktree /code/webshop",
+		"by claude at 2026-08-27 10:00:00",
+		"auth is done",
+		"attached file (read it yourself): /data/artifacts/3/report.md",
+		`/abs/erbrus msg send --report --channel 7 "your reply"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+}

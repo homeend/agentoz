@@ -143,16 +143,17 @@ func TestSendKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{
-		"tmux send-keys -t erbrus-x:3 -l fix the tests",
+		"tmux set-buffer -- fix the tests",
+		"tmux paste-buffer -dp -t erbrus-x:3",
 		"tmux send-keys -t erbrus-x:3 Enter",
 	}
-	if len(rec.calls) != 2 || rec.calls[0] != want[0] || rec.calls[1] != want[1] {
+	if len(rec.calls) != 3 || rec.calls[0] != want[0] || rec.calls[1] != want[1] || rec.calls[2] != want[2] {
 		t.Fatalf("calls = %q, want %q", rec.calls, want)
 	}
 }
 
 func TestSendKeysError(t *testing.T) {
-	rec := &recorder{fail: map[string]error{"tmux send-keys": errors.New("no window")}}
+	rec := &recorder{fail: map[string]error{"tmux paste-buffer": errors.New("no window")}}
 	tm := NewTmux(rec.run)
 	if err := tm.Send(Handle("erbrus-x:3"), "hi"); err == nil {
 		t.Fatal("want error when window is gone")

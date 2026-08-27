@@ -34,6 +34,23 @@ func AssemblePrompt(preamble, prompt, context string) string {
 	return strings.Join(parts, "\n\n")
 }
 
+// ForwardToAgent builds the text typed into a RUNNING agent's terminal when
+// a message is forwarded to it: where it came from (project, channel, git
+// coordinates), the body and artifacts, and how to reply — the origin
+// channel, reachable with the agent's own token via --channel.
+func ForwardToAgent(erbrusBin string, originChannelID int64, project, channel, branch, worktree, author, createdAt, body string, artifactPaths []string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "--- forwarded from %s / #%s (branch %s, worktree %s) by %s at %s ---\n",
+		project, channel, branch, worktree, author, createdAt)
+	b.WriteString(body)
+	for _, p := range artifactPaths {
+		fmt.Fprintf(&b, "\nattached file (read it yourself): %s", p)
+	}
+	fmt.Fprintf(&b, "\nWhen done, reply to the ORIGIN channel (flags before the text):\n  %s msg send --report --channel %d \"your reply\"",
+		erbrusBin, originChannelID)
+	return b.String()
+}
+
 func HandoffContext(project, channel, author, createdAt, body string, artifactPaths []string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "--- context: report from %s / #%s by %s at %s ---\n", project, channel, author, createdAt)
