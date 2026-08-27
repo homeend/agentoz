@@ -45,6 +45,19 @@ func TestDeleteProjectCascades(t *testing.T) {
 	s := open(t)
 	p, ch, run, report := seedProject(t, s, "gone", "/gone")
 
+	// Internal handoff: a run in the same project spawned from the report.
+	// Messages are deleted before agent_runs, so an un-nulled internal
+	// run->message backlink would trip the FK mid-transaction.
+	ch2, _, err := s.ChannelByName(p.ID, "feature")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handoff, err := s.CreateRun(AgentRun{ChannelID: ch2.ID, Provider: "codex",
+		AgentName: "b", Workdir: "/gone", Status: "done", Spawner: "tmux", OriginMessageID: report.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	if err := s.DeleteProject(p.ID); err != nil {
 		t.Fatalf("DeleteProject: %v", err)
 	}
@@ -62,6 +75,9 @@ func TestDeleteProjectCascades(t *testing.T) {
 	}
 	if _, ok, _ := s.RunByID(run.ID); ok {
 		t.Fatal("run still present")
+	}
+	if _, ok, _ := s.RunByID(handoff.ID); ok {
+		t.Fatal("internal handoff run still present")
 	}
 	if arts, _ := s.ArtifactsByMessage(report.ID); len(arts) != 0 {
 		t.Fatalf("artifacts remain: %d", len(arts))
