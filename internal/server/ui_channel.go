@@ -257,6 +257,12 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// One's own message is never unread — mark here, not only via the
+	// redirect's page render, so a future fetch-based composer stays correct.
+	if err := s.st.MarkChannelRead(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	s.hub.Publish("message", s.messageJSON(saved))
 
 	warning := ""

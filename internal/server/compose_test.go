@@ -43,6 +43,11 @@ func TestComposerMemoDefault(t *testing.T) {
 	if last.Body != "note to self" || last.Kind != "message" || last.TargetLabel != "" {
 		t.Fatalf("memo stored wrong: %+v", last)
 	}
+	// One's own message never counts as unread.
+	un, _ := st.UnreadByChannel()
+	if _, ok := un[ch1]; ok {
+		t.Fatalf("own memo left channel unread: %+v", un[ch1])
+	}
 }
 
 func TestComposerSendToAgent(t *testing.T) {
