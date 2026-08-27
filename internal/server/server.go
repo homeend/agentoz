@@ -5,6 +5,7 @@ package server
 
 import (
 	"encoding/json"
+	"html/template"
 	"net/http"
 	"strings"
 
@@ -13,6 +14,7 @@ import (
 	"erbrus/internal/config"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
+	"erbrus/internal/web"
 	"erbrus/internal/wt"
 )
 
@@ -22,6 +24,7 @@ type Server struct {
 	run     wt.Runner
 	dataDir string
 	hub     *Hub
+	pages   map[string]*template.Template
 
 	spawner   spawn.Spawner
 	erbrusBin string
@@ -29,7 +32,14 @@ type Server struct {
 }
 
 func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
-	return &Server{st: st, cfg: cfg, run: run, dataDir: cfg.ResolvedDataDir(), hub: NewHub()}
+	return &Server{
+		st:      st,
+		cfg:     cfg,
+		run:     run,
+		dataDir: cfg.ResolvedDataDir(),
+		hub:     NewHub(),
+		pages:   web.Pages(template.FuncMap{"localtime": localTime}),
+	}
 }
 
 // SetRuntime wires the spawn runtime (spawner, erbrus binary path, and the
@@ -54,6 +64,12 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/artifacts/{id}", s.handleArtifactDownload)
 	})
 	r.Get("/events", s.handleEvents)
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/ui/projects", http.StatusFound)
+	})
+	r.Handle("/static/*", http.StripPrefix("/static/", web.Static()))
+	r.Get("/ui/projects", s.handleUIProjects)
+	r.Post("/ui/projects", s.handleUIAddProject)
 	return r
 }
 
