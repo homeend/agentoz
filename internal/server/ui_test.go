@@ -322,13 +322,13 @@ func TestForwardDialogAndPost(t *testing.T) {
 	dresp, _ := http.Get(fmt.Sprintf("%s/ui/forward?message=%d", ts.URL, m.ID))
 	body := readBody(t, dresp)
 	dresp.Body.Close()
-	if dresp.StatusCode != http.StatusOK || !strings.Contains(body, "fwd me") || !strings.Contains(body, "target_channel") {
+	if dresp.StatusCode != http.StatusOK || !strings.Contains(body, "fwd me") || !strings.Contains(body, `name="target"`) {
 		t.Fatalf("dialog status=%d body missing pieces", dresp.StatusCode)
 	}
 
 	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
 	resp2, err := c.PostForm(ts.URL+"/ui/forward", url.Values{
-		"message_id": {fmt.Sprint(m.ID)}, "target_channel": {fmt.Sprint(dst)},
+		"message_id": {fmt.Sprint(m.ID)}, "target": {fmt.Sprintf("c%d", dst)},
 	})
 	if err != nil {
 		t.Fatal(err)

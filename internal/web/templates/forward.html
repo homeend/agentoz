@@ -14,10 +14,10 @@
       <div class="mono muted">{{.Source.Body}}</div>
     </div>
     <form method="post" action="/ui/forward">
-      <label>Target channel</label>
-      <select name="target_channel">
-        {{range .Channels}}
-        <option value="{{.ID}}">{{.Label}}</option>
+      <label>Target</label>
+      <select name="target">
+        {{range .Targets}}
+        <option value="{{.Value}}">{{.Label}}</option>
         {{end}}
       </select>
 

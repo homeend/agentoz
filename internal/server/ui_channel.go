@@ -3,11 +3,14 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 
 	"erbrus/internal/config"
 	"erbrus/internal/preset"
+	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
 
@@ -21,6 +24,7 @@ type msgView struct {
 	IsSystem  bool
 	Artifacts []store.Artifact
 	Origin    string // "report from <project> / #<channel> by <author>", "" if not a forward or lookup failed
+	Target    string // agent name this message was typed at, "" for plain messages
 }
 
 type runView struct {
@@ -40,6 +44,7 @@ type channelPage struct {
 	Runs      []runView
 	Presets   []string // merged preset names for THIS project, sorted
 	AttachCmd string   // "tmux attach -t <session>" for this project, "" if none derivable
+	Warning   string   // ?warning= from a redirect (e.g. failed agent delivery)
 }
 
 // buildChannelPage assembles a channelPage for chID: channel + project
@@ -102,6 +107,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			IsSystem:  m.Kind == "system",
 			Artifacts: arts,
 			Origin:    origin,
+			Target:    m.TargetLabel,
 		})
 	}
 
@@ -165,6 +171,7 @@ func (s *Server) handleUIChannel(w http.ResponseWriter, r *http.Request) {
 		httpError(w, status, errMsg)
 		return
 	}
+	data.Warning = r.URL.Query().Get("warning")
 	s.render(w, "channel", data)
 }
 
@@ -202,6 +209,11 @@ func (s *Server) handleUIRunsPanel(w http.ResponseWriter, r *http.Request) {
 	s.renderChannelPartial(w, chiInt64(r, "id"), "_runs.html")
 }
 
+// handleUIComposeMessage posts from the channel composer. target is either
+// "memo" (or empty: just record the message in the channel) or "r<run id>":
+// record it labeled with the agent's name AND type it into that agent's
+// terminal. Delivery failure is a warning — the channel history always
+// keeps the message.
 func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) {
 	chID := chiInt64(r, "id")
 	if _, ok, err := s.st.ChannelByID(chID); err != nil {
@@ -212,24 +224,62 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	kind := r.FormValue("kind")
-	if kind == "" {
-		kind = "message"
-	}
-	if kind != "message" && kind != "report" {
-		httpError(w, http.StatusUnprocessableEntity, "kind must be message|report")
-		return
+	msg := store.Message{ChannelID: chID, Kind: "message", AuthorKind: "human",
+		AuthorName: "you", Body: r.FormValue("body")}
+
+	var run store.AgentRun
+	if target := r.FormValue("target"); target != "" && target != "memo" {
+		runID, perr := strconv.ParseInt(strings.TrimPrefix(target, "r"), 10, 64)
+		if !strings.HasPrefix(target, "r") || perr != nil {
+			httpError(w, http.StatusUnprocessableEntity, "target must be memo or r<run id>")
+			return
+		}
+		var ok bool
+		var err error
+		run, ok, err = s.st.RunByID(runID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok || run.ChannelID != chID {
+			httpError(w, http.StatusUnprocessableEntity, "agent is not in this channel")
+			return
+		}
+		if run.Status != "starting" && run.Status != "running" {
+			httpError(w, http.StatusUnprocessableEntity, "agent already finished")
+			return
+		}
+		msg.TargetLabel = run.AgentName
 	}
 
-	saved, err := s.st.CreateMessage(store.Message{
-		ChannelID: chID, Kind: kind, AuthorKind: "human", AuthorName: "you", Body: r.FormValue("body"),
-	})
+	saved, err := s.st.CreateMessage(msg)
 	if err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	s.hub.Publish("message", s.messageJSON(saved))
-	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", chID), http.StatusFound)
+
+	warning := ""
+	if msg.TargetLabel != "" {
+		warning = s.sendToRun(run, msg.Body)
+	}
+	target := fmt.Sprintf("/ui/channels/%d", chID)
+	if warning != "" {
+		target += "?warning=" + url.QueryEscape(warning)
+	}
+	http.Redirect(w, r, target, http.StatusFound)
+}
+
+// sendToRun types text into a run's terminal; returns a warning string ("" on
+// success) instead of an error — the caller has already recorded the message.
+func (s *Server) sendToRun(run store.AgentRun, text string) string {
+	if s.spawner == nil || run.TmuxTarget == "" {
+		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName)
+	}
+	if err := s.spawner.Send(spawn.Handle(run.TmuxTarget), text); err != nil {
+		return fmt.Sprintf("delivery to %s failed: %s — posted to channel only", run.AgentName, err)
+	}
+	return ""
 }
 
 func (s *Server) handleUIStopRun(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,7 @@
 <div class="msg">
   <div class="meta">
     <span class="author">{{.Author}}</span>
+    {{if .Target}}<span class="tag totag">→ {{.Target}}</span>{{end}}
     {{if .IsReport}}<span class="tag">REPORT</span>{{end}}
     <span>{{.When}}</span>
   </div>
@@ -14,12 +15,10 @@
   {{range .Artifacts}}
   <a class="artifact" href="/api/artifacts/{{.ID}}">{{.Filename}} ({{.Size}} B)</a>
   {{end}}
-  {{if .IsReport}}
   <div class="actions">
-    <a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>
+    {{if .IsReport}}<a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>{{end}}
     <a href="/ui/forward?message={{.ID}}">Forward…</a>
   </div>
-  {{end}}
 </div>
 {{end}}
 {{end}}
