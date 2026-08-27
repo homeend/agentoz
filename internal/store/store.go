@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -29,7 +30,26 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}
+	if err := migrate(db); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("migrate: %w", err)
+	}
 	return &Store{db: db}, nil
+}
+
+// migrate upgrades databases created before a column existed — schema.sql
+// is CREATE TABLE IF NOT EXISTS, so it never alters existing tables. Each
+// ALTER is idempotent: "duplicate column name" means already migrated.
+func migrate(db *sql.DB) error {
+	alters := []string{
+		`ALTER TABLE channels ADD COLUMN last_read_message_id INTEGER NOT NULL DEFAULT 0`,
+	}
+	for _, q := range alters {
+		if _, err := db.Exec(q); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }
