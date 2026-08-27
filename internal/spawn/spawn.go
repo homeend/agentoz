@@ -26,4 +26,7 @@ type Spawner interface {
 	Spawn(spec RunSpec) (Handle, error)
 	Stop(h Handle) error
 	Alive(h Handle) (bool, error)
+	// Send types text into the run's terminal, followed by Enter — the way
+	// a human would talk to the interactive agent sitting in that window.
+	Send(h Handle, text string) error
 }

@@ -135,3 +135,26 @@ func TestAlive(t *testing.T) {
 		t.Errorf("gone session => (false, nil), got (%v, %v)", ok, err)
 	}
 }
+
+func TestSendKeys(t *testing.T) {
+	rec := &recorder{}
+	tm := NewTmux(rec.run)
+	if err := tm.Send(Handle("erbrus-x:3"), "fix the tests"); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"tmux send-keys -t erbrus-x:3 -l fix the tests",
+		"tmux send-keys -t erbrus-x:3 Enter",
+	}
+	if len(rec.calls) != 2 || rec.calls[0] != want[0] || rec.calls[1] != want[1] {
+		t.Fatalf("calls = %q, want %q", rec.calls, want)
+	}
+}
+
+func TestSendKeysError(t *testing.T) {
+	rec := &recorder{fail: map[string]error{"tmux send-keys": errors.New("no window")}}
+	tm := NewTmux(rec.run)
+	if err := tm.Send(Handle("erbrus-x:3"), "hi"); err == nil {
+		t.Fatal("want error when window is gone")
+	}
+}

@@ -43,6 +43,7 @@ func Open(path string) (*Store, error) {
 func migrate(db *sql.DB) error {
 	alters := []string{
 		`ALTER TABLE channels ADD COLUMN last_read_message_id INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN target_label TEXT NOT NULL DEFAULT ''`,
 	}
 	for _, q := range alters {
 		if _, err := db.Exec(q); err != nil && !strings.Contains(err.Error(), "duplicate column name") {
@@ -79,6 +80,7 @@ type Message struct {
 	AuthorName      string
 	AgentRunID      int64 // 0 = none
 	OriginMessageID int64 // 0 = none
+	TargetLabel     string
 	Body            string
 	CreatedAt       time.Time
 }
@@ -235,9 +237,9 @@ func (s *Store) ChannelsByProject(projectID int64) ([]Channel, error) {
 
 func (s *Store) CreateMessage(m Message) (Message, error) {
 	res, err := s.db.Exec(
-		`INSERT INTO messages (channel_id, kind, author_kind, author_name, agent_run_id, origin_message_id, body)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		m.ChannelID, m.Kind, m.AuthorKind, m.AuthorName, nz(m.AgentRunID), nz(m.OriginMessageID), m.Body)
+		`INSERT INTO messages (channel_id, kind, author_kind, author_name, agent_run_id, origin_message_id, target_label, body)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		m.ChannelID, m.Kind, m.AuthorKind, m.AuthorName, nz(m.AgentRunID), nz(m.OriginMessageID), m.TargetLabel, m.Body)
 	if err != nil {
 		return Message{}, err
 	}
@@ -247,13 +249,13 @@ func (s *Store) CreateMessage(m Message) (Message, error) {
 }
 
 const msgCols = `id, channel_id, kind, author_kind, author_name,
-	COALESCE(agent_run_id, 0), COALESCE(origin_message_id, 0), body, created_at`
+	COALESCE(agent_run_id, 0), COALESCE(origin_message_id, 0), target_label, body, created_at`
 
 func scanMessage(sc interface{ Scan(...any) error }) (Message, error) {
 	var m Message
 	var ts string
 	err := sc.Scan(&m.ID, &m.ChannelID, &m.Kind, &m.AuthorKind, &m.AuthorName,
-		&m.AgentRunID, &m.OriginMessageID, &m.Body, &ts)
+		&m.AgentRunID, &m.OriginMessageID, &m.TargetLabel, &m.Body, &ts)
 	m.CreatedAt = parseTime(ts)
 	return m, err
 }

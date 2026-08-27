@@ -15,11 +15,13 @@ import (
 )
 
 type fakeSpawner struct {
-	specs  []spawn.RunSpec
-	handle spawn.Handle
-	err    error
-	killed []spawn.Handle
-	alive  map[spawn.Handle]bool
+	specs   []spawn.RunSpec
+	handle  spawn.Handle
+	err     error
+	killed  []spawn.Handle
+	alive   map[spawn.Handle]bool
+	sent    []string // "handle|text" per Send call
+	sendErr error
 }
 
 func (f *fakeSpawner) Spawn(s spawn.RunSpec) (spawn.Handle, error) {
@@ -28,6 +30,13 @@ func (f *fakeSpawner) Spawn(s spawn.RunSpec) (spawn.Handle, error) {
 }
 func (f *fakeSpawner) Stop(h spawn.Handle) error          { f.killed = append(f.killed, h); return nil }
 func (f *fakeSpawner) Alive(h spawn.Handle) (bool, error) { return f.alive[h], nil }
+func (f *fakeSpawner) Send(h spawn.Handle, text string) error {
+	if f.sendErr != nil {
+		return f.sendErr
+	}
+	f.sent = append(f.sent, string(h)+"|"+text)
+	return nil
+}
 
 func TestSpawnRunTmux(t *testing.T) {
 	ts, st, root := newTestServer(t)

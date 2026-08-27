@@ -123,3 +123,23 @@ func TestUnreadMigrationOnExistingDB(t *testing.T) {
 		t.Fatalf("MarkChannelRead on migrated db: %v", err)
 	}
 }
+
+func TestMessageTargetLabel(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("tl", "/tl")
+	ch, _ := s.CreateChannel(p.ID, "general", "/tl", "main")
+	m, err := s.CreateMessage(Message{ChannelID: ch.ID, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", TargetLabel: "claude", Body: "do it"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok, _ := s.MessageByID(m.ID)
+	if !ok || got.TargetLabel != "claude" {
+		t.Fatalf("TargetLabel = %q, want claude", got.TargetLabel)
+	}
+	plain := addMsg(t, s, ch.ID, "message")
+	got2, _, _ := s.MessageByID(plain.ID)
+	if got2.TargetLabel != "" {
+		t.Fatalf("plain message TargetLabel = %q, want empty", got2.TargetLabel)
+	}
+}

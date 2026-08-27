@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS messages (
   author_name       TEXT NOT NULL DEFAULT '',
   agent_run_id      INTEGER REFERENCES agent_runs(id),
   origin_message_id INTEGER REFERENCES messages(id),
+  -- display-only name of the agent this message was typed at ('' = none);
+  -- deliberately not a foreign key so project deletion never cascades here
+  target_label      TEXT NOT NULL DEFAULT '',
   body              TEXT NOT NULL,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );

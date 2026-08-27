@@ -48,6 +48,19 @@ func (t *Tmux) Spawn(spec RunSpec) (Handle, error) {
 	return h, nil
 }
 
+// Send types text into the window literally (-l: no key-name expansion),
+// then presses Enter as a separate keystroke so multiline-safe input still
+// submits.
+func (t *Tmux) Send(h Handle, text string) error {
+	if _, err := t.run("tmux", "send-keys", "-t", string(h), "-l", text); err != nil {
+		return fmt.Errorf("send to %s: %w", h, err)
+	}
+	if _, err := t.run("tmux", "send-keys", "-t", string(h), "Enter"); err != nil {
+		return fmt.Errorf("send Enter to %s: %w", h, err)
+	}
+	return nil
+}
+
 func (t *Tmux) Stop(h Handle) error {
 	_, err := t.run("tmux", "kill-window", "-t", string(h))
 	return err
