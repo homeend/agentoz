@@ -26,7 +26,11 @@ type runRequest struct {
 	Args            string `json:"args"`
 	Prompt          string `json:"prompt"`
 	Workdir         string `json:"workdir"`
-	Fg              bool   `json:"fg"`
+	// SessionScope picks the tmux session: "project" (default — the
+	// per-project session, honoring repo-config overrides) or "global"
+	// (the shared cfg.Session, "erbrus" by default).
+	SessionScope string `json:"session_scope"`
+	Fg           bool   `json:"fg"`
 	OriginMessageID int64  `json:"origin_message_id"`
 }
 
@@ -181,6 +185,9 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	if !req.Fg && s.spawner == nil {
 		return nil, http.StatusServiceUnavailable, "no spawner configured"
 	}
+	if req.SessionScope != "" && req.SessionScope != "project" && req.SessionScope != "global" {
+		return nil, http.StatusBadRequest, "session_scope must be project|global"
+	}
 	var handoffContext string
 	var originMsg store.Message
 	haveOrigin := req.OriginMessageID != 0
@@ -284,9 +291,15 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	if session == "" {
 		session = strings.ReplaceAll(s.cfg.SessionPattern, "{project}", project.Name)
 	}
+	attachSession := repoCfg.AttachSession
+	if req.SessionScope == "global" {
+		// The shared session is created on demand like any other, so it
+		// goes through Session, never AttachSession.
+		session, attachSession = s.cfg.Session, ""
+	}
 	spec := spawn.RunSpec{
 		Session:       session,
-		AttachSession: repoCfg.AttachSession,
+		AttachSession: attachSession,
 		WindowName:    agentName,
 		Workdir:       workdir,
 		Env:           env,

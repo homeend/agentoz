@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 
 	"erbrus/internal/config"
 	"erbrus/internal/preset"
@@ -24,8 +25,12 @@ type spawnPage struct {
 	Preset   string          // preselected via ?preset=
 	Origin   *msgView        // context banner when ?origin= given
 	OriginID int64
-	Error    string
-	Form     map[string]string // echo-back on error
+	// Session-select labels: the default project session and the shared
+	// global one (cfg.Session).
+	ProjectSession string
+	GlobalSession  string
+	Error          string
+	Form           map[string]string // echo-back on error
 }
 
 // truncateRunes cuts s to at most max runes, leaving it untouched if it
@@ -111,13 +116,23 @@ func (s *Server) buildSpawnPage(chID int64, presetName string, originID int64) (
 	}
 	sort.Strings(presets)
 
+	projectSession := repoCfg.Session
+	if projectSession == "" {
+		projectSession = strings.ReplaceAll(s.cfg.SessionPattern, "{project}", project.Name)
+	}
+	if repoCfg.AttachSession != "" {
+		projectSession = repoCfg.AttachSession
+	}
+
 	page := spawnPage{
-		Channel:  channel,
-		Project:  project,
-		Channels: channels,
-		Presets:  presets,
-		Preset:   presetName,
-		OriginID: originID,
+		Channel:        channel,
+		Project:        project,
+		Channels:       channels,
+		Presets:        presets,
+		Preset:         presetName,
+		OriginID:       originID,
+		ProjectSession: projectSession,
+		GlobalSession:  s.cfg.Session,
 	}
 
 	if originID != 0 {
@@ -169,6 +184,7 @@ func (s *Server) handleUISpawnPost(w http.ResponseWriter, r *http.Request) {
 		Args:            r.FormValue("args"),
 		Prompt:          r.FormValue("prompt"),
 		Workdir:         r.FormValue("workdir"),
+		SessionScope:    r.FormValue("session_scope"),
 		Fg:              false,
 		OriginMessageID: originID,
 	}

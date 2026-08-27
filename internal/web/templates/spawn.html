@@ -32,6 +32,12 @@
       </select>
       <div class="muted small">presets listed for {{.Project.Name}} — changing the target project does not refresh this list</div>
 
+      <label>Session</label>
+      <select name="session_scope">
+        <option value="project">project: {{.ProjectSession}}</option>
+        <option value="global">global: {{.GlobalSession}}</option>
+      </select>
+
       <div class="row">
         <div>
           <label>Provider</label>

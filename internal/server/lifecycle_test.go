@@ -3,6 +3,8 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -114,5 +116,138 @@ func TestReconcilePublishesRunEvent(t *testing.T) {
 		default:
 			t.Fatal("no run event published by Reconcile")
 		}
+	}
+}
+
+func TestUIDeleteRun(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run, _ := st.CreateRun(store.AgentRun{ChannelID: ch1, Provider: "codex",
+		AgentName: "old", Workdir: "/w", Status: "starting", Spawner: "tmux"})
+	if err := st.FinishRun(run.ID, "done", 0); err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(testSrv.dataDir, "runs", fmt.Sprint(run.ID))
+	if err := os.MkdirAll(runDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	c := noRedirect()
+	resp, err := c.PostForm(fmt.Sprintf("%s/ui/runs/%d/delete", ts.URL, run.ID), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if _, ok, _ := st.RunByID(run.ID); ok {
+		t.Fatal("run row survived")
+	}
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatal("run dir survived")
+	}
+}
+
+func TestUIDeleteRunRefusesActive(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run := runningAgent(t, st, ch1, "live")
+
+	c := noRedirect()
+	resp, err := c.PostForm(fmt.Sprintf("%s/ui/runs/%d/delete", ts.URL, run.ID), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", resp.StatusCode)
+	}
+	if _, ok, _ := st.RunByID(run.ID); !ok {
+		t.Fatal("active run must not be deleted")
+	}
+}
+
+func TestRunsPanelDeleteButtonOnlyOnFinished(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	live := runningAgent(t, st, ch1, "live")
+	done, _ := st.CreateRun(store.AgentRun{ChannelID: ch1, Provider: "codex",
+		AgentName: "old", Workdir: "/w", Status: "starting", Spawner: "tmux"})
+	if err := st.FinishRun(done.ID, "done", 0); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	html := readBody(t, resp)
+	if !strings.Contains(html, fmt.Sprintf("/ui/runs/%d/delete", done.ID)) {
+		t.Fatal("finished run missing delete button")
+	}
+	if strings.Contains(html, fmt.Sprintf("/ui/runs/%d/delete", live.ID)) {
+		t.Fatal("running run must not offer delete")
+	}
+}
+
+func TestSpawnGlobalSession(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	fs := &fakeSpawner{handle: "erbrus:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	_ = st
+
+	resp := postJSON(t, ts.URL+"/api/runs", map[string]any{
+		"channel_id": ch1, "provider": "codex", "prompt": "x", "session_scope": "global",
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	if len(fs.specs) != 1 || fs.specs[0].Session != "erbrus" {
+		t.Fatalf("spawn session = %+v, want global erbrus", fs.specs)
+	}
+	if fs.specs[0].AttachSession != "" {
+		t.Fatal("global scope must not use attach_session")
+	}
+}
+
+func TestSpawnDialogSessionSelect(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/spawn?channel=%d", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	html := readBody(t, resp)
+	if !strings.Contains(html, `name="session_scope"`) {
+		t.Fatal("spawn dialog missing session_scope select")
+	}
+	if !strings.Contains(html, "global: erbrus") {
+		t.Fatal("spawn dialog missing global session label")
+	}
+}
+
+func TestAttachCmdsFollowRunSessions(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	if _, err := st.CreateRun(store.AgentRun{ChannelID: ch1, Provider: "codex",
+		AgentName: "g", Workdir: "/w", Status: "running", Spawner: "tmux",
+		TmuxTarget: "erbrus:3"}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	html := readBody(t, resp)
+	if !strings.Contains(html, "tmux attach -t erbrus<") {
+		t.Fatalf("attach rail missing session of the running agent")
 	}
 }

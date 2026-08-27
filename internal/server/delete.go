@@ -79,6 +79,31 @@ func (s *Server) handleDeleteProject(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "warning": warning})
 }
 
+// handleUIDeleteRun removes one finished run from the rail's history. The
+// messages the run posted stay in the channel; its runs/<id> dir goes too.
+func (s *Server) handleUIDeleteRun(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	run, ok, err := s.st.RunByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "run not found")
+		return
+	}
+	if run.Status == "starting" || run.Status == "running" {
+		httpError(w, http.StatusUnprocessableEntity, "agent still running — stop it first")
+		return
+	}
+	if err := s.st.DeleteRun(id); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(s.dataDir, "runs", fmt.Sprint(id)))
+	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", run.ChannelID), http.StatusFound)
+}
+
 type deletePage struct {
 	Project store.Project
 	Stats   store.ProjectStatsRow

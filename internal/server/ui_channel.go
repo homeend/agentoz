@@ -47,9 +47,12 @@ type channelPage struct {
 	Sidebar   []projectCard
 	Messages  []msgView
 	Runs      []runView
-	Presets   []string // merged preset names for THIS project, sorted
-	AttachCmd string   // "tmux attach -t <session>" for this project, "" if none derivable
-	Warning   string   // ?warning= from a redirect (e.g. failed agent delivery)
+	Presets []string // merged preset names for THIS project, sorted
+	// AttachCmds: one "tmux attach -t <session>" per session actually
+	// holding this channel's listed runs; falls back to the project's
+	// configured session when no run names one.
+	AttachCmds []string
+	Warning    string // ?warning= from a redirect (e.g. failed agent delivery)
 }
 
 // buildChannelPage assembles a channelPage for chID: channel + project
@@ -163,26 +166,37 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 	}
 	sort.Strings(presets)
 
-	session := repoCfg.Session
-	if session == "" {
-		session = strings.ReplaceAll(s.cfg.SessionPattern, "{project}", project.Name)
+	var attachCmds []string
+	seen := map[string]bool{}
+	for _, v := range runViews {
+		sess, _, ok := strings.Cut(v.TmuxTarget, ":")
+		if !ok || sess == "" || seen[sess] {
+			continue
+		}
+		seen[sess] = true
+		attachCmds = append(attachCmds, "tmux attach -t "+sess)
 	}
-	if repoCfg.AttachSession != "" {
-		session = repoCfg.AttachSession
-	}
-	attachCmd := ""
-	if session != "" {
-		attachCmd = "tmux attach -t " + session
+	if len(attachCmds) == 0 {
+		session := repoCfg.Session
+		if session == "" {
+			session = strings.ReplaceAll(s.cfg.SessionPattern, "{project}", project.Name)
+		}
+		if repoCfg.AttachSession != "" {
+			session = repoCfg.AttachSession
+		}
+		if session != "" {
+			attachCmds = []string{"tmux attach -t " + session}
+		}
 	}
 
 	return channelPage{
-		Channel:   channel,
-		Project:   project,
-		Sidebar:   sidebar.Projects,
-		Messages:  msgViews,
-		Runs:      runViews,
-		Presets:   presets,
-		AttachCmd: attachCmd,
+		Channel:    channel,
+		Project:    project,
+		Sidebar:    sidebar.Projects,
+		Messages:   msgViews,
+		Runs:       runViews,
+		Presets:    presets,
+		AttachCmds: attachCmds,
 	}, 0, ""
 }
 

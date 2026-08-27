@@ -242,3 +242,19 @@ func TestTranslateUserPath(t *testing.T) {
 		t.Errorf("posix path must pass through, got %q", got)
 	}
 }
+
+func TestGlobalSessionDefault(t *testing.T) {
+	g := Defaults()
+	if g.Session != "erbrus" {
+		t.Fatalf("default global session = %q, want erbrus", g.Session)
+	}
+	p := filepath.Join(t.TempDir(), "config.yaml")
+	write(t, p, "port: 1234\n")
+	loaded, err := LoadGlobal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Session != "erbrus" {
+		t.Fatalf("loaded session = %q, want erbrus fallback", loaded.Session)
+	}
+}

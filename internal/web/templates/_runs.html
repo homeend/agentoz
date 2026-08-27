@@ -10,6 +10,9 @@
   </form>
   {{else}}
   <div class="muted small">{{.Provider}} · {{.Status}}{{if .HasExit}} · exit {{.ExitCode}}{{end}}{{if .Finished}} · {{.Finished}}{{end}}</div>
+  <form method="post" action="/ui/runs/{{.ID}}/delete">
+    <button class="btn small" type="submit" title="remove from history">×</button>
+  </form>
   {{end}}
 </div>
 {{end}}

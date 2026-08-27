@@ -34,7 +34,7 @@
     {{range .Presets}}
     <div class="presetrow"><span>{{.}}</span><a class="btn" href="/ui/spawn?channel={{$.Channel.ID}}&amp;preset={{.}}">Spawn</a></div>
     {{end}}
-    {{if .AttachCmd}}<h3>Attach</h3><div class="mono">{{.AttachCmd}}</div>{{end}}
+    {{if .AttachCmds}}<h3>Attach</h3>{{range .AttachCmds}}<div class="mono">{{.}}</div>{{end}}{{end}}
   </aside>
 </div>
 {{end}}

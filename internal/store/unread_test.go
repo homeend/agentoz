@@ -173,3 +173,29 @@ func TestActiveRunCountByChannel(t *testing.T) {
 		t.Fatalf("ch2 should be absent, got %d", got[ch2.ID])
 	}
 }
+
+func TestDeleteRun(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("dr", "/dr")
+	ch, _ := s.CreateChannel(p.ID, "general", "/dr", "main")
+	run, err := s.CreateRun(AgentRun{ChannelID: ch.ID, Provider: "codex",
+		AgentName: "a", Workdir: "/dr", Status: "done", Spawner: "tmux"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := s.CreateMessage(Message{ChannelID: ch.ID, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", AgentRunID: run.ID, Body: "done"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteRun(run.ID); err != nil {
+		t.Fatalf("DeleteRun: %v", err)
+	}
+	if _, ok, _ := s.RunByID(run.ID); ok {
+		t.Fatal("run row survived")
+	}
+	got, ok, _ := s.MessageByID(msg.ID)
+	if !ok || got.AgentRunID != 0 {
+		t.Fatalf("message must survive with nulled run ref: ok=%v run=%d", ok, got.AgentRunID)
+	}
+}

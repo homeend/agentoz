@@ -63,7 +63,10 @@ type Global struct {
 	DataDir        string              `yaml:"data_dir"`
 	Terminal       string              `yaml:"terminal"`
 	SessionPattern string              `yaml:"session_pattern"`
-	WtBin          string              `yaml:"wt_bin"`
+	// Session is the shared "global" tmux session agents can be spawned
+	// into instead of the per-project one.
+	Session string `yaml:"session"`
+	WtBin   string `yaml:"wt_bin"`
 	Providers      map[string]Provider `yaml:"providers"`
 	Presets        map[string]Preset   `yaml:"presets"`
 }
@@ -80,6 +83,7 @@ func Defaults() Global {
 		Port:           7420,
 		Terminal:       "tmux",
 		SessionPattern: "erbrus-{project}",
+		Session:        "erbrus",
 		WtBin:          "wt",
 		Providers:      map[string]Provider{},
 		Presets:        map[string]Preset{},
@@ -113,6 +117,9 @@ func LoadGlobal(path string) (Global, error) {
 	}
 	if g.Presets == nil {
 		g.Presets = map[string]Preset{}
+	}
+	if g.Session == "" {
+		g.Session = "erbrus"
 	}
 	return g, nil
 }

@@ -53,6 +53,24 @@ func (s *Store) ActiveRunCountByChannel() (map[int64]int64, error) {
 	return out, rows.Err()
 }
 
+// DeleteRun removes one run row (history cleanup from the runs rail). The
+// messages it posted stay — their agent_run_id back-reference is nulled in
+// the same transaction to satisfy the FK.
+func (s *Store) DeleteRun(id int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE messages SET agent_run_id = NULL WHERE agent_run_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM agent_runs WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 // MarkChannelRead moves a channel's last-read mark to its newest message.
 func (s *Store) MarkChannelRead(channelID int64) error {
 	_, err := s.db.Exec(`UPDATE channels SET last_read_message_id =
