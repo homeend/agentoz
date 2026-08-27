@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"erbrus/internal/provider"
 )
 
 func Preamble(erbrusBin, agentName, channelName string) string {
@@ -62,7 +64,7 @@ func claudeHook(runDir, erbrusBin string) (string, error) {
 			"Stop": []any{map[string]any{
 				"hooks": []any{map[string]any{
 					"type":    "command",
-					"command": fmt.Sprintf(`%s msg send --system "claude stop hook: prompt finished"`, erbrusBin),
+					"command": fmt.Sprintf(`%s msg send --system "claude stop hook: prompt finished"`, provider.ShellQuote(erbrusBin)),
 				}},
 			}},
 		},
@@ -79,9 +81,16 @@ func claudeHook(runDir, erbrusBin string) (string, error) {
 }
 
 func codexHook(runDir, erbrusBin string) (string, error) {
-	// Codex notify syntax could not be verified from installed binary's help/config.
-	// The binary does not document a --notify or -c notify= configuration option,
-	// and ~/.codex/config.toml contains no notify configuration examples.
-	// Returning no-op as per task instructions.
-	return "", nil
+	// Write notify.sh script that codex will invoke when a turn completes.
+	notifyScript := filepath.Join(runDir, "notify.sh")
+	scriptContent := fmt.Sprintf(`#!/bin/sh
+exec %s msg send --system "codex notify: turn complete"
+`, provider.ShellQuote(erbrusBin))
+
+	if err := os.WriteFile(notifyScript, []byte(scriptContent), 0o755); err != nil {
+		return "", err
+	}
+
+	// Return the codex config override args to register the notify script.
+	return fmt.Sprintf(`-c notify=[%s]`, provider.ShellQuote(notifyScript)), nil
 }

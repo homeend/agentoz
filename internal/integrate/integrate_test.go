@@ -61,8 +61,8 @@ func TestProviderHookClaude(t *testing.T) {
 	if err := json.Unmarshal(data, &v); err != nil {
 		t.Fatalf("settings not valid JSON: %v\n%s", err, data)
 	}
-	if !strings.Contains(string(data), "/abs/erbrus msg send --system") {
-		t.Errorf("stop hook must invoke the absolute binary:\n%s", data)
+	if !strings.Contains(string(data), "'/abs/erbrus' msg send --system") {
+		t.Errorf("stop hook must invoke the quoted absolute binary:\n%s", data)
 	}
 	if !strings.Contains(string(data), "Stop") {
 		t.Errorf("no Stop hook in settings:\n%s", data)
@@ -73,5 +73,35 @@ func TestProviderHookUnknownProvider(t *testing.T) {
 	args, err := ProviderHook("junie", t.TempDir(), "/abs/erbrus")
 	if err != nil || args != "" {
 		t.Errorf("unknown provider must be a no-op, got %q, %v", args, err)
+	}
+}
+
+func TestProviderHookCodex(t *testing.T) {
+	dir := t.TempDir()
+	args, err := ProviderHook("codex", dir, "/abs/erbrus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	notifyScript := filepath.Join(dir, "notify.sh")
+	if !strings.Contains(args, notifyScript) {
+		t.Errorf("args must reference the notify script, got %q", args)
+	}
+	if !strings.Contains(args, "-c notify=") {
+		t.Errorf("args must contain -c notify=, got %q", args)
+	}
+	data, err := os.ReadFile(notifyScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "'/abs/erbrus' msg send --system") {
+		t.Errorf("notify script must invoke the quoted absolute binary:\n%s", data)
+	}
+	// Check executable permission
+	info, err := os.Stat(notifyScript)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Errorf("notify script must be executable, mode = %o", info.Mode())
 	}
 }
