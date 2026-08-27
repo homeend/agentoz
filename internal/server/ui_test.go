@@ -202,6 +202,21 @@ func TestUIStopRun(t *testing.T) {
 	}
 }
 
+func TestAppJSCarriesSSEContract(t *testing.T) {
+	ts, _, _ := newTestServer(t)
+	resp, err := http.Get(ts.URL + "/static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp)
+	resp.Body.Close()
+	for _, want := range []string{"EventSource('/events')", "/stream", "/runs-panel", "dataset.channel", "channel_id"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("app.js missing %q", want)
+		}
+	}
+}
+
 func readBody(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)
