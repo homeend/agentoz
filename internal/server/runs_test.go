@@ -273,6 +273,143 @@ func TestValidArgs(t *testing.T) {
 	}
 }
 
+func TestRunExitEndpoint(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "s:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	rresp := postJSON(t, ts.URL+"/api/runs", map[string]any{"channel_id": chID, "provider": "codex"})
+	run := decode[map[string]any](t, rresp)
+	runID := int64(run["id"].(float64))
+	stRun, _, _ := st.RunByID(runID)
+
+	// Wrong token: 401.
+	req, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/runs/%d/exit", ts.URL, runID),
+		strings.NewReader(`{"code": 0}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer wrong")
+	r1, _ := http.DefaultClient.Do(req)
+	if r1.StatusCode != http.StatusUnauthorized {
+		t.Errorf("wrong token: %d", r1.StatusCode)
+	}
+	r1.Body.Close()
+
+	// Right token: run finishes failed on nonzero code.
+	req2, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/runs/%d/exit", ts.URL, runID),
+		strings.NewReader(`{"code": 3}`))
+	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Authorization", "Bearer "+stRun.Token)
+	r2, _ := http.DefaultClient.Do(req2)
+	if r2.StatusCode != http.StatusOK {
+		t.Fatalf("exit status = %d", r2.StatusCode)
+	}
+	r2.Body.Close()
+	got, _, _ := st.RunByID(runID)
+	if got.Status != "failed" || !got.HasExit || got.ExitCode != 3 {
+		t.Errorf("run after exit: %+v", got)
+	}
+	msgs, _ := st.MessagesSince(chID, 0, 100)
+	found := false
+	for _, m := range msgs {
+		if m.Kind == "system" && strings.Contains(m.Body, "exit 3") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no exit system message")
+	}
+}
+
+func TestRunStopEndpoint(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "s:2"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	rresp := postJSON(t, ts.URL+"/api/runs", map[string]any{"channel_id": chID, "provider": "codex"})
+	run := decode[map[string]any](t, rresp)
+	runID := int64(run["id"].(float64))
+
+	r := postJSON(t, fmt.Sprintf("%s/api/runs/%d/stop", ts.URL, runID), map[string]any{})
+	if r.StatusCode != http.StatusOK {
+		t.Fatalf("stop status = %d", r.StatusCode)
+	}
+	r.Body.Close()
+	if len(fs.killed) != 1 || fs.killed[0] != "s:2" {
+		t.Errorf("kill not issued: %v", fs.killed)
+	}
+	got, _, _ := st.RunByID(runID)
+	if got.Status != "stopped" {
+		t.Errorf("status = %q", got.Status)
+	}
+	// Second stop: 409.
+	r2 := postJSON(t, fmt.Sprintf("%s/api/runs/%d/stop", ts.URL, runID), map[string]any{})
+	if r2.StatusCode != http.StatusConflict {
+		t.Errorf("double stop status = %d, want 409", r2.StatusCode)
+	}
+	r2.Body.Close()
+}
+
+func TestChannelRunsList(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "s:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	postJSON(t, ts.URL+"/api/runs", map[string]any{"channel_id": chID, "provider": "codex"}).Body.Close()
+
+	lr, _ := http.Get(fmt.Sprintf("%s/api/channels/%d/runs", ts.URL, chID))
+	runs := decode[[]map[string]any](t, lr)
+	if len(runs) != 1 || runs[0]["provider"] != "codex" {
+		t.Errorf("runs = %v", runs)
+	}
+}
+
+func TestSpawnFromReportAppendsContext(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chans := p["channels"].([]any)
+	src := int64(chans[0].(map[string]any)["id"].(float64))
+	dst := int64(chans[1].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "s:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+
+	mresp := postJSON(t, fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, src),
+		map[string]string{"kind": "report", "body": "the analysis result"})
+	m := decode[map[string]any](t, mresp)
+	msgID := int64(m["id"].(float64))
+
+	rresp := postJSON(t, ts.URL+"/api/runs", map[string]any{
+		"channel_id": dst, "provider": "codex", "prompt": "implement it",
+		"origin_message_id": msgID,
+	})
+	if rresp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", rresp.StatusCode)
+	}
+	rresp.Body.Close()
+
+	data, _ := os.ReadFile(fs.specs[0].Command[2])
+	if !strings.Contains(string(data), "the analysis result") {
+		t.Errorf("report body not in prompt: %q", data)
+	}
+	// Origin channel got the handoff note.
+	msgs, _ := st.MessagesSince(src, msgID, 100)
+	found := false
+	for _, mm := range msgs {
+		if mm.Kind == "system" && strings.Contains(mm.Body, "handed off") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("no handoff system note in origin channel")
+	}
+}
+
 func TestSpawnRunFg(t *testing.T) {
 	ts, _, root := newTestServer(t)
 	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})

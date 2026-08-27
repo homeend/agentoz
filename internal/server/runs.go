@@ -313,6 +313,73 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, rj)
 }
 
+func (s *Server) handleRunExit(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	run, ok, err := s.st.RunByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "run not found")
+		return
+	}
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if token == "" || token != run.Token {
+		httpError(w, http.StatusUnauthorized, "token does not match run")
+		return
+	}
+	var req struct {
+		Code int64 `json:"code"`
+	}
+	if err := decodeBody(r, &req); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	status := "done"
+	if req.Code != 0 {
+		status = "failed"
+	}
+	if err := s.st.FinishRun(run.ID, status, req.Code); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.system(run.ChannelID, fmt.Sprintf("%s finished · exit %d", run.AgentName, req.Code))
+	got, _, _ := s.st.RunByID(run.ID)
+	s.hub.Publish("run", toRunJSON(got))
+	writeJSON(w, http.StatusOK, toRunJSON(got))
+}
+
+func (s *Server) handleRunStop(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	run, ok, err := s.st.RunByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "run not found")
+		return
+	}
+	if run.Status != "starting" && run.Status != "running" {
+		httpError(w, http.StatusConflict, "run already finished")
+		return
+	}
+	if run.TmuxTarget != "" && s.spawner != nil {
+		if err := s.spawner.Stop(spawn.Handle(run.TmuxTarget)); err != nil {
+			s.system(run.ChannelID, fmt.Sprintf("stop of %s reported: %s", run.AgentName, err))
+		}
+	}
+	if err := s.st.FinishRun(run.ID, "stopped", -1); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.system(run.ChannelID, fmt.Sprintf("%s stopped by user", run.AgentName))
+	got, _, _ := s.st.RunByID(run.ID)
+	s.hub.Publish("run", toRunJSON(got))
+	writeJSON(w, http.StatusOK, toRunJSON(got))
+}
+
 func (s *Server) handleChannelRuns(w http.ResponseWriter, r *http.Request) {
 	chID := chiInt64(r, "id")
 	if _, ok, err := s.st.ChannelByID(chID); err != nil {

@@ -48,6 +48,8 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/channels/{id}/messages", s.handlePostMessage)
 		r.Post("/messages/{id}/forward", s.handleForward)
 		r.Post("/runs", s.handleSpawnRun)
+		r.Post("/runs/{id}/exit", s.handleRunExit)
+		r.Post("/runs/{id}/stop", s.handleRunStop)
 		r.Get("/channels/{id}/runs", s.handleChannelRuns)
 	})
 	r.Get("/events", s.handleEvents)
