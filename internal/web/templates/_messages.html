@@ -1,0 +1,25 @@
+{{define "_messages.html"}}
+{{range .Messages}}
+{{if .IsSystem}}
+<div class="msg system">— {{.Body}} —</div>
+{{else}}
+<div class="msg">
+  <div class="meta">
+    <span class="author">{{.Author}}</span>
+    {{if .IsReport}}<span class="tag">REPORT</span>{{end}}
+    <span>{{.When}}</span>
+  </div>
+  <div class="body">{{.Body}}</div>
+  {{range .Artifacts}}
+  <a class="artifact" href="/api/artifacts/{{.ID}}">{{.Filename}} ({{.Size}} B)</a>
+  {{end}}
+  {{if .IsReport}}
+  <div class="actions">
+    <a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>
+    <a href="/ui/forward?message={{.ID}}">Forward…</a>
+  </div>
+  {{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}

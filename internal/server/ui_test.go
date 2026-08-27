@@ -1,11 +1,14 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
+
+	"erbrus/internal/store"
 )
 
 func TestRootRedirectsToUI(t *testing.T) {
@@ -87,6 +90,115 @@ func TestProjectsPageAddFormErrorRerenders(t *testing.T) {
 	}
 	if !strings.Contains(body, "Add project") {
 		t.Error("re-render should still be the projects page")
+	}
+}
+
+func TestChannelPage(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+
+	postJSON(t, fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, chID),
+		map[string]string{"kind": "report", "body": "the report body"}).Body.Close()
+	run, _ := st.CreateRun(store.AgentRun{ChannelID: chID, Provider: "codex", AgentName: "impl-x",
+		Workdir: root, Status: "starting", Spawner: "tmux"})
+	st.StartRun(run.ID, "erbrus-x:1")
+
+	resp2, err := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, chID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readBody(t, resp2)
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp2.StatusCode)
+	}
+	for _, want := range []string{
+		"the report body", "REPORT", "/ui/spawn?channel=", "/ui/forward?message=",
+		"impl-x", "erbrus-x:1", `id="messages"`, `id="runs"`,
+		"kimi", // preset from newTestServer cfg appears in the presets rail
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("channel page missing %q", want)
+		}
+	}
+}
+
+func TestChannelPartials(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	postJSON(t, fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, chID),
+		map[string]string{"kind": "message", "body": "partial body"}).Body.Close()
+
+	sresp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/stream", ts.URL, chID))
+	sbody := readBody(t, sresp)
+	sresp.Body.Close()
+	if !strings.Contains(sbody, "partial body") || strings.Contains(sbody, "<html") {
+		t.Errorf("stream partial wrong: %q", sbody[:min(200, len(sbody))])
+	}
+	rresp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, chID))
+	rbody := readBody(t, rresp)
+	rresp.Body.Close()
+	if strings.Contains(rbody, "<html") {
+		t.Error("runs partial must not include the layout")
+	}
+}
+
+func TestChannelComposerPost(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	resp2, err := c.PostForm(fmt.Sprintf("%s/ui/channels/%d/messages", ts.URL, chID),
+		url.Values{"kind": {"message"}, "body": {"typed in the browser"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp2.StatusCode)
+	}
+	msgs, _ := st.MessagesSince(chID, 0, 100)
+	found := false
+	for _, m := range msgs {
+		if m.Body == "typed in the browser" && m.AuthorKind == "human" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("composer message not stored")
+	}
+}
+
+func TestUIStopRun(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chID := int64(p["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	fs := &fakeSpawner{handle: "s:9"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	rresp := postJSON(t, ts.URL+"/api/runs", map[string]any{"channel_id": chID, "provider": "codex"})
+	run := decode[map[string]any](t, rresp)
+	runID := int64(run["id"].(float64))
+
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	resp2, err := c.PostForm(fmt.Sprintf("%s/ui/runs/%d/stop", ts.URL, runID),
+		url.Values{"channel": {fmt.Sprint(chID)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp2.StatusCode)
+	}
+	got, _, _ := st.RunByID(runID)
+	if got.Status != "stopped" {
+		t.Errorf("status = %q", got.Status)
 	}
 }
 
