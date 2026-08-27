@@ -3,11 +3,13 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"erbrus/internal/config"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
@@ -321,6 +323,22 @@ func TestRunExitEndpoint(t *testing.T) {
 	if !found {
 		t.Error("no exit system message")
 	}
+
+	// Second exit with the same valid token: 409, no additional system message.
+	msgsBefore, _ := st.MessagesSince(chID, 0, 100)
+	req3, _ := http.NewRequest("POST", fmt.Sprintf("%s/api/runs/%d/exit", ts.URL, runID),
+		strings.NewReader(`{"code": 0}`))
+	req3.Header.Set("Content-Type", "application/json")
+	req3.Header.Set("Authorization", "Bearer "+stRun.Token)
+	r3, _ := http.DefaultClient.Do(req3)
+	if r3.StatusCode != http.StatusConflict {
+		t.Errorf("double exit status = %d, want 409", r3.StatusCode)
+	}
+	r3.Body.Close()
+	msgsAfter, _ := st.MessagesSince(chID, 0, 100)
+	if len(msgsAfter) != len(msgsBefore) {
+		t.Errorf("double exit posted extra messages: before=%d after=%d", len(msgsBefore), len(msgsAfter))
+	}
 }
 
 func TestRunStopEndpoint(t *testing.T) {
@@ -408,6 +426,78 @@ func TestSpawnFromReportAppendsContext(t *testing.T) {
 	}
 	if !found {
 		t.Error("no handoff system note in origin channel")
+	}
+}
+
+// TestSpawnFromReportNamesSourceProject regression-tests the cross-project
+// handoff provenance line: it must name the project the report came FROM,
+// not the project the new run is being spawned INTO.
+func TestSpawnFromReportNamesSourceProject(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	rootA := filepath.Join(t.TempDir(), "proj-alpha")
+	rootB := filepath.Join(t.TempDir(), "proj-bravo")
+	os.MkdirAll(rootA, 0o755)
+	os.MkdirAll(rootB, 0o755)
+	run := func(dir, name string, args ...string) ([]byte, error) {
+		return []byte(fmt.Sprintf(`[{"path": %q, "branch": "refs/heads/main", "head": "a", "is_main": true}]`, dir)), nil
+	}
+	cfg := config.Defaults()
+	cfg.DataDir = t.TempDir()
+	cfg.Providers = map[string]config.Provider{
+		"codex": {Command: `codex {args} "{prompt}"`},
+	}
+	srv := New(st, cfg, run)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	rA := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": rootA})
+	pA := decode[map[string]any](t, rA)
+	rB := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": rootB})
+	pB := decode[map[string]any](t, rB)
+	nameA := pA["name"].(string)
+	nameB := pB["name"].(string)
+	if nameA == nameB {
+		t.Fatalf("test setup: project names collide: %q, %q", nameA, nameB)
+	}
+	chA := int64(pA["channels"].([]any)[0].(map[string]any)["id"].(float64))
+	chB := int64(pB["channels"].([]any)[0].(map[string]any)["id"].(float64))
+
+	fs := &fakeSpawner{handle: "s:1"}
+	srv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+
+	// Post a report in project A's channel, then spawn a run in project B
+	// that hands off from that report.
+	mresp := postJSON(t, fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, chA),
+		map[string]string{"kind": "report", "body": "findings from alpha"})
+	m := decode[map[string]any](t, mresp)
+	msgID := int64(m["id"].(float64))
+
+	rresp := postJSON(t, ts.URL+"/api/runs", map[string]any{
+		"channel_id": chB, "provider": "codex", "prompt": "act on it",
+		"origin_message_id": msgID,
+	})
+	if rresp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", rresp.StatusCode)
+	}
+	rresp.Body.Close()
+
+	data, err := os.ReadFile(fs.specs[0].Command[2])
+	if err != nil {
+		t.Fatalf("cmd.sh unreadable: %v", err)
+	}
+	content := string(data)
+	wantSubstr := fmt.Sprintf("report from %s / #", nameA)
+	if !strings.Contains(content, wantSubstr) {
+		t.Errorf("provenance line missing source project %q: %q", wantSubstr, content)
+	}
+	badSubstr := fmt.Sprintf("report from %s / #", nameB)
+	if strings.Contains(content, badSubstr) {
+		t.Errorf("provenance line wrongly names target project %q: %q", nameB, content)
 	}
 }
 

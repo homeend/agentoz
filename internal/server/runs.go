@@ -198,6 +198,15 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 			httpError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		originProject, ok, err := s.st.ProjectByID(originChannel.ProjectID)
+		if err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !ok {
+			httpError(w, http.StatusNotFound, "origin project not found")
+			return
+		}
 		artifacts, err := s.st.ArtifactsByMessage(msg.ID)
 		if err != nil {
 			httpError(w, http.StatusInternalServerError, err.Error())
@@ -207,7 +216,7 @@ func (s *Server) handleSpawnRun(w http.ResponseWriter, r *http.Request) {
 		for _, a := range artifacts {
 			artifactPaths = append(artifactPaths, a.Path)
 		}
-		handoffContext = integrate.HandoffContext(project.Name, originChannel.Name, msg.AuthorName,
+		handoffContext = integrate.HandoffContext(originProject.Name, originChannel.Name, msg.AuthorName,
 			msg.CreatedAt.Format("2006-01-02 15:04:05"), msg.Body, artifactPaths)
 		originMsg = msg
 	}
@@ -354,6 +363,10 @@ func (s *Server) handleRunExit(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if token == "" || token != run.Token {
 		httpError(w, http.StatusUnauthorized, "token does not match run")
+		return
+	}
+	if run.Status != "starting" && run.Status != "running" {
+		httpError(w, http.StatusConflict, "run already finished")
 		return
 	}
 	var req struct {
