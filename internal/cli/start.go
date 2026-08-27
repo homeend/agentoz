@@ -114,6 +114,10 @@ func runStart(args []string, stdout, stderr io.Writer) int {
 	}
 
 	// fg: run the command here, wrap-style. Env comes from the server.
+	if res.Run == nil || res.CmdFile == "" {
+		fmt.Fprintln(stderr, "server returned an incomplete fg spawn response")
+		return 1
+	}
 	for k, v := range res.Env {
 		os.Setenv(k, v)
 	}

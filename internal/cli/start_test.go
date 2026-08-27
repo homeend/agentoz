@@ -2,6 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,5 +114,55 @@ func TestStartOutsideRepo(t *testing.T) {
 	}
 	if !strings.Contains(errOut.String(), "git") {
 		t.Errorf("stderr should mention git: %q", errOut.String())
+	}
+}
+
+// TestStartFgIncompleteResponseDoesNotPanic guards against a server that
+// returns a 201 on POST /api/runs without the nested "run" envelope on the
+// fg path. Before the fix, dereferencing res.Run.AgentName on that path
+// panicked; now runStart must fail cleanly with exit 1.
+func TestStartFgIncompleteResponseDoesNotPanic(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	tmp := t.TempDir()
+	repo := filepath.Join(tmp, "stubrepo")
+	os.MkdirAll(repo, 0o755)
+	for _, args := range [][]string{{"init", "-b", "main"}, {"commit", "--allow-empty", "-m", "x"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = repo
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=t", "GIT_AUTHOR_EMAIL=t@t",
+			"GIT_COMMITTER_NAME=t", "GIT_COMMITTER_EMAIL=t@t")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/projects", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprintf(w, `{"id":1,"name":"stubrepo","repo_path":%q,"created":true,"channels":[{"id":1,"project_id":1,"name":"general","worktree_path":""}]}`, repo)
+	})
+	mux.HandleFunc("/api/runs", func(w http.ResponseWriter, r *http.Request) {
+		// No "run" key: simulates a malformed/incomplete fg response.
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{"cmd_file":"","env":{}}`)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	t.Setenv("ERBRUS_URL", srv.URL)
+
+	oldWd, _ := os.Getwd()
+	os.Chdir(repo)
+	t.Cleanup(func() { os.Chdir(oldWd) })
+
+	var out, errOut bytes.Buffer
+	code := Run([]string{"start", "quick", "--fg"}, &out, &errOut)
+	if code != 1 {
+		t.Fatalf("exit = %d, want 1\nstdout: %s\nstderr: %s", code, out.String(), errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "incomplete") {
+		t.Errorf("stderr should mention incomplete response: %q", errOut.String())
 	}
 }
