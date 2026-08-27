@@ -22,7 +22,11 @@ a:hover { text-decoration: underline; }
 .chanlist li { padding: 2px 0; }
 .addform input, .addform textarea, .addform select { width: 100%; margin: 8px 0; padding: 6px 8px; border: 1px solid #3a3d44; border-radius: 4px; font: inherit; background: #141517; color: #d6d8dc; }
 /* channel view */
-.shell { display: grid; grid-template-columns: 220px 1fr 280px; height: calc(100vh - 45px); }
+/* overflow: hidden + min-height: 0 on the columns keep scrolling inside
+   each column (grid items default to min-height auto and would otherwise
+   stretch the page and scroll the whole window) */
+.shell { display: grid; grid-template-columns: 220px 1fr 280px; height: calc(100vh - 45px); overflow: hidden; }
+.sidebar, .stream, .rail { min-height: 0; }
 .sidebar { background: #1d1f23; border-right: 1px solid #2c2f35; overflow-y: auto; padding: 10px 0; }
 .sidebar .proj { padding: 6px 14px 2px; font-weight: 600; }
 .sidebar a.chan { display: block; padding: 3px 14px 3px 24px; color: #a7acb5; }

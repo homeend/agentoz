@@ -19,6 +19,36 @@
 
   messages.scrollTop = messages.scrollHeight;
 
+  // Composer conveniences: Ctrl/Cmd+Enter sends, and the target selection
+  // sticks per channel via a cookie (falls back to memo when the
+  // remembered agent is no longer an option).
+  var composer = document.querySelector('form.composer');
+  if (composer) {
+    var ta = composer.querySelector('textarea');
+    var sel = composer.querySelector('select[name="target"]');
+    if (ta) {
+      ta.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          if (composer.requestSubmit) composer.requestSubmit();
+          else composer.submit();
+        }
+      });
+    }
+    if (sel) {
+      var ckey = 'erbrus_target_' + channelID;
+      var m = document.cookie.match(new RegExp('(?:^|; )' + ckey + '=([^;]*)'));
+      if (m) {
+        var v = decodeURIComponent(m[1]);
+        if (sel.querySelector('option[value="' + CSS.escape(v) + '"]')) sel.value = v;
+      }
+      composer.addEventListener('submit', function () {
+        document.cookie = ckey + '=' + encodeURIComponent(sel.value) +
+          '; path=/; max-age=2592000; SameSite=Lax';
+      });
+    }
+  }
+
   // bumpUnread increments (or creates) the sidebar badge for a channel the
   // user is NOT looking at. Server-side unread state is the truth; this
   // only keeps the open page honest until the next full render.
