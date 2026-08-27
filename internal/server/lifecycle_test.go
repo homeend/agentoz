@@ -251,3 +251,22 @@ func TestAttachCmdsFollowRunSessions(t *testing.T) {
 		t.Fatalf("attach rail missing session of the running agent")
 	}
 }
+
+func TestSpawnWindowNamedAfterWorkdir(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	fs := &fakeSpawner{handle: "s:1"}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	_, ch2 := twoChannels(t, ts.URL, root) // ch2 = worktree channel (<root>-wt-feat)
+
+	resp := postJSON(t, ts.URL+"/api/runs", map[string]any{
+		"channel_id": ch2, "provider": "codex", "prompt": "x",
+	})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+	want := filepath.Base(root) + "-wt-feat"
+	if len(fs.specs) != 1 || fs.specs[0].WindowName != want {
+		t.Fatalf("window name = %+v, want %q", fs.specs, want)
+	}
+}
