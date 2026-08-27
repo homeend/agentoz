@@ -1,7 +1,9 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -90,5 +92,24 @@ func TestSendMessageServerError(t *testing.T) {
 	c := New(ts.URL, "")
 	if _, err := c.SendMessage(999, "message", "x", nil); err == nil {
 		t.Fatal("want error for unknown channel")
+	}
+}
+
+func TestReportExit(t *testing.T) {
+	var gotPath, gotAuth string
+	var gotBody map[string]int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "tok123")
+	if err := c.ReportExit(7, 3); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/api/runs/7/exit" || gotAuth != "Bearer tok123" || gotBody["code"] != 3 {
+		t.Errorf("path=%q auth=%q body=%v", gotPath, gotAuth, gotBody)
 	}
 }

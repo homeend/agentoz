@@ -156,3 +156,8 @@ func (c *Client) ListProjects() ([]Project, error) {
 	err := c.do("GET", "/api/projects", "", nil, &ps)
 	return ps, err
 }
+
+// ReportExit posts a run's exit status; used by the wrap mode.
+func (c *Client) ReportExit(runID int64, code int) error {
+	return c.postJSON(fmt.Sprintf("/api/runs/%d/exit", runID), map[string]int{"code": code}, nil)
+}

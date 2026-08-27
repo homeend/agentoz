@@ -34,6 +34,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runInit(args[1:], stdout, stderr)
 	case "msg":
 		return runMsg(args[1:], os.Stdin, stdout, stderr)
+	case "wrap":
+		return runWrap(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n%s", args[0], usage)
 		return 2
