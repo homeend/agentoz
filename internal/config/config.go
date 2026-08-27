@@ -59,16 +59,16 @@ type Preset struct {
 }
 
 type Global struct {
-	Port           int                 `yaml:"port"`
-	DataDir        string              `yaml:"data_dir"`
-	Terminal       string              `yaml:"terminal"`
-	SessionPattern string              `yaml:"session_pattern"`
+	Port           int    `yaml:"port"`
+	DataDir        string `yaml:"data_dir"`
+	Terminal       string `yaml:"terminal"`
+	SessionPattern string `yaml:"session_pattern"`
 	// Session is the shared "global" tmux session agents can be spawned
 	// into instead of the per-project one.
-	Session string `yaml:"session"`
-	WtBin   string `yaml:"wt_bin"`
-	Providers      map[string]Provider `yaml:"providers"`
-	Presets        map[string]Preset   `yaml:"presets"`
+	Session   string              `yaml:"session"`
+	WtBin     string              `yaml:"wt_bin"`
+	Providers map[string]Provider `yaml:"providers"`
+	Presets   map[string]Preset   `yaml:"presets"`
 }
 
 type Repo struct {

@@ -42,12 +42,12 @@ type runView struct {
 }
 
 type channelPage struct {
-	Channel   store.Channel
-	Project   store.Project
-	Sidebar   []projectCard
-	Messages  []msgView
-	Runs      []runView
-	Presets []string // merged preset names for THIS project, sorted
+	Channel  store.Channel
+	Project  store.Project
+	Sidebar  []projectCard
+	Messages []msgView
+	Runs     []runView
+	Presets  []string // merged preset names for THIS project, sorted
 	// AttachCmds: one "tmux attach -t <session>" per session actually
 	// holding this channel's listed runs; falls back to the project's
 	// configured session when no run names one.

@@ -18,19 +18,19 @@ import (
 )
 
 type runRequest struct {
-	ChannelID       int64  `json:"channel_id"`
-	Preset          string `json:"preset"`
-	Provider        string `json:"provider"`
-	Name            string `json:"name"`
-	Model           string `json:"model"`
-	Args            string `json:"args"`
-	Prompt          string `json:"prompt"`
-	Workdir         string `json:"workdir"`
+	ChannelID int64  `json:"channel_id"`
+	Preset    string `json:"preset"`
+	Provider  string `json:"provider"`
+	Name      string `json:"name"`
+	Model     string `json:"model"`
+	Args      string `json:"args"`
+	Prompt    string `json:"prompt"`
+	Workdir   string `json:"workdir"`
 	// SessionScope picks the tmux session: "project" (default — the
 	// per-project session, honoring repo-config overrides) or "global"
 	// (the shared cfg.Session, "erbrus" by default).
-	SessionScope string `json:"session_scope"`
-	Fg           bool   `json:"fg"`
+	SessionScope    string `json:"session_scope"`
+	Fg              bool   `json:"fg"`
 	OriginMessageID int64  `json:"origin_message_id"`
 }
 
