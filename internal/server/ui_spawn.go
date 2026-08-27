@@ -38,6 +38,30 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max])
 }
 
+// allChannelOptions enumerates every channel across every project as
+// channelOption{ID, "project / # channel"}, in project/channel order,
+// omitting excludeChannel (pass 0 to exclude nothing).
+func (s *Server) allChannelOptions(excludeChannel int64) ([]channelOption, error) {
+	projects, err := s.st.Projects()
+	if err != nil {
+		return nil, err
+	}
+	var opts []channelOption
+	for _, p := range projects {
+		chans, err := s.st.ChannelsByProject(p.ID)
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range chans {
+			if c.ID == excludeChannel {
+				continue
+			}
+			opts = append(opts, channelOption{ID: c.ID, Label: p.Name + " / # " + c.Name})
+		}
+	}
+	return opts, nil
+}
+
 // buildSpawnPage assembles the spawn dialog for default target channel
 // chID, with the optional preselected preset name and origin message id.
 func (s *Server) buildSpawnPage(chID int64, presetName string, originID int64) (spawnPage, int, string) {
@@ -56,26 +80,19 @@ func (s *Server) buildSpawnPage(chID int64, presetName string, originID int64) (
 		return spawnPage{}, http.StatusNotFound, "project not found"
 	}
 
-	projects, err := s.st.Projects()
+	allOpts, err := s.allChannelOptions(0)
 	if err != nil {
 		return spawnPage{}, http.StatusInternalServerError, err.Error()
 	}
 	var defaultOpt *channelOption
 	var rest []channelOption
-	for _, p := range projects {
-		chans, err := s.st.ChannelsByProject(p.ID)
-		if err != nil {
-			return spawnPage{}, http.StatusInternalServerError, err.Error()
+	for _, opt := range allOpts {
+		if opt.ID == chID {
+			o := opt
+			defaultOpt = &o
+			continue
 		}
-		for _, c := range chans {
-			opt := channelOption{ID: c.ID, Label: p.Name + " / # " + c.Name}
-			if c.ID == chID {
-				o := opt
-				defaultOpt = &o
-				continue
-			}
-			rest = append(rest, opt)
-		}
+		rest = append(rest, opt)
 	}
 	channels := make([]channelOption, 0, len(rest)+1)
 	if defaultOpt != nil {

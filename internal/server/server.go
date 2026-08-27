@@ -77,6 +77,8 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/ui/runs/{id}/stop", s.handleUIStopRun)
 	r.Get("/ui/spawn", s.handleUISpawn)
 	r.Post("/ui/spawn", s.handleUISpawnPost)
+	r.Get("/ui/forward", s.handleUIForward)
+	r.Post("/ui/forward", s.handleUIForwardPost)
 	return r
 }
 

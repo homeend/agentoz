@@ -289,6 +289,45 @@ func TestSpawnDialogPostErrorRerenders(t *testing.T) {
 	}
 }
 
+func TestForwardDialogAndPost(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	resp := postJSON(t, ts.URL+"/api/projects", map[string]string{"repo_path": root})
+	p := decode[map[string]any](t, resp)
+	chans := p["channels"].([]any)
+	src := int64(chans[0].(map[string]any)["id"].(float64))
+	dst := int64(chans[1].(map[string]any)["id"].(float64))
+	m, _ := st.CreateMessage(store.Message{ChannelID: src, Kind: "report", AuthorKind: "human", AuthorName: "you", Body: "fwd me"})
+
+	dresp, _ := http.Get(fmt.Sprintf("%s/ui/forward?message=%d", ts.URL, m.ID))
+	body := readBody(t, dresp)
+	dresp.Body.Close()
+	if dresp.StatusCode != http.StatusOK || !strings.Contains(body, "fwd me") || !strings.Contains(body, "target_channel") {
+		t.Fatalf("dialog status=%d body missing pieces", dresp.StatusCode)
+	}
+
+	c := &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
+	resp2, err := c.PostForm(ts.URL+"/ui/forward", url.Values{
+		"message_id": {fmt.Sprint(m.ID)}, "target_channel": {fmt.Sprint(dst)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp2.StatusCode)
+	}
+	msgs, _ := st.MessagesSince(dst, 0, 100)
+	found := false
+	for _, mm := range msgs {
+		if mm.Body == "fwd me" && mm.OriginMessageID == m.ID {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("forwarded copy not in target channel")
+	}
+}
+
 func readBody(t *testing.T, resp *http.Response) string {
 	t.Helper()
 	b, err := io.ReadAll(resp.Body)
