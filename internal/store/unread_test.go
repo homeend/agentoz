@@ -199,3 +199,76 @@ func TestDeleteRun(t *testing.T) {
 		t.Fatalf("message must survive with nulled run ref: ok=%v run=%d", ok, got.AgentRunID)
 	}
 }
+
+func TestDeleteMessage(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("dm", "/dm")
+	ch, _ := s.CreateChannel(p.ID, "general", "/dm", "main")
+	ch2, _ := s.CreateChannel(p.ID, "feat", "/dm", "feat")
+	src, err := s.CreateMessage(Message{ChannelID: ch.ID, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", Body: "orig"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.AddArtifact(Artifact{MessageID: src.ID, Filename: "f", Path: "/x/f"}); err != nil {
+		t.Fatal(err)
+	}
+	fwd, err := s.CreateMessage(Message{ChannelID: ch2.ID, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", OriginMessageID: src.ID, Body: "orig"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := s.CreateRun(AgentRun{ChannelID: ch2.ID, Provider: "codex",
+		AgentName: "b", Workdir: "/dm", Status: "done", Spawner: "tmux", OriginMessageID: src.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.DeleteMessage(src.ID); err != nil {
+		t.Fatalf("DeleteMessage: %v", err)
+	}
+	if _, ok, _ := s.MessageByID(src.ID); ok {
+		t.Fatal("message survived")
+	}
+	if arts, _ := s.ArtifactsByMessage(src.ID); len(arts) != 0 {
+		t.Fatal("artifact rows survived")
+	}
+	if m, ok, _ := s.MessageByID(fwd.ID); !ok || m.OriginMessageID != 0 {
+		t.Fatalf("forwarded copy: ok=%v origin=%d, want kept with nulled origin", ok, m.OriginMessageID)
+	}
+	if r, ok, _ := s.RunByID(run.ID); !ok || r.OriginMessageID != 0 {
+		t.Fatalf("handoff run: ok=%v origin=%d, want kept with nulled origin", ok, r.OriginMessageID)
+	}
+}
+
+func TestClearChannel(t *testing.T) {
+	s := open(t)
+	p, _ := s.CreateProject("cc", "/cc")
+	ch, _ := s.CreateChannel(p.ID, "general", "/cc", "main")
+	ch2, _ := s.CreateChannel(p.ID, "feat", "/cc", "feat")
+	src, _ := s.CreateMessage(Message{ChannelID: ch.ID, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", Body: "one"})
+	if _, err := s.AddArtifact(Artifact{MessageID: src.ID, Filename: "f", Path: "/x/f"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateMessage(Message{ChannelID: ch.ID, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "two"}); err != nil {
+		t.Fatal(err)
+	}
+	fwd, _ := s.CreateMessage(Message{ChannelID: ch2.ID, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", OriginMessageID: src.ID, Body: "one"})
+
+	ids, err := s.ChannelArtifactMessageIDs(ch.ID)
+	if err != nil || len(ids) != 1 || ids[0] != src.ID {
+		t.Fatalf("artifact msg ids = %v (%v)", ids, err)
+	}
+	if err := s.ClearChannel(ch.ID); err != nil {
+		t.Fatalf("ClearChannel: %v", err)
+	}
+	if msgs, _ := s.MessagesSince(ch.ID, 0, 100); len(msgs) != 0 {
+		t.Fatalf("messages remain: %d", len(msgs))
+	}
+	if m, ok, _ := s.MessageByID(fwd.ID); !ok || m.OriginMessageID != 0 {
+		t.Fatalf("forwarded copy in other channel: ok=%v origin=%d", ok, m.OriginMessageID)
+	}
+}

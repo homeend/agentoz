@@ -104,6 +104,53 @@ func (s *Server) handleUIDeleteRun(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", run.ChannelID), http.StatusFound)
 }
 
+// handleUIDeleteMessage removes one chat entry (and its artifact files).
+// Forwarded copies elsewhere survive with their provenance link nulled.
+func (s *Server) handleUIDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	m, ok, err := s.st.MessageByID(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "message not found")
+		return
+	}
+	if err := s.st.DeleteMessage(id); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = os.RemoveAll(filepath.Join(s.dataDir, "artifacts", fmt.Sprint(id)))
+	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", m.ChannelID), http.StatusFound)
+}
+
+// handleUIClearChannel wipes a channel's chat history (messages + artifact
+// files). Runs and the channel itself stay.
+func (s *Server) handleUIClearChannel(w http.ResponseWriter, r *http.Request) {
+	id := chiInt64(r, "id")
+	if _, ok, err := s.st.ChannelByID(id); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
+		httpError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	artifactMsgIDs, err := s.st.ChannelArtifactMessageIDs(id)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := s.st.ClearChannel(id); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, msgID := range artifactMsgIDs {
+		_ = os.RemoveAll(filepath.Join(s.dataDir, "artifacts", fmt.Sprint(msgID)))
+	}
+	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", id), http.StatusFound)
+}
+
 type deletePage struct {
 	Project store.Project
 	Stats   store.ProjectStatsRow

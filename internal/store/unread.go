@@ -71,6 +71,61 @@ func (s *Store) DeleteRun(id int64) error {
 	return tx.Commit()
 }
 
+// DeleteMessage removes one message and its artifact rows. Forwarded
+// copies and handoff runs pointing at it survive with their
+// origin_message_id nulled — same semantics as project deletion.
+func (s *Store) DeleteMessage(id int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmts := []string{
+		`UPDATE messages SET origin_message_id = NULL WHERE origin_message_id = ?`,
+		`UPDATE agent_runs SET origin_message_id = NULL WHERE origin_message_id = ?`,
+		`DELETE FROM artifacts WHERE message_id = ?`,
+		`DELETE FROM messages WHERE id = ?`,
+	}
+	for _, q := range stmts {
+		if _, err := tx.Exec(q, id); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+const channelMsgs = `SELECT id FROM messages WHERE channel_id = ?`
+
+// ChannelArtifactMessageIDs lists the channel's message IDs that own
+// artifacts — the artifacts/<msgID> dirs to remove after a ClearChannel.
+func (s *Store) ChannelArtifactMessageIDs(channelID int64) ([]int64, error) {
+	return s.idList(`SELECT DISTINCT message_id FROM artifacts
+		WHERE message_id IN (`+channelMsgs+`) ORDER BY message_id`, channelID)
+}
+
+// ClearChannel deletes every message in a channel (and their artifact
+// rows). Backlinks from elsewhere are nulled, exactly like DeleteMessage;
+// the channel's runs stay.
+func (s *Store) ClearChannel(channelID int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmts := []string{
+		`UPDATE messages SET origin_message_id = NULL WHERE origin_message_id IN (` + channelMsgs + `)`,
+		`UPDATE agent_runs SET origin_message_id = NULL WHERE origin_message_id IN (` + channelMsgs + `)`,
+		`DELETE FROM artifacts WHERE message_id IN (` + channelMsgs + `)`,
+		`DELETE FROM messages WHERE channel_id = ?`,
+	}
+	for _, q := range stmts {
+		if _, err := tx.Exec(q, channelID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
 // MarkChannelRead moves a channel's last-read mark to its newest message.
 func (s *Store) MarkChannelRead(channelID int64) error {
 	_, err := s.db.Exec(`UPDATE channels SET last_read_message_id =

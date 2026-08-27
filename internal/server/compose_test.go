@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -231,5 +233,80 @@ func TestMemoIsForwardable(t *testing.T) {
 	html := readBody(t, resp)
 	if !strings.Contains(html, fmt.Sprintf("/ui/forward?message=%d", m.ID)) {
 		t.Fatal("memo has no Forward action in the channel view")
+	}
+}
+
+func TestUIDeleteMessage(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	m, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "oops"})
+	artDir := filepath.Join(testSrv.dataDir, "artifacts", fmt.Sprint(m.ID))
+	if err := os.MkdirAll(artDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/messages/%d/delete", ts.URL, m.ID), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if _, ok, _ := st.MessageByID(m.ID); ok {
+		t.Fatal("message survived")
+	}
+	if _, err := os.Stat(artDir); !os.IsNotExist(err) {
+		t.Fatal("artifact dir survived")
+	}
+}
+
+func TestUIClearChannel(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	m, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", Body: "r"})
+	if _, err := st.AddArtifact(store.Artifact{MessageID: m.ID, Filename: "f", Path: "/x"}); err != nil {
+		t.Fatal(err)
+	}
+	artDir := filepath.Join(testSrv.dataDir, "artifacts", fmt.Sprint(m.ID))
+	if err := os.MkdirAll(artDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/clear", ts.URL, ch1), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	if msgs, _ := st.MessagesSince(ch1, 0, 100); len(msgs) != 0 {
+		t.Fatalf("messages remain: %d", len(msgs))
+	}
+	if _, err := os.Stat(artDir); !os.IsNotExist(err) {
+		t.Fatal("artifact dir survived")
+	}
+}
+
+func TestChannelPageHasDeleteAndClearActions(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	m, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "hello"})
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	html := readBody(t, resp)
+	if !strings.Contains(html, fmt.Sprintf("/ui/messages/%d/delete", m.ID)) {
+		t.Fatal("message missing delete action")
+	}
+	if !strings.Contains(html, fmt.Sprintf("/ui/channels/%d/clear", ch1)) {
+		t.Fatal("channel missing clear-chat action")
 	}
 }

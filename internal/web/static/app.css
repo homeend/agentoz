@@ -78,3 +78,7 @@ a:hover { text-decoration: underline; }
 .unreadb { display: inline-block; min-width: 18px; text-align: center; font-size: 11px; line-height: 16px; border-radius: 8px; background: #4a5261; color: #e8eaee; margin-left: 6px; padding: 0 5px; vertical-align: 1px; }
 .unreadb.attn { background: #c0392b; }
 .tag.totag { background: #2f6fd6; color: #fff; border-color: #2f6fd6; }
+.linkbtn { background: none; border: none; color: #8a8f98; cursor: pointer; font: inherit; font-size: 12px; padding: 0 2px; }
+.linkbtn:hover { color: #e0685a; }
+.inline { display: inline; }
+.msg .actions form { display: inline; }

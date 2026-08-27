@@ -35,6 +35,10 @@
     <div class="presetrow"><span>{{.}}</span><a class="btn" href="/ui/spawn?channel={{$.Channel.ID}}&amp;preset={{.}}">Spawn</a></div>
     {{end}}
     {{if .AttachCmds}}<h3>Attach</h3>{{range .AttachCmds}}<div class="mono">{{.}}</div>{{end}}{{end}}
+    <h3>Channel</h3>
+    <form method="post" action="/ui/channels/{{.Channel.ID}}/clear" onsubmit="return confirm('Clear all messages in this channel?')">
+      <button class="btn danger small" type="submit">Clear chat</button>
+    </form>
   </aside>
 </div>
 {{end}}
