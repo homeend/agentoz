@@ -11,7 +11,7 @@
     {{range .Sidebar}}
     <div class="proj">{{.Project.Name}}</div>
     {{range .Channels}}
-    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}"># {{.Name}}</a>
+    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}"># {{.Name}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}" data-unread="{{.ID}}">{{.Unread}}</span>{{end}}</a>
     {{end}}
     {{end}}
   </nav>

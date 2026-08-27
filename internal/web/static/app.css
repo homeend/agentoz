@@ -63,3 +63,5 @@ a:hover { text-decoration: underline; }
 .badge { display: inline-block; font-size: 11px; border: 1px solid #b98a2b; color: #8a6317; background: #fdf5e2; border-radius: 8px; padding: 1px 8px; margin-top: 6px; }
 .badgerow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .badgerow .badge { margin-top: 0; }
+.unreadb { display: inline-block; min-width: 18px; text-align: center; font-size: 11px; line-height: 16px; border-radius: 8px; background: #7a8699; color: #fff; margin-left: 6px; padding: 0 5px; vertical-align: 1px; }
+.unreadb.attn { background: #c0392b; }
