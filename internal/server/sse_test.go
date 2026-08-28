@@ -175,3 +175,35 @@ func TestSSEDeliversMessageEvent(t *testing.T) {
 		t.Fatal("no SSE event within 3s")
 	}
 }
+
+// TestEventsPing: /events emits a heartbeat event so clients can detect a
+// silently dead connection (EventSource never auto-reconnects on those).
+func TestEventsPing(t *testing.T) {
+	old := pingInterval
+	pingInterval = 30 * time.Millisecond
+	defer func() { pingInterval = old }()
+
+	ts, _, _ := newTestServer(t)
+	resp, err := http.Get(ts.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	deadline := time.After(3 * time.Second)
+	got := make(chan string, 1)
+	go func() {
+		sc := bufio.NewScanner(resp.Body)
+		for sc.Scan() {
+			if strings.HasPrefix(sc.Text(), "event: ping") {
+				got <- sc.Text()
+				return
+			}
+		}
+	}()
+	select {
+	case <-got:
+	case <-deadline:
+		t.Fatal("no ping event within 3s")
+	}
+}

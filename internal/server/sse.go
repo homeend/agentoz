@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type sseEvent struct {
@@ -46,6 +47,13 @@ func (h *Hub) Subscribe() (<-chan sseEvent, func()) {
 	}
 }
 
+// pingInterval paces the SSE heartbeat. A real event (not an SSE comment,
+// which JS never sees): the client uses it to detect a silently dead
+// connection — EventSource's own reconnect only fires on visible errors,
+// and e.g. the Windows->WSL2 localhost relay can keep the browser side
+// open after the server side is gone.
+var pingInterval = 20 * time.Second
+
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	fl, ok := w.(http.Flusher)
 	if !ok {
@@ -61,10 +69,17 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, ": connected\n\n")
 	fl.Flush()
 
+	ping := time.NewTicker(pingInterval)
+	defer ping.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-ping.C:
+			if _, err := fmt.Fprint(w, "event: ping\ndata: {}\n\n"); err != nil {
+				return
+			}
+			fl.Flush()
 		case ev := <-ch:
 			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", ev.Event, ev.Data)
 			fl.Flush()

@@ -67,23 +67,52 @@
     if (kind === 'report' || kind === 'system') b.classList.add('attn');
   }
 
-  var es = new EventSource('/events');
-  es.addEventListener('message', function (e) {
-    try {
-      var d = JSON.parse(e.data);
-      if (String(d.channel_id) === channelID) {
-        refresh(messages, '/ui/channels/' + channelID + '/stream');
-      } else {
-        bumpUnread(d.channel_id, d.kind);
-      }
-    } catch (err) { /* ignore malformed */ }
-  });
-  es.addEventListener('run', function (e) {
-    try {
-      var d = JSON.parse(e.data);
-      if (String(d.channel_id) === channelID && runs) {
-        refresh(runs, '/ui/channels/' + channelID + '/runs-panel');
-      }
-    } catch (err) { /* ignore malformed */ }
-  });
+  function refreshAll() {
+    refresh(messages, '/ui/channels/' + channelID + '/stream');
+    if (runs) refresh(runs, '/ui/channels/' + channelID + '/runs-panel');
+  }
+
+  // Liveness watchdog: the server pings every 20s. EventSource only
+  // auto-reconnects on errors it can SEE — a silently dead connection
+  // (e.g. the Windows->WSL2 localhost relay outliving the server) never
+  // errors, so without this the page sits on a dead pipe until F5.
+  var es = null;
+  var lastSeen = Date.now();
+  function alive() { lastSeen = Date.now(); }
+
+  function connect() {
+    if (es) es.close();
+    es = new EventSource('/events');
+    es.onopen = alive;
+    es.addEventListener('ping', alive);
+    es.addEventListener('message', function (e) {
+      alive();
+      try {
+        var d = JSON.parse(e.data);
+        if (String(d.channel_id) === channelID) {
+          refresh(messages, '/ui/channels/' + channelID + '/stream');
+        } else {
+          bumpUnread(d.channel_id, d.kind);
+        }
+      } catch (err) { /* ignore malformed */ }
+    });
+    es.addEventListener('run', function (e) {
+      alive();
+      try {
+        var d = JSON.parse(e.data);
+        if (String(d.channel_id) === channelID && runs) {
+          refresh(runs, '/ui/channels/' + channelID + '/runs-panel');
+        }
+      } catch (err) { /* ignore malformed */ }
+    });
+  }
+  connect();
+
+  setInterval(function () {
+    if (Date.now() - lastSeen > 45000) {
+      alive(); // one reconnect attempt per stale period, not every tick
+      connect();
+      refreshAll(); // catch messages missed while the pipe was dead
+    }
+  }, 15000);
 })();
