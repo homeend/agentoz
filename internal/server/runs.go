@@ -348,7 +348,7 @@ func (s *Server) Reconcile() error {
 		if err := s.st.FinishRun(r.ID, "failed", -1); err != nil {
 			return err
 		}
-		s.system(r.ChannelID, fmt.Sprintf("%s orphaned (tmux window %s gone) — marked failed", r.AgentName, r.TmuxTarget))
+		s.system(r.ChannelID, fmt.Sprintf("%s is no longer alive (tmux %s) — marked failed", r.AgentName, r.TmuxTarget))
 		if got, ok, _ := s.st.RunByID(r.ID); ok {
 			s.hub.Publish("run", toRunJSON(got))
 		}

@@ -83,18 +83,23 @@ func (t *Tmux) Stop(h Handle) error {
 	return err
 }
 
+// Alive reports whether the run's pane still hosts a live process. Panes,
+// not windows: remain-on-exit keeps the WINDOW around after the agent
+// process dies (pane_dead=1), and a window-level check would report such a
+// dead agent as alive forever.
 func (t *Tmux) Alive(h Handle) (bool, error) {
 	session, _, ok := strings.Cut(string(h), ":")
 	if !ok {
 		return false, fmt.Errorf("malformed handle %q", h)
 	}
-	out, err := t.run("tmux", "list-windows", "-t", exact(session), "-F", "#{session_name}:#{window_index}")
+	out, err := t.run("tmux", "list-panes", "-s", "-t", exact(session), "-F", "#{session_name}:#{window_index} #{pane_dead}")
 	if err != nil {
 		return false, nil // session gone => not alive, not an error
 	}
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		if line == string(h) {
-			return true, nil
+		target, dead, ok := strings.Cut(line, " ")
+		if ok && target == string(h) {
+			return dead == "0", nil
 		}
 	}
 	return false, nil

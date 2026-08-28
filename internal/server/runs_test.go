@@ -563,7 +563,7 @@ func TestReconcileMarksOrphans(t *testing.T) {
 	msgs, _ := st.MessagesSince(chID, 0, 100)
 	found := false
 	for _, m := range msgs {
-		if m.Kind == "system" && strings.Contains(m.Body, "orphaned") {
+		if m.Kind == "system" && strings.Contains(m.Body, "no longer alive") {
 			found = true
 		}
 	}

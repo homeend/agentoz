@@ -121,15 +121,20 @@ func TestStopKillsWindow(t *testing.T) {
 }
 
 func TestAlive(t *testing.T) {
-	rec := &recorder{out: map[string]string{"tmux list-windows": "erbrus-webshop:1\nerbrus-webshop:3\n"}}
+	// Window 1 hosts a live pane, window 3's process died under
+	// remain-on-exit (pane_dead=1): the window exists but the agent is gone.
+	rec := &recorder{out: map[string]string{"tmux list-panes": "erbrus-webshop:1 0\nerbrus-webshop:3 1\n"}}
 	tm := NewTmux(rec.run)
-	if ok, _ := tm.Alive("erbrus-webshop:3"); !ok {
+	if ok, _ := tm.Alive("erbrus-webshop:1"); !ok {
 		t.Error("want alive")
 	}
-	if ok, _ := tm.Alive("erbrus-webshop:9"); ok {
-		t.Error("want dead")
+	if ok, _ := tm.Alive("erbrus-webshop:3"); ok {
+		t.Error("dead pane must count as not alive")
 	}
-	rec2 := &recorder{fail: map[string]error{"tmux list-windows": errors.New("no session")}}
+	if ok, _ := tm.Alive("erbrus-webshop:9"); ok {
+		t.Error("missing window must count as not alive")
+	}
+	rec2 := &recorder{fail: map[string]error{"tmux list-panes": errors.New("no session")}}
 	ok, err := NewTmux(rec2.run).Alive("gone:1")
 	if err != nil || ok {
 		t.Errorf("gone session => (false, nil), got (%v, %v)", ok, err)
