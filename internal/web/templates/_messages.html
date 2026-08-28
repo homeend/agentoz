@@ -4,7 +4,7 @@
 <div class="msg system">— {{.Body}} —
   <div class="delform">
     <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
-    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete" onsubmit="return confirm('Delete this entry?')"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
   </div>
 </div>
 {{else}}
@@ -29,7 +29,7 @@
   </div>
   <div class="delform">
     <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
-    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete" onsubmit="return confirm('Delete this entry?')"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
   </div>
 </div>
 {{end}}

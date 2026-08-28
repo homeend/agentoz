@@ -18,7 +18,7 @@
   <section class="stream">
     {{if .Warning}}<div class="banner">{{.Warning}}</div>{{end}}
     <div class="chattools">
-      <form id="batchdel" method="post" action="/ui/channels/{{.Channel.ID}}/messages/delete-batch">
+      <form id="batchdel" method="post" action="/ui/channels/{{.Channel.ID}}/messages/delete-batch" onsubmit="return confirm('Delete the selected entries?')">
         <button class="btn small" type="button" id="unselect-all">Unselect all</button>
         <button class="btn danger small" type="submit">Delete selected</button>
       </form>
