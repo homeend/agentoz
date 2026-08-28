@@ -67,6 +67,13 @@ func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound, "channel not found")
 		return
 	}
+	// Agents (bearer token) don't see system notes — hook chatter and spawn
+	// bookkeeping is for the human, not context for the next agent.
+	_, isAgent, failStatus := s.bearerRun(r)
+	if failStatus != 0 {
+		httpError(w, failStatus, "invalid run token")
+		return
+	}
 	since, _ := strconv.ParseInt(r.URL.Query().Get("since"), 10, 64)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	msgs, err := s.st.MessagesSince(chID, since, limit)
@@ -76,6 +83,9 @@ func (s *Server) handleGetMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	out := []messageJSON{}
 	for _, m := range msgs {
+		if isAgent && m.Kind == "system" {
+			continue
+		}
 		out = append(out, s.messageJSON(m))
 	}
 	writeJSON(w, http.StatusOK, out)

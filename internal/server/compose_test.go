@@ -378,3 +378,44 @@ func TestMdArtifactRendersInline(t *testing.T) {
 		t.Fatal("download link must remain")
 	}
 }
+
+func TestAgentReadExcludesSystemMessages(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run := runningAgent(t, st, ch1, "claude")
+	if _, err := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "system",
+		AuthorKind: "system", Body: "claude stop hook: prompt finished"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", Body: "real content"}); err != nil {
+		t.Fatal(err)
+	}
+
+	get := func(token string) []map[string]any {
+		req, _ := http.NewRequest("GET", fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, ch1), nil)
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return decode[[]map[string]any](t, resp)
+	}
+
+	for _, m := range get(run.Token) {
+		if m["kind"] == "system" {
+			t.Fatalf("agent read returned a system message: %v", m)
+		}
+	}
+	var humanSeesSystem bool
+	for _, m := range get("") {
+		if m["kind"] == "system" {
+			humanSeesSystem = true
+		}
+	}
+	if !humanSeesSystem {
+		t.Fatal("unauthenticated (human) read must still include system messages")
+	}
+}
