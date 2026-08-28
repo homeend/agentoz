@@ -2,7 +2,10 @@
 {{range .Messages}}
 {{if .IsSystem}}
 <div class="msg system">— {{.Body}} —
-  <form class="delform" method="post" action="/ui/messages/{{.ID}}/delete"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+  <div class="delform">
+    <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
+    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+  </div>
 </div>
 {{else}}
 <div class="msg">
@@ -24,7 +27,10 @@
     {{if .IsReport}}<a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>{{end}}
     <a href="/ui/forward?message={{.ID}}">Forward…</a>
   </div>
-  <form class="delform" method="post" action="/ui/messages/{{.ID}}/delete"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+  <div class="delform">
+    <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
+    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+  </div>
 </div>
 {{end}}
 {{end}}

@@ -11,10 +11,22 @@
     fetch(path)
       .then(function (r) { if (!r.ok) throw new Error('refresh failed'); return r.text(); })
       .then(function (html) {
+        // Checkbox selections live inside the swapped innerHTML — carry
+        // them across the refresh or every new message would clear them.
+        var checked = {};
+        el.querySelectorAll('.selbox:checked').forEach(function (cb) { checked[cb.value] = true; });
         el.innerHTML = html;
+        el.querySelectorAll('.selbox').forEach(function (cb) { if (checked[cb.value]) cb.checked = true; });
         if (el === messages) el.scrollTop = el.scrollHeight;
       })
       .catch(function () { /* transient; next event retries */ });
+  }
+
+  var unselect = document.getElementById('unselect-all');
+  if (unselect) {
+    unselect.addEventListener('click', function () {
+      document.querySelectorAll('.selbox').forEach(function (cb) { cb.checked = false; });
+    });
   }
 
   messages.scrollTop = messages.scrollHeight;

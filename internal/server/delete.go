@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
@@ -123,6 +124,39 @@ func (s *Server) handleUIDeleteMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = os.RemoveAll(filepath.Join(s.dataDir, "artifacts", fmt.Sprint(id)))
 	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", m.ChannelID), http.StatusFound)
+}
+
+// handleUIDeleteBatch removes the checked chat entries. Only messages of
+// this channel are honored — a stale form can't delete across channels.
+func (s *Server) handleUIDeleteBatch(w http.ResponseWriter, r *http.Request) {
+	chID := chiInt64(r, "id")
+	if _, ok, err := s.st.ChannelByID(chID); err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	} else if !ok {
+		httpError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		httpError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	for _, v := range r.PostForm["msg"] {
+		id, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			continue
+		}
+		m, ok, err := s.st.MessageByID(id)
+		if err != nil || !ok || m.ChannelID != chID {
+			continue
+		}
+		if err := s.st.DeleteMessage(id); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		_ = os.RemoveAll(filepath.Join(s.dataDir, "artifacts", fmt.Sprint(id)))
+	}
+	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", chID), http.StatusFound)
 }
 
 // handleUIClearChannel wipes a channel's chat history (messages + artifact

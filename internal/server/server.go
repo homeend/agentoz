@@ -111,6 +111,7 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/ui/runs/{id}/delete", s.handleUIDeleteRun)
 	r.Post("/ui/messages/{id}/delete", s.handleUIDeleteMessage)
 	r.Post("/ui/channels/{id}/clear", s.handleUIClearChannel)
+	r.Post("/ui/channels/{id}/messages/delete-batch", s.handleUIDeleteBatch)
 	r.Get("/ui/spawn", s.handleUISpawn)
 	r.Post("/ui/spawn", s.handleUISpawnPost)
 	r.Get("/ui/forward", s.handleUIForward)

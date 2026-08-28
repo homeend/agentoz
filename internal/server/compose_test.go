@@ -419,3 +419,59 @@ func TestAgentReadExcludesSystemMessages(t *testing.T) {
 		t.Fatal("unauthenticated (human) read must still include system messages")
 	}
 }
+
+func TestUIDeleteBatch(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, ch2 := twoChannels(t, ts.URL, root)
+	m1, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "a"})
+	m2, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "system",
+		AuthorKind: "system", Body: "b"})
+	keep, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "keep"})
+	foreign, _ := st.CreateMessage(store.Message{ChannelID: ch2, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "other channel"})
+
+	resp, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/messages/delete-batch", ts.URL, ch1),
+		url.Values{"msg": {fmt.Sprint(m1.ID), fmt.Sprint(m2.ID), fmt.Sprint(foreign.ID)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusFound {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	for _, id := range []int64{m1.ID, m2.ID} {
+		if _, ok, _ := st.MessageByID(id); ok {
+			t.Fatalf("message %d survived batch delete", id)
+		}
+	}
+	if _, ok, _ := st.MessageByID(keep.ID); !ok {
+		t.Fatal("unchecked message deleted")
+	}
+	if _, ok, _ := st.MessageByID(foreign.ID); !ok {
+		t.Fatal("cross-channel id must be ignored, not deleted")
+	}
+}
+
+func TestChannelPageHasBatchControls(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	m, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "message",
+		AuthorKind: "human", AuthorName: "you", Body: "x"})
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	html := readBody(t, resp)
+	for _, want := range []string{
+		`id="batchdel"`, `id="unselect-all"`, "Delete selected",
+		fmt.Sprintf(`value="%d" form="batchdel"`, m.ID),
+	} {
+		if !strings.Contains(html, want) {
+			t.Fatalf("channel page missing %q", want)
+		}
+	}
+}

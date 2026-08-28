@@ -17,6 +17,12 @@
   </nav>
   <section class="stream">
     {{if .Warning}}<div class="banner">{{.Warning}}</div>{{end}}
+    <div class="chattools">
+      <form id="batchdel" method="post" action="/ui/channels/{{.Channel.ID}}/messages/delete-batch">
+        <button class="btn small" type="button" id="unselect-all">Unselect all</button>
+        <button class="btn danger small" type="submit">Delete selected</button>
+      </form>
+    </div>
     <div id="messages" data-channel="{{.Channel.ID}}">{{template "_messages.html" .}}</div>
     <form class="composer" method="post" action="/ui/channels/{{.Channel.ID}}/messages">
       <textarea name="body" placeholder="Message # {{.Channel.Name}} as human…" required></textarea>
