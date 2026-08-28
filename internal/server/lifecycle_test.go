@@ -265,7 +265,7 @@ func TestSpawnWindowNamedAfterWorkdir(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	resp.Body.Close()
-	want := filepath.Base(root) + "-wt-feat"
+	want := filepath.Base(root) + "-wt-feat/codex"
 	if len(fs.specs) != 1 || fs.specs[0].WindowName != want {
 		t.Fatalf("window name = %+v, want %q", fs.specs, want)
 	}
