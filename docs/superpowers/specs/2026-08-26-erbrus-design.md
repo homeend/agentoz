@@ -55,7 +55,10 @@ internal/client/     client-side API calls used by CLI subcommands
 internal/wt/         worktree detection (wt list --json, git fallback)
 ```
 
-Dependencies kept minimal: chi (router), modernc.org/sqlite, gopkg.in/yaml.v3.
+Dependencies kept minimal: chi (router), modernc.org/sqlite, gopkg.in/yaml.v3,
+github.com/yuin/goldmark (markdown rendering; added 2026-08-28 with user
+approval — raw HTML stays disabled, agent-authored markdown must never
+inject markup).
 The UI uses a small hand-written vanilla-JS layer (SSE refresh, form posts) — no htmx, no vendored framework, no Node toolchain.
 
 ### Data locations
