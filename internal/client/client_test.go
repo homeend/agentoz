@@ -47,7 +47,7 @@ func TestClientRoundtrip(t *testing.T) {
 
 	art := filepath.Join(t.TempDir(), "notes.md")
 	os.WriteFile(art, []byte("hello notes"), 0o644)
-	sent, err := c.SendMessage(ch, "report", "did the thing", []string{art})
+	sent, err := c.SendMessage(ch, "report", "md", "did the thing", []string{art})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestFromEnv(t *testing.T) {
 func TestSendMessageServerError(t *testing.T) {
 	ts, _ := testServer(t)
 	c := New(ts.URL, "")
-	if _, err := c.SendMessage(999, "message", "x", nil); err == nil {
+	if _, err := c.SendMessage(999, "message", "", "x", nil); err == nil {
 		t.Fatal("want error for unknown channel")
 	}
 }

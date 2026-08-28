@@ -2,8 +2,10 @@ package server
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -26,6 +28,10 @@ type msgView struct {
 	Artifacts []store.Artifact
 	Origin    string // "report from <project> / #<channel> by <author>", "" if not a forward or lookup failed
 	Target    string // agent name this message was typed at, "" for plain messages
+	// BodyHTML is set (and shown instead of Body) for format=md messages.
+	BodyHTML template.HTML
+	// InlineDocs are attached .md files rendered into the chat.
+	InlineDocs []template.HTML
 }
 
 type runView struct {
@@ -105,7 +111,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			}
 		}
 
-		msgViews = append(msgViews, msgView{
+		mv := msgView{
 			ID:        m.ID,
 			Kind:      m.Kind,
 			Author:    m.AuthorName,
@@ -116,7 +122,19 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			Artifacts: arts,
 			Origin:    origin,
 			Target:    m.TargetLabel,
-		})
+		}
+		if m.Format == "md" {
+			mv.BodyHTML = renderMarkdown(m.Body)
+		}
+		for _, a := range arts {
+			if !strings.HasSuffix(strings.ToLower(a.Filename), ".md") || a.Size > mdInlineCap {
+				continue
+			}
+			if data, err := os.ReadFile(a.Path); err == nil {
+				mv.InlineDocs = append(mv.InlineDocs, renderMarkdown(string(data)))
+			}
+		}
+		msgViews = append(msgViews, mv)
 	}
 
 	runs, err := s.st.RunsByChannel(chID)

@@ -310,3 +310,71 @@ func TestChannelPageHasDeleteAndClearActions(t *testing.T) {
 		t.Fatal("channel missing clear-chat action")
 	}
 }
+
+func TestMarkdownMessageRenders(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+
+	resp := postJSON(t, fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, ch1),
+		map[string]string{"kind": "report", "format": "md",
+			"body": "# Done\n\n**bold** and <script>alert(1)</script>"})
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	page, err := http.Get(fmt.Sprintf("%s/ui/channels/%d/stream", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer page.Body.Close()
+	html := readBody(t, page)
+	if !strings.Contains(html, "<h1>Done</h1>") || !strings.Contains(html, "<strong>bold</strong>") {
+		t.Fatalf("markdown not rendered:\n%s", html)
+	}
+	if strings.Contains(html, "<script>") {
+		t.Fatal("raw HTML must be stripped from markdown messages")
+	}
+}
+
+func TestInvalidFormatRejected(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	resp := postJSON(t, fmt.Sprintf("%s/api/channels/%d/messages", ts.URL, ch1),
+		map[string]string{"body": "x", "format": "html"})
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	resp.Body.Close()
+}
+
+func TestMdArtifactRendersInline(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	m, _ := st.CreateMessage(store.Message{ChannelID: ch1, Kind: "report",
+		AuthorKind: "agent", AuthorName: "a", Body: "see attached"})
+	dir := filepath.Join(testSrv.dataDir, "artifacts", fmt.Sprint(m.ID))
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "notes.md")
+	if err := os.WriteFile(path, []byte("## Findings\n\n- item one"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.AddArtifact(store.Artifact{MessageID: m.ID, Filename: "notes.md", Path: path, Size: 24}); err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := http.Get(fmt.Sprintf("%s/ui/channels/%d/stream", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer page.Body.Close()
+	html := readBody(t, page)
+	if !strings.Contains(html, "<h2>Findings</h2>") || !strings.Contains(html, "<li>item one</li>") {
+		t.Fatalf("md artifact not rendered inline:\n%s", html)
+	}
+	if !strings.Contains(html, "notes.md") {
+		t.Fatal("download link must remain")
+	}
+}

@@ -29,6 +29,7 @@ type messageJSON struct {
 	AuthorKind      string         `json:"author_kind"`
 	AuthorName      string         `json:"author_name"`
 	OriginMessageID int64          `json:"origin_message_id,omitempty"`
+	Format          string         `json:"format,omitempty"`
 	Body            string         `json:"body"`
 	CreatedAt       string         `json:"created_at"`
 	Artifacts       []artifactJSON `json:"artifacts,omitempty"`
@@ -37,7 +38,7 @@ type messageJSON struct {
 func (s *Server) messageJSON(m store.Message) messageJSON {
 	mj := messageJSON{
 		ID: m.ID, ChannelID: m.ChannelID, Kind: m.Kind, AuthorKind: m.AuthorKind,
-		AuthorName: m.AuthorName, OriginMessageID: m.OriginMessageID, Body: m.Body,
+		AuthorName: m.AuthorName, OriginMessageID: m.OriginMessageID, Format: m.Format, Body: m.Body,
 		CreatedAt: m.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 	arts, _ := s.st.ArtifactsByMessage(m.ID)
@@ -98,7 +99,7 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var kind, body string
+	var kind, format, body string
 	var files []*multipart.FileHeader
 	ct := r.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "multipart/form-data") {
@@ -107,17 +108,18 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		kind = r.FormValue("kind")
+		format = r.FormValue("format")
 		body = r.FormValue("body")
 		if r.MultipartForm != nil {
 			files = r.MultipartForm.File["file"]
 		}
 	} else {
-		var req struct{ Kind, Body string }
+		var req struct{ Kind, Format, Body string }
 		if err := decodeBody(r, &req); err != nil {
 			httpError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		kind, body = req.Kind, req.Body
+		kind, format, body = req.Kind, req.Format, req.Body
 	}
 	if kind == "" {
 		kind = "message"
@@ -126,8 +128,12 @@ func (s *Server) handlePostMessage(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "kind must be message|report|system")
 		return
 	}
+	if format != "" && format != "md" {
+		httpError(w, http.StatusBadRequest, "format must be empty or md")
+		return
+	}
 
-	m := store.Message{ChannelID: chID, Kind: kind, Body: body}
+	m := store.Message{ChannelID: chID, Kind: kind, Format: format, Body: body}
 	if isAgent {
 		m.AuthorKind, m.AuthorName, m.AgentRunID = "agent", run.AgentName, run.ID
 	} else {

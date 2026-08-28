@@ -13,9 +13,12 @@
     <span>{{.When}}</span>
   </div>
   {{if .Origin}}<div class="muted small">↳ {{.Origin}}</div>{{end}}
-  <div class="body">{{.Body}}</div>
+  {{if .BodyHTML}}<div class="body mdbody">{{.BodyHTML}}</div>{{else}}<div class="body">{{.Body}}</div>{{end}}
   {{range .Artifacts}}
   <a class="artifact" href="/api/artifacts/{{.ID}}">{{.Filename}} ({{.Size}} B)</a>
+  {{end}}
+  {{range .InlineDocs}}
+  <div class="mdbody inlinedoc">{{.}}</div>
   {{end}}
   <div class="actions">
     {{if .IsReport}}<a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>{{end}}

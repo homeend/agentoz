@@ -30,6 +30,7 @@ func runMsgSend(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	fs.SetOutput(stderr)
 	report := fs.Bool("report", false, "post as a report")
 	system := fs.Bool("system", false, "post as a system note")
+	md := fs.Bool("md", false, "body is markdown; the UI renders it formatted")
 	file := fs.String("file", "", "attach a file as artifact")
 	channel := fs.Int64("channel", 0, "channel id (overrides ERBRUS_CHANNEL)")
 	if err := fs.Parse(args); err != nil {
@@ -64,7 +65,11 @@ func runMsgSend(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if *file != "" {
 		files = []string{*file}
 	}
-	m, err := c.SendMessage(ch, kind, body, files)
+	format := ""
+	if *md {
+		format = "md"
+	}
+	m, err := c.SendMessage(ch, kind, format, body, files)
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 1

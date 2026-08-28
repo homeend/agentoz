@@ -16,9 +16,10 @@ func Preamble(erbrusBin, agentName, channelName string) string {
 	return fmt.Sprintf(`You are agent %q working in the erbrus channel #%s.
 Do not start any work on your own until you are explicitly asked to do something.
 Report progress and results to the channel with this exact command (flags go before the message text):
-  %s msg send --report "what you did"
+  %s msg send --report --md "what you did"
+Format messages as markdown (--md); the channel renders them.
 Attach a produced document with --file:
-  %s msg send --report --file /abs/path/to/report.md "summary"
+  %s msg send --report --md --file /abs/path/to/report.md "summary"
 Post a report as your FINAL step — the next agent picks up from it.`,
 		agentName, channelName, erbrusBin, erbrusBin)
 }

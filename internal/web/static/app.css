@@ -82,3 +82,13 @@ a:hover { text-decoration: underline; }
 .linkbtn:hover { color: #e0685a; }
 .inline { display: inline; }
 .msg .actions form { display: inline; }
+.mdbody p { margin: 4px 0; }
+.mdbody h1, .mdbody h2, .mdbody h3 { margin: 8px 0 4px; font-size: 15px; }
+.mdbody ul, .mdbody ol { margin: 4px 0; padding-left: 22px; }
+.mdbody code { background: #24262b; border-radius: 3px; padding: 1px 4px; font-family: ui-monospace, monospace; font-size: 12px; }
+.mdbody pre { background: #24262b; border-radius: 4px; padding: 8px 10px; overflow-x: auto; }
+.mdbody pre code { background: none; padding: 0; }
+.mdbody blockquote { border-left: 3px solid #3a3d44; margin: 4px 0; padding-left: 10px; color: #a7acb5; }
+.mdbody table { border-collapse: collapse; margin: 6px 0; }
+.mdbody th, .mdbody td { border: 1px solid #3a3d44; padding: 3px 8px; }
+.inlinedoc { border: 1px dashed #3a3d44; border-radius: 4px; padding: 8px 12px; margin-top: 6px; }

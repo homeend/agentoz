@@ -108,16 +108,19 @@ func (c *Client) postJSON(path string, in, out any) error {
 	return c.do("POST", path, "application/json", bytes.NewReader(b), out)
 }
 
-func (c *Client) SendMessage(channelID int64, kind, body string, files []string) (Message, error) {
+// SendMessage posts body to a channel. format is "" (plain) or "md"
+// (rendered as markdown in the UI).
+func (c *Client) SendMessage(channelID int64, kind, format, body string, files []string) (Message, error) {
 	var m Message
 	path := fmt.Sprintf("/api/channels/%d/messages", channelID)
 	if len(files) == 0 {
-		err := c.postJSON(path, map[string]string{"kind": kind, "body": body}, &m)
+		err := c.postJSON(path, map[string]string{"kind": kind, "format": format, "body": body}, &m)
 		return m, err
 	}
 	var buf bytes.Buffer
 	w := multipart.NewWriter(&buf)
 	w.WriteField("kind", kind)
+	w.WriteField("format", format)
 	w.WriteField("body", body)
 	for _, f := range files {
 		fw, err := w.CreateFormFile("file", filepath.Base(f))

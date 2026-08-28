@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS messages (
   -- display-only name of the agent this message was typed at ('' = none);
   -- deliberately not a foreign key so project deletion never cascades here
   target_label      TEXT NOT NULL DEFAULT '',
+  -- '' = plain text, 'md' = render body as markdown
+  format            TEXT NOT NULL DEFAULT '',
   body              TEXT NOT NULL,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );

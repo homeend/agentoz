@@ -43,6 +43,7 @@ func (s *Server) forwardCore(msgID, channelID int64) (mj messageJSON, status int
 		AuthorKind:      src.AuthorKind,
 		AuthorName:      src.AuthorName,
 		OriginMessageID: src.ID,
+		Format:          src.Format,
 		Body:            src.Body,
 	})
 	if err != nil {
