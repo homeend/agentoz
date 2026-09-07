@@ -48,6 +48,12 @@ func TranslateUserPath(p string) string {
 type Provider struct {
 	Command      string `yaml:"command"`
 	DefaultModel string `yaml:"default_model"`
+	// Screen* are RE2 patterns classifying the agent's terminal (see
+	// internal/screen). Any non-empty list replaces ALL built-in rules
+	// for this provider; all empty = built-ins for this provider name.
+	ScreenWorking  []string `yaml:"screen_working"`
+	ScreenWaiting  []string `yaml:"screen_waiting"`
+	ScreenQuestion []string `yaml:"screen_question"`
 }
 
 type Preset struct {
