@@ -166,3 +166,51 @@
     }
   }, 15000);
 })();
+
+// Screen view: one EventSource per open screen page, frames swap the <pre>.
+// The activity age is computed client-side from the last frame's unix
+// timestamp so the server only talks when the screen actually changes.
+(function () {
+  var screen = document.getElementById('screen');
+  if (!screen || screen.dataset.static) return; // not a live screen page
+  var runID = screen.dataset.run;
+  var head = document.getElementById('screenhead');
+  var act = document.getElementById('screenact');
+  var errEl = document.getElementById('screenerr');
+  var idleAfter = 60; // seconds without tmux activity before the header turns amber
+  var activity = parseInt(act.dataset.activity, 10) || 0;
+
+  function tickAge() {
+    if (!activity) { act.textContent = ''; head.classList.remove('idle'); return; }
+    var age = Math.max(0, Math.floor(Date.now() / 1000 - activity));
+    act.textContent = 'last activity ' + age + 's ago';
+    head.classList.toggle('idle', age > idleAfter);
+  }
+  setInterval(tickAge, 1000);
+  tickAge();
+
+  var es = null;
+  var lastSeen = Date.now();
+  function alive() { lastSeen = Date.now(); }
+  function connect() {
+    if (es) es.close();
+    es = new EventSource('/ui/runs/' + runID + '/screen/events');
+    es.onopen = alive;
+    es.addEventListener('ping', alive);
+    es.addEventListener('frame', function (e) {
+      alive();
+      try {
+        var f = JSON.parse(e.data);
+        if (f.error) { errEl.textContent = f.error; return; }
+        errEl.textContent = f.dead ? 'process exited — final screen' : '';
+        screen.innerHTML = f.html;
+        activity = f.activity || 0;
+        tickAge();
+      } catch (err) { /* ignore malformed */ }
+    });
+  }
+  connect();
+  setInterval(function () {
+    if (Date.now() - lastSeen > 45000) { alive(); connect(); }
+  }, 15000);
+})();

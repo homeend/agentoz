@@ -1,12 +1,18 @@
 package server
 
 import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"erbrus/internal/spawn"
+	"erbrus/internal/store"
 )
 
 func fastPoll(t *testing.T) {
@@ -101,3 +107,109 @@ func TestScreenFeedReportsCaptureError(t *testing.T) {
 type errTest string
 
 func (e errTest) Error() string { return string(e) }
+
+func readAll(t *testing.T, resp *http.Response) string {
+	t.Helper()
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestScreenPageRendersCapture(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	fs := &fakeSpawner{}
+	fs.setScreen("s:5", spawn.Screen{Raw: "\x1b[1mhello\x1b[0m <b>", Activity: time.Unix(1788820410, 0)})
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run := runningAgent(t, st, ch1, "claude")
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/runs/%d/screen", ts.URL, run.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := readAll(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d: %s", resp.StatusCode, body)
+	}
+	for _, want := range []string{
+		fmt.Sprintf(`id="screen" data-run="%d"`, run.ID),
+		`<span style="font-weight:bold">hello</span> &lt;b&gt;`,
+		`data-activity="1788820410"`,
+		"claude", "s:5",
+		fmt.Sprintf(`/ui/channels/%d`, ch1),
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("page missing %q", want)
+		}
+	}
+	// The runs panel links to the page.
+	presp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
+	if pb := readAll(t, presp); !strings.Contains(pb, fmt.Sprintf(`href="/ui/runs/%d/screen"`, run.ID)) {
+		t.Errorf("runs panel lacks Screen link: %s", pb)
+	}
+}
+
+func TestScreenPageNoWindow(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	testSrv.SetRuntime(&fakeSpawner{}, "/abs/erbrus", ts.URL)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run, err := st.CreateRun(store.AgentRun{ChannelID: ch1, Provider: "codex", AgentName: "fg",
+		Workdir: "/w", Status: "running", Spawner: "fg"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, _ := http.Get(fmt.Sprintf("%s/ui/runs/%d/screen", ts.URL, run.ID))
+	if body := readAll(t, resp); resp.StatusCode != http.StatusOK || !strings.Contains(body, "no tmux window for this run") {
+		t.Fatalf("status = %d body = %s", resp.StatusCode, body)
+	}
+	eresp, _ := http.Get(fmt.Sprintf("%s/ui/runs/%d/screen/events", ts.URL, run.ID))
+	eresp.Body.Close()
+	if eresp.StatusCode != http.StatusNotFound {
+		t.Fatalf("events status = %d", eresp.StatusCode)
+	}
+	if r404, _ := http.Get(ts.URL + "/ui/runs/999999/screen"); r404.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown run status = %d", r404.StatusCode)
+	}
+}
+
+func TestScreenEventsStreamFrames(t *testing.T) {
+	fastPoll(t)
+	ts, st, root := newTestServer(t)
+	fs := &fakeSpawner{}
+	fs.setScreen("s:5", spawn.Screen{Raw: "first"})
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run := runningAgent(t, st, ch1, "claude")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%s/ui/runs/%d/screen/events", ts.URL, run.ID), nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" {
+		t.Fatalf("content-type = %q", ct)
+	}
+	sc := bufio.NewScanner(resp.Body)
+	nextFrame := func() string {
+		for sc.Scan() {
+			if sc.Text() == "event: frame" && sc.Scan() {
+				return strings.TrimPrefix(sc.Text(), "data: ")
+			}
+		}
+		t.Fatalf("stream ended: %v", sc.Err())
+		return ""
+	}
+	if d := nextFrame(); !strings.Contains(d, `"html":"first"`) {
+		t.Fatalf("first frame = %s", d)
+	}
+	fs.setScreen("s:5", spawn.Screen{Raw: "second", Dead: true})
+	if d := nextFrame(); !strings.Contains(d, `"html":"second"`) || !strings.Contains(d, `"dead":true`) {
+		t.Fatalf("second frame = %s", d)
+	}
+}

@@ -4,12 +4,14 @@
   <span class="dot"></span><strong>{{.AgentName}}</strong>
   {{if .Running}}
   <div class="muted small">{{.Provider}} · {{.Status}} · since {{.Started}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
+  {{if .TmuxTarget}}<a class="btn small" href="/ui/runs/{{.ID}}/screen">Screen</a>{{end}}
   <form method="post" action="/ui/runs/{{.ID}}/stop">
     <input type="hidden" name="channel" value="{{$.Channel.ID}}">
     <button class="btn danger small" type="submit">Stop</button>
   </form>
   {{else}}
   <div class="muted small">{{.Provider}} · {{.Status}}{{if .HasExit}} · exit {{.ExitCode}}{{end}}{{if .Finished}} · {{.Finished}}{{end}}</div>
+  {{if .TmuxTarget}}<a class="btn small" href="/ui/runs/{{.ID}}/screen">Screen</a>{{end}}
   <form method="post" action="/ui/runs/{{.ID}}/delete" data-confirm="Remove this run from history?">
     <button class="btn small" type="submit" title="remove from history">×</button>
   </form>

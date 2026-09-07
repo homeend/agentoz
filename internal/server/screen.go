@@ -3,12 +3,15 @@ package server
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html/template"
+	"net/http"
 	"sync"
 	"time"
 
 	"erbrus/internal/spawn"
+	"erbrus/internal/store"
 )
 
 // screenFrame is one rendered snapshot of a run's terminal as sent to the
@@ -137,6 +140,95 @@ func (f *screenFeed) tick(p *screenPoll) {
 		select {
 		case ch <- frame:
 		default:
+		}
+	}
+}
+
+type screenPage struct {
+	Run     store.AgentRun
+	Live    bool
+	Channel store.Channel
+	Project store.Project
+	Frame   screenFrame
+	// Note replaces the live view when there is nothing to poll.
+	Note string
+}
+
+func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
+	run, ok, err := s.st.RunByID(chiInt64(r, "id"))
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "run not found")
+		return
+	}
+	ch, _, _ := s.st.ChannelByID(run.ChannelID)
+	pr, _, _ := s.st.ProjectByID(ch.ProjectID)
+	page := screenPage{Run: run, Live: run.Status == "starting" || run.Status == "running", Channel: ch, Project: pr}
+	switch {
+	case run.TmuxTarget == "":
+		page.Note = "no tmux window for this run"
+	case s.spawner == nil:
+		page.Note = "no spawner configured"
+	default:
+		sc, err := s.spawner.Capture(spawn.Handle(run.TmuxTarget))
+		page.Frame, _ = frameOf(sc, err)
+	}
+	s.render(w, "screen", page)
+}
+
+// handleUIScreenEvents streams frames for one run to one viewer. Separate
+// from /events so screen traffic never competes with chat events.
+func (s *Server) handleUIScreenEvents(w http.ResponseWriter, r *http.Request) {
+	run, ok, err := s.st.RunByID(chiInt64(r, "id"))
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok || run.TmuxTarget == "" {
+		httpError(w, http.StatusNotFound, "run has no tmux window")
+		return
+	}
+	if s.spawner == nil {
+		httpError(w, http.StatusServiceUnavailable, "no spawner configured")
+		return
+	}
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		httpError(w, http.StatusInternalServerError, "streaming unsupported")
+		return
+	}
+	frames, cancel := s.screens.Subscribe(run.ID, spawn.Handle(run.TmuxTarget))
+	defer cancel()
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, ": connected\n\n")
+	fl.Flush()
+
+	ping := time.NewTicker(pingInterval)
+	defer ping.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ping.C:
+			if _, err := fmt.Fprint(w, "event: ping\ndata: {}\n\n"); err != nil {
+				return
+			}
+			fl.Flush()
+		case f := <-frames:
+			b, err := json.Marshal(f)
+			if err != nil {
+				continue
+			}
+			if _, err := fmt.Fprintf(w, "event: frame\ndata: %s\n\n", b); err != nil {
+				return
+			}
+			fl.Flush()
 		}
 	}
 }

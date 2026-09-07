@@ -108,3 +108,10 @@ a:hover { text-decoration: underline; }
 .mdbody table { border-collapse: collapse; margin: 6px 0; }
 .mdbody th, .mdbody td { border: 1px solid #3a3d44; padding: 3px 8px; }
 .inlinedoc { border: 1px dashed #3a3d44; border-radius: 4px; padding: 8px 12px; margin-top: 6px; }
+/* screen view */
+.screenpage { padding: 12px 18px; }
+.screenhead { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin-bottom: 8px; background: #1d1f23; border: 1px solid #2c2f35; border-radius: 6px; }
+.screenhead.idle { border-color: #b8860b; background: #2a2416; }
+.screenhead .warn { color: #e5c07b; }
+/* colors here are mirrored by screenFg/screenBg in ansi.go (reverse video) */
+.screen { margin: 0; padding: 10px; font: 12px/1.35 ui-monospace, monospace; color: #d6d8dc; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; overflow: auto; white-space: pre; min-height: 300px; }
