@@ -185,3 +185,51 @@ func TestAllTargetsUseExactMatch(t *testing.T) {
 		}
 	}
 }
+
+func TestCaptureIssuesExactTargetsAndParses(t *testing.T) {
+	rec := &recorder{out: map[string]string{
+		"tmux capture-pane": "\x1b[1mhello\x1b[0m\nworld\n",
+		"tmux display":      "0 1788820410 134 36\n",
+	}}
+	sc, err := NewTmux(rec.run).Capture("erbrus-webshop:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"tmux capture-pane -p -e -t =erbrus-webshop:1",
+		"tmux display -p -t =erbrus-webshop:1 #{pane_dead} #{window_activity} #{pane_width} #{pane_height}",
+	}
+	if strings.Join(rec.calls, "\n") != strings.Join(want, "\n") {
+		t.Errorf("calls:\n%s\nwant:\n%s", strings.Join(rec.calls, "\n"), strings.Join(want, "\n"))
+	}
+	if sc.Raw != "\x1b[1mhello\x1b[0m\nworld\n" {
+		t.Errorf("raw = %q", sc.Raw)
+	}
+	if sc.Dead {
+		t.Error("pane reported dead")
+	}
+	if sc.Activity.Unix() != 1788820410 {
+		t.Errorf("activity = %v", sc.Activity)
+	}
+	if sc.Cols != 134 || sc.Rows != 36 {
+		t.Errorf("size = %dx%d", sc.Cols, sc.Rows)
+	}
+}
+
+func TestCaptureDeadPane(t *testing.T) {
+	rec := &recorder{out: map[string]string{"tmux display": "1 0 80 24\n"}}
+	sc, err := NewTmux(rec.run).Capture("s:2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sc.Dead || !sc.Activity.IsZero() {
+		t.Errorf("dead=%v activity=%v", sc.Dead, sc.Activity)
+	}
+}
+
+func TestCaptureWindowGone(t *testing.T) {
+	rec := &recorder{fail: map[string]error{"tmux capture-pane": errors.New("can't find window")}}
+	if _, err := NewTmux(rec.run).Capture("s:9"); err == nil {
+		t.Fatal("expected error when the window is gone")
+	}
+}

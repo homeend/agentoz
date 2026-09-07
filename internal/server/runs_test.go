@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"erbrus/internal/config"
@@ -22,6 +23,32 @@ type fakeSpawner struct {
 	alive   map[spawn.Handle]bool
 	sent    []string // "handle|text" per Send call
 	sendErr error
+	// screens scripts Capture per handle; captureErr wins when set.
+	// capMu guards them: the screen feed polls from a goroutine.
+	capMu      sync.Mutex
+	screens    map[spawn.Handle]spawn.Screen
+	captureErr error
+	captures   int
+}
+
+func (f *fakeSpawner) Capture(h spawn.Handle) (spawn.Screen, error) {
+	f.capMu.Lock()
+	defer f.capMu.Unlock()
+	f.captures++
+	if f.captureErr != nil {
+		return spawn.Screen{}, f.captureErr
+	}
+	return f.screens[h], nil
+}
+
+// setScreen swaps the scripted screen for h (safe to call while polled).
+func (f *fakeSpawner) setScreen(h spawn.Handle, sc spawn.Screen) {
+	f.capMu.Lock()
+	defer f.capMu.Unlock()
+	if f.screens == nil {
+		f.screens = map[spawn.Handle]spawn.Screen{}
+	}
+	f.screens[h] = sc
 }
 
 func (f *fakeSpawner) Spawn(s spawn.RunSpec) (spawn.Handle, error) {

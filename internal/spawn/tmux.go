@@ -3,6 +3,7 @@ package spawn
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -103,4 +104,28 @@ func (t *Tmux) Alive(h Handle) (bool, error) {
 		}
 	}
 	return false, nil
+}
+
+// Capture reads the rendered pane (with color escapes) and the window's
+// activity/size/dead flags in two tmux calls, both exact-targeted.
+func (t *Tmux) Capture(h Handle) (Screen, error) {
+	raw, err := t.run("tmux", "capture-pane", "-p", "-e", "-t", exact(string(h)))
+	if err != nil {
+		return Screen{}, fmt.Errorf("capture %s: %w", h, err)
+	}
+	meta, err := t.run("tmux", "display", "-p", "-t", exact(string(h)),
+		"#{pane_dead} #{window_activity} #{pane_width} #{pane_height}")
+	if err != nil {
+		return Screen{}, fmt.Errorf("capture %s: %w", h, err)
+	}
+	sc := Screen{Raw: string(raw)}
+	if f := strings.Fields(string(meta)); len(f) == 4 {
+		sc.Dead = f[0] == "1"
+		if secs, err := strconv.ParseInt(f[1], 10, 64); err == nil && secs > 0 {
+			sc.Activity = time.Unix(secs, 0)
+		}
+		sc.Cols, _ = strconv.Atoi(f[2])
+		sc.Rows, _ = strconv.Atoi(f[3])
+	}
+	return sc, nil
 }
