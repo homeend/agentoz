@@ -177,14 +177,31 @@
   var head = document.getElementById('screenhead');
   var act = document.getElementById('screenact');
   var errEl = document.getElementById('screenerr');
-  var idleAfter = 60; // seconds without tmux activity before the header turns amber
+  var stateEl = document.getElementById('screenstate');
+  // Mirrors stallAfter in watch.go: silence this long while working (or
+  // unclassified) is a stall; silence while waiting/question is normal.
+  var stallAfter = 120;
   var activity = parseInt(act.dataset.activity, 10) || 0;
+  var state = stateEl.dataset.state || '';
+  var step = parseInt(stateEl.dataset.step, 10) || 0;
 
+  function fmtDur(s) {
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s / 60) + 'm' + (s % 60) + 's';
+    return Math.floor(s / 3600) + 'h' + Math.floor((s % 3600) / 60) + 'm';
+  }
   function tickAge() {
+    var label = state || 'unknown';
+    if (state === 'working' && step) label += ' · step ' + fmtDur(step);
+    if (state === 'question') label = 'needs input';
+    stateEl.textContent = label;
+    stateEl.className = 'state' + (state ? ' st-' + state : '');
     if (!activity) { act.textContent = ''; head.classList.remove('idle'); return; }
     var age = Math.max(0, Math.floor(Date.now() / 1000 - activity));
-    act.textContent = 'last activity ' + age + 's ago';
-    head.classList.toggle('idle', age > idleAfter);
+    act.textContent = 'last output ' + fmtDur(age) + ' ago';
+    var stalled = age > stallAfter && (state === 'working' || state === '');
+    head.classList.toggle('idle', stalled);
+    stateEl.classList.toggle('stalled', stalled);
   }
   setInterval(tickAge, 1000);
   tickAge();
@@ -205,6 +222,8 @@
         errEl.textContent = f.dead ? 'process exited — final screen' : '';
         screen.innerHTML = f.html;
         activity = f.activity || 0;
+        state = f.state || '';
+        step = f.step || 0;
         tickAge();
       } catch (err) { /* ignore malformed */ }
     });

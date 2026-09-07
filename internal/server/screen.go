@@ -23,13 +23,15 @@ type screenFrame struct {
 	Dead     bool          `json:"dead"`
 	Cols     int           `json:"cols"`
 	Rows     int           `json:"rows"`
+	State    string        `json:"state"` // screen.State; "" = unknown
+	Step     int           `json:"step"`  // seconds the current step has run, 0 if unknown
 	Error    string        `json:"error,omitempty"`
 }
 
 // frameOf renders a capture (or its error) and returns the frame plus a
 // fingerprint that changes iff the visible state changed. The HTML is not
 // part of the fingerprint: hashing the raw screen is cheaper and equivalent.
-func frameOf(sc spawn.Screen, err error) (screenFrame, string) {
+func frameOf(sc spawn.Screen, err error, rules screen.Rules) (screenFrame, string) {
 	if err != nil {
 		msg := "screen unavailable: " + err.Error()
 		return screenFrame{Error: msg}, "err:" + msg
@@ -39,8 +41,10 @@ func frameOf(sc spawn.Screen, err error) (screenFrame, string) {
 		act = sc.Activity.Unix()
 	}
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%d|%t|%d|%d|%s", act, sc.Dead, sc.Cols, sc.Rows, sc.Raw)))
+	lines := screen.Tail(screen.Strip(sc.Raw), 15)
 	return screenFrame{
 		HTML: template.HTML(screen.ToHTML(sc.Raw)), Activity: act, Dead: sc.Dead, Cols: sc.Cols, Rows: sc.Rows,
+		State: string(screen.Classify(rules, lines)), Step: int(screen.StepDuration(lines).Seconds()),
 	}, hex.EncodeToString(sum[:])
 }
 
@@ -62,6 +66,7 @@ type screenFeed struct {
 
 type screenPoll struct {
 	handle spawn.Handle
+	rules  screen.Rules
 	subs   map[chan screenFrame]struct{}
 	last   screenFrame
 	lastFP string
@@ -75,12 +80,12 @@ func newScreenFeed(capture func(spawn.Handle) (spawn.Screen, error)) *screenFeed
 // Subscribe returns a channel of frames for runID (current frame first,
 // then one per change) and a cancel that also stops polling when the last
 // viewer leaves.
-func (f *screenFeed) Subscribe(runID int64, h spawn.Handle) (<-chan screenFrame, func()) {
+func (f *screenFeed) Subscribe(runID int64, h spawn.Handle, rules screen.Rules) (<-chan screenFrame, func()) {
 	ch := make(chan screenFrame, 4)
 	f.mu.Lock()
 	p, ok := f.runs[runID]
 	if !ok {
-		p = &screenPoll{handle: h, subs: map[chan screenFrame]struct{}{}, stop: make(chan struct{})}
+		p = &screenPoll{handle: h, rules: rules, subs: map[chan screenFrame]struct{}{}, stop: make(chan struct{})}
 		f.runs[runID] = p
 		go f.loop(p)
 	}
@@ -132,7 +137,7 @@ func (f *screenFeed) tick(p *screenPoll) {
 		return
 	default:
 	}
-	frame, fp := frameOf(sc, err)
+	frame, fp := frameOf(sc, err, p.rules)
 	if fp == p.lastFP {
 		return
 	}
@@ -175,7 +180,7 @@ func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
 		page.Note = "no spawner configured"
 	default:
 		sc, err := s.spawner.Capture(spawn.Handle(run.TmuxTarget))
-		page.Frame, _ = frameOf(sc, err)
+		page.Frame, _ = frameOf(sc, err, s.rulesFor(run.Provider))
 	}
 	s.render(w, "screen", page)
 }
@@ -201,7 +206,7 @@ func (s *Server) handleUIScreenEvents(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, "streaming unsupported")
 		return
 	}
-	frames, cancel := s.screens.Subscribe(run.ID, spawn.Handle(run.TmuxTarget))
+	frames, cancel := s.screens.Subscribe(run.ID, spawn.Handle(run.TmuxTarget), s.rulesFor(run.Provider))
 	defer cancel()
 
 	w.Header().Set("Content-Type", "text/event-stream")

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"erbrus/internal/screen"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
@@ -43,7 +44,7 @@ func TestScreenFeedSendsOnChangeOnly(t *testing.T) {
 		calls++
 		return spawn.Screen{Raw: raw, Cols: 80, Rows: 24}, nil
 	})
-	ch, cancel := feed.Subscribe(7, "s:5")
+	ch, cancel := feed.Subscribe(7, "s:5", screen.Rules{})
 	if f := recvFrame(t, ch); !strings.Contains(string(f.HTML), "one") || f.Cols != 80 {
 		t.Fatalf("first frame = %+v", f)
 	}
@@ -76,10 +77,10 @@ func TestScreenFeedLateSubscriberGetsCurrentFrame(t *testing.T) {
 	feed := newScreenFeed(func(h spawn.Handle) (spawn.Screen, error) {
 		return spawn.Screen{Raw: "steady"}, nil
 	})
-	ch1, cancel1 := feed.Subscribe(7, "s:5")
+	ch1, cancel1 := feed.Subscribe(7, "s:5", screen.Rules{})
 	defer cancel1()
 	recvFrame(t, ch1)
-	ch2, cancel2 := feed.Subscribe(7, "s:5")
+	ch2, cancel2 := feed.Subscribe(7, "s:5", screen.Rules{})
 	defer cancel2()
 	if f := recvFrame(t, ch2); !strings.Contains(string(f.HTML), "steady") {
 		t.Fatalf("late frame = %+v", f)
@@ -91,7 +92,7 @@ func TestScreenFeedReportsCaptureError(t *testing.T) {
 	feed := newScreenFeed(func(h spawn.Handle) (spawn.Screen, error) {
 		return spawn.Screen{}, errTest("can't find window")
 	})
-	ch, cancel := feed.Subscribe(7, "s:5")
+	ch, cancel := feed.Subscribe(7, "s:5", screen.Rules{})
 	defer cancel()
 	f := recvFrame(t, ch)
 	if f.Error != "screen unavailable: can't find window" {
@@ -179,10 +180,10 @@ func TestScreenEventsStreamFrames(t *testing.T) {
 	fastPoll(t)
 	ts, st, root := newTestServer(t)
 	fs := &fakeSpawner{}
-	fs.setScreen("s:5", spawn.Screen{Raw: "first"})
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n❯\n"})
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 	ch1, _ := twoChannels(t, ts.URL, root)
-	run := runningAgent(t, st, ch1, "claude")
+	run := claudeRun(t, st, ch1)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -205,7 +206,7 @@ func TestScreenEventsStreamFrames(t *testing.T) {
 		t.Fatalf("stream ended: %v", sc.Err())
 		return ""
 	}
-	if d := nextFrame(); !strings.Contains(d, `"html":"first"`) {
+	if d := nextFrame(); !strings.Contains(d, "Cogitating") || !strings.Contains(d, `"state":"working"`) || !strings.Contains(d, `"step":27`) {
 		t.Fatalf("first frame = %s", d)
 	}
 	fs.setScreen("s:5", spawn.Screen{Raw: "second", Dead: true})
