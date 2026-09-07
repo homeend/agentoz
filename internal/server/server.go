@@ -5,6 +5,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -25,6 +26,7 @@ type Server struct {
 	run     wt.Runner
 	dataDir string
 	hub     *Hub
+	screens *screenFeed
 	pages   map[string]*template.Template
 
 	spawner   spawn.Spawner
@@ -35,7 +37,7 @@ type Server struct {
 }
 
 func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
-	return &Server{
+	s := &Server{
 		st:      st,
 		cfg:     cfg,
 		run:     run,
@@ -43,6 +45,14 @@ func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
 		hub:     NewHub(),
 		pages:   web.Pages(template.FuncMap{"localtime": localTime}),
 	}
+	// Resolved per call: SetRuntime wires the spawner after New.
+	s.screens = newScreenFeed(func(h spawn.Handle) (spawn.Screen, error) {
+		if s.spawner == nil {
+			return spawn.Screen{}, errors.New("no spawner configured")
+		}
+		return s.spawner.Capture(h)
+	})
+	return s
 }
 
 // SetRuntime wires the spawn runtime (spawner, erbrus binary path, and the
