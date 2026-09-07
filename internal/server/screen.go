@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"erbrus/internal/screen"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
@@ -39,7 +40,7 @@ func frameOf(sc spawn.Screen, err error) (screenFrame, string) {
 	}
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%d|%t|%d|%d|%s", act, sc.Dead, sc.Cols, sc.Rows, sc.Raw)))
 	return screenFrame{
-		HTML: ansiToHTML(sc.Raw), Activity: act, Dead: sc.Dead, Cols: sc.Cols, Rows: sc.Rows,
+		HTML: template.HTML(screen.ToHTML(sc.Raw)), Activity: act, Dead: sc.Dead, Cols: sc.Cols, Rows: sc.Rows,
 	}, hex.EncodeToString(sum[:])
 }
 

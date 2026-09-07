@@ -1,4 +1,4 @@
-package server
+package screen
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 )
 
 func TestANSIPlainTextEscaped(t *testing.T) {
-	got := string(ansiToHTML("a <b> & c\nline2 <script>x</script>"))
+	got := (ToHTML("a <b> & c\nline2 <script>x</script>"))
 	want := "a &lt;b&gt; &amp; c\nline2 &lt;script&gt;x&lt;/script&gt;"
 	if got != want {
 		t.Errorf("got %q want %q", got, want)
@@ -14,7 +14,7 @@ func TestANSIPlainTextEscaped(t *testing.T) {
 }
 
 func TestANSIBoldAndReset(t *testing.T) {
-	got := string(ansiToHTML("\x1b[1mhi\x1b[0m there"))
+	got := (ToHTML("\x1b[1mhi\x1b[0m there"))
 	want := `<span style="font-weight:bold">hi</span> there`
 	if got != want {
 		t.Errorf("got %q want %q", got, want)
@@ -33,14 +33,14 @@ func TestANSIColors(t *testing.T) {
 		"\x1b[mx":                `x`, // empty SGR = reset
 	}
 	for in, want := range cases {
-		if got := string(ansiToHTML(in)); got != want {
+		if got := (ToHTML(in)); got != want {
 			t.Errorf("%q: got %q want %q", in, got, want)
 		}
 	}
 }
 
 func TestANSIDropsUnknownSequences(t *testing.T) {
-	got := string(ansiToHTML("\x1b[2Ja\x1b]0;title\x07b\x1b[?25lc\x1b(Bd\x1b[Kx\x1b]8;;http://x\x1b\\y"))
+	got := (ToHTML("\x1b[2Ja\x1b]0;title\x07b\x1b[?25lc\x1b(Bd\x1b[Kx\x1b]8;;http://x\x1b\\y"))
 	if got != "abcdxy" {
 		t.Errorf("got %q", got)
 	}
@@ -48,7 +48,7 @@ func TestANSIDropsUnknownSequences(t *testing.T) {
 
 func TestANSIStyleSpansCrossNewlines(t *testing.T) {
 	// A styled run spanning lines stays one span (pre keeps the newline).
-	got := string(ansiToHTML("\x1b[32ma\nb\x1b[0m"))
+	got := (ToHTML("\x1b[32ma\nb\x1b[0m"))
 	want := "<span style=\"color:#67c98a\">a\nb</span>"
 	if got != want {
 		t.Errorf("got %q want %q", got, want)
@@ -60,7 +60,7 @@ const claudeFixture = "\x1b[38;5;174m✻\x1b[39m \x1b[38;5;174mPrecipitating… 
 	"\x1b[38;5;244m────────────────\x1b[39m\n\x1b[38;5;246m❯ \x1b[39m\n"
 
 func TestANSIClaudeCodeFixture(t *testing.T) {
-	got := string(ansiToHTML(claudeFixture))
+	got := (ToHTML(claudeFixture))
 	if strings.Contains(got, "\x1b") {
 		t.Error("escape byte leaked")
 	}

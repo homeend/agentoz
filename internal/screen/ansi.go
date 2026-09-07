@@ -1,20 +1,22 @@
-package server
+// Package screen understands agent terminals: it renders tmux captures
+// as safe HTML and classifies what the agent is doing from the bottom of
+// the screen. Pure functions, no tmux or server imports.
+package screen
 
 import (
 	"fmt"
 	"html"
-	"html/template"
 	"strconv"
 	"strings"
 )
 
-// ansiToHTML renders a `tmux capture-pane -e` screen as safe HTML for a
+// ToHTML renders a `tmux capture-pane -e` screen as safe HTML for a
 // <pre>: SGR styling becomes inline-styled spans, every other escape
 // sequence (cursor moves, OSC titles, charset switches) is dropped, and all
 // text is HTML-escaped. Whitelist by construction: nothing from the input
 // ever lands in an attribute — styles are built only from the fixed
 // palette and %02x-formatted numbers.
-func ansiToHTML(raw string) template.HTML {
+func ToHTML(raw string) string {
 	var out strings.Builder
 	var text strings.Builder
 	var st sgrState
@@ -27,7 +29,9 @@ func ansiToHTML(raw string) template.HTML {
 		out.WriteString(html.EscapeString(text.String()))
 		text.Reset()
 	}
-	restyle := func(next sgrState) {
+	scan(raw, func(c byte) { text.WriteByte(c) }, func(params string) {
+		next := st
+		applySGR(&next, params)
 		if next == st {
 			return
 		}
@@ -41,12 +45,30 @@ func ansiToHTML(raw string) template.HTML {
 			out.WriteString(`<span style="` + s + `">`)
 			open = true
 		}
+	})
+	flush()
+	if open {
+		out.WriteString("</span>")
 	}
+	return out.String()
+}
 
+// Strip returns the screen with every escape sequence removed: the text a
+// classifier should look at.
+func Strip(raw string) string {
+	var b strings.Builder
+	scan(raw, func(c byte) { b.WriteByte(c) }, func(string) {})
+	return b.String()
+}
+
+// scan walks raw once: text receives printable bytes in order, sgr receives
+// the parameter string of each SGR (CSI ... m) sequence. Every other escape
+// sequence is dropped.
+func scan(raw string, text func(byte), sgr func(params string)) {
 	for i := 0; i < len(raw); i++ {
 		c := raw[i]
 		if c != 0x1b {
-			text.WriteByte(c)
+			text(c)
 			continue
 		}
 		if i+1 >= len(raw) {
@@ -59,13 +81,10 @@ func ansiToHTML(raw string) template.HTML {
 				j++
 			}
 			if j >= len(raw) {
-				i = len(raw)
-				break
+				return
 			}
 			if raw[j] == 'm' {
-				next := st
-				applySGR(&next, raw[i+2:j])
-				restyle(next)
+				sgr(raw[i+2 : j])
 			}
 			i = j
 		case ']': // OSC: until BEL or ESC \
@@ -87,11 +106,6 @@ func ansiToHTML(raw string) template.HTML {
 			i = j
 		}
 	}
-	flush()
-	if open {
-		out.WriteString("</span>")
-	}
-	return template.HTML(out.String())
 }
 
 type sgrState struct {
