@@ -367,7 +367,11 @@ func (s *Server) StartReconcileLoop(interval time.Duration, stop <-chan struct{}
 			case <-stop:
 				return
 			case <-t.C:
-				_ = s.Reconcile() // transient tmux errors retry next tick
+				// Reconcile first so WatchScreens never captures a window
+				// Reconcile just declared dead. Transient tmux errors
+				// retry next tick.
+				_ = s.Reconcile()
+				_ = s.WatchScreens()
 			}
 		}
 	}()

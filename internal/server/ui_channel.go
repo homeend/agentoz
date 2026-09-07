@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"erbrus/internal/config"
 	"erbrus/internal/integrate"
@@ -45,6 +46,10 @@ type runView struct {
 	Finished   string // localtime finish moment, "" while running
 	HasExit    bool
 	ExitCode   int64
+	// StateLabel/StateClass: the watcher's badge ("working 7m",
+	// "needs input"); empty until the first classification.
+	StateLabel string
+	StateClass string
 }
 
 type channelPage struct {
@@ -158,6 +163,11 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		}
 		if !v.Running && !r.FinishedAt.IsZero() {
 			v.Finished = r.FinishedAt.Local().Format("Jan _2 15:04")
+		}
+		if v.Running {
+			if rs, ok := s.stateOf(r.ID); ok {
+				v.StateLabel, v.StateClass = rs.badge(time.Now())
+			}
 		}
 		return v
 	}

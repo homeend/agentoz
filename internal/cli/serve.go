@@ -63,7 +63,8 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	if err := srv.Reconcile(); err != nil {
 		fmt.Fprintln(stderr, "reconcile:", err)
 	}
-	srv.StartReconcileLoop(30*time.Second, make(chan struct{}))
+	// 10s: also paces screen-state detection (working/waiting/question).
+	srv.StartReconcileLoop(10*time.Second, make(chan struct{}))
 
 	fmt.Fprintf(stdout, "erbrus serving on http://%s (data: %s)\n", ln.Addr(), dataDir)
 	if serveAddrHook != nil {

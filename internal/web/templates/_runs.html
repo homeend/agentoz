@@ -3,6 +3,7 @@
 <div class="runcard st-{{.Status}}{{if .Running}} running{{end}}">
   <span class="dot"></span><strong>{{.AgentName}}</strong>
   {{if .Running}}
+  {{if .StateLabel}}<span class="{{.StateClass}}">{{.StateLabel}}</span>{{end}}
   <div class="muted small">{{.Provider}} · {{.Status}} · since {{.Started}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
   {{if .TmuxTarget}}<a class="btn small" href="/ui/runs/{{.ID}}/screen" target="_blank" rel="noopener">Screen</a>{{end}}
   <form method="post" action="/ui/runs/{{.ID}}/stop">

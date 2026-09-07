@@ -6,14 +6,18 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 
 	"erbrus/internal/config"
+	"erbrus/internal/screen"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 	"erbrus/internal/web"
@@ -28,6 +32,12 @@ type Server struct {
 	hub     *Hub
 	screens *screenFeed
 	pages   map[string]*template.Template
+
+	// rules: per-provider screen classification overrides from config,
+	// compiled once. states: what the watcher last saw per running run.
+	rules   map[string]screen.Rules
+	stateMu sync.Mutex
+	states  map[int64]runState
 
 	spawner   spawn.Spawner
 	erbrusBin string
@@ -52,7 +62,28 @@ func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
 		}
 		return s.spawner.Capture(h)
 	})
+	s.states = map[int64]runState{}
+	s.rules = map[string]screen.Rules{}
+	for name, p := range cfg.Providers {
+		if len(p.ScreenWorking)+len(p.ScreenWaiting)+len(p.ScreenQuestion) == 0 {
+			continue
+		}
+		r, err := screen.Compile(p.ScreenWorking, p.ScreenWaiting, p.ScreenQuestion)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "erbrus: provider %s: %v (using built-in screen rules)\n", name, err)
+			continue
+		}
+		s.rules[name] = r
+	}
 	return s
+}
+
+// rulesFor: config override if present, else built-ins for the name.
+func (s *Server) rulesFor(provider string) screen.Rules {
+	if r, ok := s.rules[provider]; ok {
+		return r
+	}
+	return screen.DefaultRules(provider)
 }
 
 // SetRuntime wires the spawn runtime (spawner, erbrus binary path, and the

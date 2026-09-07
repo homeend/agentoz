@@ -115,3 +115,8 @@ a:hover { text-decoration: underline; }
 .screenhead .warn { color: #e5c07b; }
 /* colors here are mirrored by screenFg/screenBg in ansi.go (reverse video) */
 .screen { margin: 0; padding: 10px; font: 12px/1.35 ui-monospace, monospace; color: #d6d8dc; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; overflow: auto; white-space: pre; min-height: 300px; }
+/* run state badges (watcher) */
+.state { display: inline-block; font-size: 11px; border-radius: 8px; padding: 0 7px; margin-left: 6px; border: 1px solid #3a3d44; color: #a7acb5; }
+.state.st-working { border-color: #3f7d58; color: #67c98a; }
+.state.st-waiting { border-color: #4a5a7a; color: #8fb4ff; }
+.state.st-question, .state.stalled { border-color: #b8860b; color: #e5c07b; background: #2a2416; }
