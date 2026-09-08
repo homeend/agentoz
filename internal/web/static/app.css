@@ -77,7 +77,8 @@ a:hover { text-decoration: underline; }
 .artifact { display: inline-block; border: 1px dashed #565b64; border-radius: 6px; padding: 2px 8px; font-size: 12px; margin-top: 6px; }
 /* composer: borderless input area with the controls tucked bottom-right */
 .composer { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 16px 12px; background: #1d1f23; border-top: 1px solid #2c2f35; }
-.composer textarea { flex: 1 1 100%; resize: none; height: 56px; padding: 6px 4px; border: none; font: inherit; background: transparent; color: #d6d8dc; outline: none; }
+.composer textarea { flex: 1 1 100%; resize: vertical; min-height: 64px; padding: 8px 10px; border: 1px solid #3a3d44; border-radius: 8px; font: inherit; background: #101113; color: #e8eaee; outline: none; }
+.composer textarea:focus { border-color: #2f6fd6; box-shadow: 0 0 0 2px rgba(47,111,214,0.25); }
 .composer textarea::placeholder { color: #6c7079; }
 .composer select { margin-left: auto; background: #141517; color: #d6d8dc; border: 1px solid #3a3d44; border-radius: 6px; font: inherit; font-size: 12px; padding: 3px 6px; }
 .composer .btn { border-radius: 6px; }
@@ -85,7 +86,13 @@ a:hover { text-decoration: underline; }
 .rail h3 { margin: 10px 0 6px; font-size: 11px; letter-spacing: 1px; color: #757a83; text-transform: uppercase; }
 .runcard { border: 1px solid #2c2f35; border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; font-size: 13px; }
 .runcard .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #565b64; }
-.runcard.running .dot { background: #4cb371; }
+/* dot = what the agent is doing, not whether the process is alive:
+   grey until the first classification, green working, blue waiting,
+   amber needs-input / stalled */
+.runcard.running .dot { background: #6c7079; }
+.runcard.running.agent-working .dot { background: #4cb371; }
+.runcard.running.agent-waiting .dot { background: #6ea8ff; }
+.runcard.running.agent-question .dot, .runcard.running.stalled .dot { background: #e5c07b; box-shadow: 0 0 0 3px #3a3115; }
 /* done stays the neutral grey — only a LIVE agent gets green */
 .runcard.st-failed .dot { background: #d05446; }
 .runcard.st-stopped .dot { background: #d9b45c; }
@@ -141,7 +148,7 @@ a:hover { text-decoration: underline; }
 /* colors here are mirrored by screenFg/screenBg in ansi.go (reverse video) */
 .screen { margin: 0; padding: 10px; font: 12px/1.35 ui-monospace, monospace; color: #d6d8dc; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; overflow: auto; white-space: pre; min-height: 300px; }
 /* run state badges (watcher) */
-.state { display: inline-block; font-size: 11px; border-radius: 8px; padding: 0 7px; margin-left: 6px; border: 1px solid #3a3d44; color: #a7acb5; }
-.state.st-working { border-color: #3f7d58; color: #67c98a; }
-.state.st-waiting { border-color: #4a5a7a; color: #8fb4ff; }
-.state.st-question, .state.stalled { border-color: #b8860b; color: #e5c07b; background: #2a2416; }
+.state { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 8px; padding: 1px 8px; margin-left: 6px; border: 1px solid #3a3d44; color: #a7acb5; background: #24262b; }
+.state.st-working { border-color: #3f7d58; color: #8ce99a; background: #17251d; }
+.state.st-waiting { border-color: #4a5a7a; color: #a9c8ff; background: #1a2436; }
+.state.st-question, .state.stalled { border-color: #b8860b; color: #f2d479; background: #2a2416; }

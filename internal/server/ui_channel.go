@@ -51,6 +51,11 @@ type runView struct {
 	// "needs input"); empty until the first classification.
 	StateLabel string
 	StateClass string
+	// StateName/Stalled drive the card's dot color (green working, blue
+	// waiting, amber question/stalled) so the process status "running"
+	// never reads as "busy".
+	StateName string
+	Stalled   bool
 }
 
 type channelPage struct {
@@ -174,6 +179,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		if v.Running {
 			if rs, ok := s.stateOf(r.ID); ok {
 				v.StateLabel, v.StateClass = rs.badge(time.Now())
+				v.StateName, v.Stalled = string(rs.State), rs.Stalled
 			}
 		}
 		return v
