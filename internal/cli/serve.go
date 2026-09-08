@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"erbrus/internal/config"
@@ -59,7 +60,13 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	// ln is already bound at this point; its address is the base URL.
-	srv.SetRuntime(spawn.NewTmux(spawn.ExecCmdRunner), bin, "http://"+ln.Addr().String())
+	tm := spawn.NewTmux(spawn.ExecCmdRunner)
+	srv.SetRuntime(tm, bin, "http://"+ln.Addr().String())
+	// Browser-terminal view sessions die with their pty client; a server
+	// that crashed with terminals open leaves them behind. Sweep those.
+	if killed := tm.SweepViews(); len(killed) > 0 {
+		fmt.Fprintln(stderr, "swept stale terminal views:", strings.Join(killed, " "))
+	}
 	if err := srv.Reconcile(); err != nil {
 		fmt.Fprintln(stderr, "reconcile:", err)
 	}
