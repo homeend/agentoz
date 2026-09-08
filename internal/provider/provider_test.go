@@ -18,7 +18,7 @@ func TestRenderAllSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := `kimi --model k3 --max-turns 30 'do the thing'`
+	want := `kimi --model 'k3' --max-turns 30 'do the thing'`
 	if got != want {
 		t.Errorf("got  %q\nwant %q", got, want)
 	}
@@ -29,7 +29,7 @@ func TestRenderDefaultModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(got, "--model fable-5") {
+	if !strings.Contains(got, "--model 'fable-5'") {
 		t.Errorf("default model not applied: %q", got)
 	}
 }

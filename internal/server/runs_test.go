@@ -229,7 +229,7 @@ func TestSpawnRunInvalidModel(t *testing.T) {
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 
 	r := postJSON(t, ts.URL+"/api/runs", map[string]any{
-		"channel_id": chID, "provider": "codex", "model": "x; rm -rf /tmp",
+		"channel_id": chID, "provider": "codex", "model": "x\nrm -rf /tmp",
 	})
 	if r.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", r.StatusCode)
@@ -289,13 +289,15 @@ func TestSpawnRunInvalidRepoConfigIs400(t *testing.T) {
 }
 
 func TestValidModel(t *testing.T) {
-	valid := []string{"", "gpt-4", "k3", "claude-3.5-sonnet", "model_1:latest", "a.b.c"}
+	// Render single-quotes the model, so shell metacharacters are inert;
+	// only a newline or NUL could break out of the quoted argument.
+	valid := []string{"", "gpt-4", "k3", "claude-3.5-sonnet", "model_1:latest", "a.b.c", "Claude Opus 4.6 (Thinking)", "x; rm -rf /tmp", "$(evil)", "a'b"}
 	for _, m := range valid {
 		if !validModel(m) {
 			t.Errorf("validModel(%q) = false, want true", m)
 		}
 	}
-	invalid := []string{"x; rm -rf /tmp", "a b", "$(evil)", "a`b`", "a|b", "a&b", "a<b", "a>b", "a\nb"}
+	invalid := []string{"a\nb", "a\x00b"}
 	for _, m := range invalid {
 		if validModel(m) {
 			t.Errorf("validModel(%q) = true, want false", m)

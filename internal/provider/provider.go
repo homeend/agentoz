@@ -14,8 +14,11 @@ type Registry map[string]config.Provider
 // Render substitutes {model}, {args}, {prompt} into the provider's command
 // template. Tokens whose placeholder resolves empty are dropped, along with
 // an immediately preceding flag token (only if the flag came from the template,
-// not from placeholder substitution). The prompt is shell-quoted; the
-// template's own quotes around {prompt} are replaced by ours.
+// not from placeholder substitution). {model} and {prompt} are shell-quoted
+// at emission (agy model names carry spaces and parentheses); the
+// template's own quotes around them are replaced by ours. Emptiness is
+// judged on the raw value, so an empty prompt drops rather than rendering
+// as ''.
 func (r Registry) Render(name, model, args, prompt string) (string, error) {
 	p, ok := r[name]
 	if !ok {
@@ -24,7 +27,8 @@ func (r Registry) Render(name, model, args, prompt string) (string, error) {
 	if model == "" {
 		model = p.DefaultModel
 	}
-	vals := map[string]string{"model": model, "args": args, "prompt": ShellQuote(prompt)}
+	vals := map[string]string{"model": model, "args": args, "prompt": prompt}
+	quoted := map[string]bool{"model": true, "prompt": true}
 
 	tokens := strings.Fields(p.Command)
 	type token struct {
@@ -45,6 +49,9 @@ func (r Registry) Render(name, model, args, prompt string) (string, error) {
 				out = out[:len(out)-1]
 			}
 			continue
+		}
+		if quoted[key] {
+			v = ShellQuote(v)
 		}
 		out = append(out, token{text: v, literal: false})
 	}

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -94,12 +93,10 @@ func joinNonEmpty(a, b, sep string) string {
 	return a + sep + b
 }
 
-var modelRe = regexp.MustCompile(`^[A-Za-z0-9._:-]*$`)
-
-// validModel reports whether model is safe to splice unquoted into a
-// rendered shell command (provider templates place {model} bare).
+// validModel: Render single-quotes the model, so anything but a newline
+// or NUL is safe (agy model names carry spaces and parentheses).
 func validModel(model string) bool {
-	return modelRe.MatchString(model)
+	return !strings.ContainsAny(model, "\n\x00")
 }
 
 // shellMetaChars are bytes that must not appear in request/preset-supplied
