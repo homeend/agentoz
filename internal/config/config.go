@@ -48,6 +48,11 @@ func TranslateUserPath(p string) string {
 type Provider struct {
 	Command      string `yaml:"command"`
 	DefaultModel string `yaml:"default_model"`
+	// Prompt is how the prompt reaches the CLI: "arg" (through {prompt}
+	// in Command, the default when the template has it) or "paste" (typed
+	// into the terminal once the input box is up — for CLIs whose
+	// interactive mode takes no initial prompt).
+	Prompt string `yaml:"prompt"`
 	// Screen* are RE2 patterns classifying the agent's terminal (see
 	// internal/screen). Any non-empty list replaces ALL built-in rules
 	// for this provider; all empty = built-ins for this provider name.
