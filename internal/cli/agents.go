@@ -143,7 +143,8 @@ func runAgents(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			failed = true
 			continue
 		}
-		if err := addProvider(c, serverUp, cfgPath, d.Agent); err != nil {
+		applied, refused, err := addProvider(c, serverUp, cfgPath, d.Agent)
+		if err != nil {
 			fmt.Fprintf(stderr, "agents setup: provider %s: %v\n", d.Agent.ID, err)
 			failed = true
 			continue
@@ -152,9 +153,12 @@ func runAgents(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if d.Agent.Note != "" {
 			note = " (" + d.Agent.Note + ")"
 		}
-		if serverUp {
+		switch {
+		case applied:
 			fmt.Fprintf(stdout, "✓ provider %s added%s and applied to the running erbrus\n", d.Agent.ID, note)
-		} else {
+		case refused != nil:
+			fmt.Fprintf(stdout, "✓ provider %s added to %s%s — the running erbrus did not accept it (%v): restart erbrus serve with this binary\n", d.Agent.ID, cfgPath, note, refused)
+		default:
 			fmt.Fprintf(stdout, "✓ provider %s added to %s%s — restart erbrus serve to pick it up\n", d.Agent.ID, cfgPath, note)
 		}
 	}
@@ -181,31 +185,37 @@ func pingServer(c *client.Client) bool {
 }
 
 // addProvider prefers the running server (writes the file AND applies
-// live); without one it edits config.yaml directly.
-func addProvider(c *client.Client, serverUp bool, cfgPath string, a agents.Agent) error {
+// live); without one, or when the server refuses the request (an older
+// build without the providers API — seen live), it edits config.yaml
+// directly. applied reports the live path; refused carries the server's
+// error when the file path was taken because of it.
+func addProvider(c *client.Client, serverUp bool, cfgPath string, a agents.Agent) (applied bool, refused error, err error) {
 	p := a.Provider
 	if serverUp {
 		_, err := c.PutProvider(a.ID, map[string]any{
 			"command": p.Command, "default_model": p.DefaultModel, "prompt": p.Prompt,
 			"screen_working": nz(p.ScreenWorking), "screen_waiting": nz(p.ScreenWaiting), "screen_question": nz(p.ScreenQuestion),
 		})
-		return err
+		if err == nil {
+			return true, nil, nil
+		}
+		refused = err
 	}
 	doc, err := os.ReadFile(cfgPath)
 	if err != nil && !os.IsNotExist(err) {
-		return err
+		return false, refused, err
 	}
 	out, err := config.SetProvider(doc, a.ID, config.ProviderPatch{
 		Command: config.Str(p.Command), DefaultModel: config.Str(p.DefaultModel), Prompt: config.Str(p.Prompt),
 		Working: config.List(p.ScreenWorking), Waiting: config.List(p.ScreenWaiting), Question: config.List(p.ScreenQuestion),
 	})
 	if err != nil {
-		return err
+		return false, refused, err
 	}
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
-		return err
+		return false, refused, err
 	}
-	return os.WriteFile(cfgPath, out, 0o644)
+	return false, refused, os.WriteFile(cfgPath, out, 0o644)
 }
 
 func nz(l []string) []string {

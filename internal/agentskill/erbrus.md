@@ -34,6 +34,28 @@ and already knows them.
 
 ## 2. You are configuring a CLI as an erbrus provider
 
+### Ground rules
+
+- Everything happens through the `erbrus` command talking to the running
+  erbrus server. There is nothing to learn from erbrus's binary, source
+  tree or config file: do not read, grep or `strings` them, and do not
+  edit `config.yaml` by hand.
+- If a command answers "server unreachable", STOP and tell the human to
+  start `erbrus serve`; nothing below works without it. If it answers
+  with a 404 or an unknown route, the server is an older build: ask the
+  human to restart it with the current binary.
+- The provider name is the CLI's id from `erbrus agents list`
+  (`claude-code`, `codex`, `kimi`, `junie`, `antigravity`, …).
+  `erbrus provider show <name>` prints the entry. If it does not exist
+  and the CLI is one of those built in, `erbrus agents setup
+  --agents <id>` creates it with the built-in template and screen rules;
+  for any other CLI, write it yourself (step 2 below). Then refine the
+  screen rules (steps 3–6).
+- Screens come only from a run that erbrus itself started (step 3). Do
+  not start the CLI in tmux yourself. Without `ERBRUS_RUN_ID` in your
+  environment you are not that run: ask the human to spawn the CLI from
+  the web UI and give you the run id.
+
 A provider is an entry under `providers:` in erbrus's global
 `config.yaml` (`~/.config/erbrus/config.yaml`). Keys:
 
