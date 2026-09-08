@@ -22,6 +22,8 @@ type runState struct {
 	// dialog; set only in the question state so the rail can show a
 	// "look here" miniature without extra tmux calls.
 	Thumb template.HTML
+	// Options: the dialog's numbered choices (question state only).
+	Options []screen.Option
 }
 
 // stallAfter: no terminal output for this long while (apparently) working
@@ -79,10 +81,11 @@ func (s *Server) observe(run store.AgentRun, sc spawn.Screen, now time.Time) {
 	switch st {
 	case screen.Question:
 		next.Thumb = template.HTML(screen.ToHTML(sc.Raw))
+		next.Options = screen.Options(lines)
 	case screen.Unknown:
 		// mid-redraw: keep whatever we had
 	default:
-		next.Thumb = ""
+		next.Thumb, next.Options = "", nil
 	}
 	if st != screen.Unknown && st != prev.State {
 		next.State, next.Since = st, now
@@ -169,9 +172,13 @@ func (rs runState) badge(now time.Time) (label, class string, timed bool) {
 // enough to answer any dialog (pick an option, move, confirm, cancel),
 // nothing that could interrupt or type into the agent. Everything else is
 // the chat composer's job.
-var keypadKeys = []string{"1", "2", "3", "Up", "Down", "Enter", "Escape"}
+var keypadKeys = []string{"Up", "Down", "Enter", "Escape"}
 
+// allowedKey: a single digit (dialog option) or one of keypadKeys.
 func allowedKey(k string) bool {
+	if len(k) == 1 && k[0] >= '1' && k[0] <= '9' {
+		return true
+	}
 	for _, a := range keypadKeys {
 		if a == k {
 			return true

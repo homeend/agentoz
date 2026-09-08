@@ -14,6 +14,7 @@ import (
 	"erbrus/internal/config"
 	"erbrus/internal/integrate"
 	"erbrus/internal/preset"
+	"erbrus/internal/screen"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
@@ -61,6 +62,8 @@ type runView struct {
 	StateSince int64
 	// Thumb: miniature of the screen, only while a dialog needs input.
 	Thumb template.HTML
+	// Options: the dialog's numbered choices, for the keypad.
+	Options []screen.Option
 }
 
 type channelPage struct {
@@ -186,7 +189,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 				label, class, timed := rs.badge(time.Now())
 				v.StateLabel, v.StateClass = label, class
 				v.StateName, v.Stalled = string(rs.State), rs.Stalled
-				v.Thumb = rs.Thumb
+				v.Thumb, v.Options = rs.Thumb, rs.Options
 				if timed {
 					v.StateSince = rs.Since.Unix()
 					v.StateLabel = label + " " + shortDur(time.Since(rs.Since))

@@ -18,14 +18,15 @@ import (
 // screenFrame is one rendered snapshot of a run's terminal as sent to the
 // screen page (initial render and every SSE update).
 type screenFrame struct {
-	HTML     template.HTML `json:"html"`
-	Activity int64         `json:"activity"` // unix seconds; 0 when unknown
-	Dead     bool          `json:"dead"`
-	Cols     int           `json:"cols"`
-	Rows     int           `json:"rows"`
-	State    string        `json:"state"` // screen.State; "" = unknown
-	Step     int           `json:"step"`  // seconds the current step has run, 0 if unknown
-	Error    string        `json:"error,omitempty"`
+	HTML     template.HTML   `json:"html"`
+	Activity int64           `json:"activity"` // unix seconds; 0 when unknown
+	Dead     bool            `json:"dead"`
+	Cols     int             `json:"cols"`
+	Rows     int             `json:"rows"`
+	State    string          `json:"state"`             // screen.State; "" = unknown
+	Step     int             `json:"step"`              // seconds the current step has run, 0 if unknown
+	Options  []screen.Option `json:"options,omitempty"` // dialog choices (question state)
+	Error    string          `json:"error,omitempty"`
 }
 
 // frameOf renders a capture (or its error) and returns the frame plus a
@@ -42,10 +43,15 @@ func frameOf(sc spawn.Screen, err error, rules screen.Rules) (screenFrame, strin
 	}
 	sum := sha256.Sum256([]byte(fmt.Sprintf("%d|%t|%d|%d|%s", act, sc.Dead, sc.Cols, sc.Rows, sc.Raw)))
 	lines := screen.Tail(screen.Strip(sc.Raw), 15)
-	return screenFrame{
+	st := screen.Classify(rules, lines)
+	f := screenFrame{
 		HTML: template.HTML(screen.ToHTML(sc.Raw)), Activity: act, Dead: sc.Dead, Cols: sc.Cols, Rows: sc.Rows,
-		State: string(screen.Classify(rules, lines)), Step: int(screen.StepDuration(lines).Seconds()),
-	}, hex.EncodeToString(sum[:])
+		State: string(st), Step: int(screen.StepDuration(lines).Seconds()),
+	}
+	if st == screen.Question {
+		f.Options = screen.Options(lines)
+	}
+	return f, hex.EncodeToString(sum[:])
 }
 
 // screenPollInterval paces the capture loop of a viewed run. 500ms is

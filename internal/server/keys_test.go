@@ -30,7 +30,8 @@ func TestKeypadShownOnQuestionAndSendsKeys(t *testing.T) {
 	testSrv.WatchScreens()
 	resp, _ = http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
 	body := readAll(t, resp)
-	for _, want := range []string{`class="keypad"`, fmt.Sprintf(`action="/ui/runs/%d/keys"`, run.ID), `value="1"`, `value="Escape"`, `value="Enter"`, `value="Down"`,
+	for _, want := range []string{`class="keypad"`, fmt.Sprintf(`action="/ui/runs/%d/keys"`, run.ID), `value="1"`, `value="Escape"`, `value="Enter"`,
+		`1 · Yes</button>`, `2 · No</button>`,
 		// miniature of the dialog, linking to the screen page's named tab
 		fmt.Sprintf(`class="thumb" href="/ui/runs/%d/screen" target="screen:s:5"`, run.ID), "Do you want to proceed?"} {
 		if !strings.Contains(body, want) {
@@ -73,11 +74,16 @@ func TestKeypadShownOnQuestionAndSendsKeys(t *testing.T) {
 	if fs.keys[1] != "s:5|Escape" {
 		t.Fatalf("keys sent = %v", fs.keys)
 	}
-	// Only the allow-listed keys go through.
+	// Only the allow-listed keys go through (digits 1-9, arrows, Enter, Esc).
 	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/runs/%d/keys", ts.URL, run.ID), url.Values{"key": {"C-c"}})
 	r.Body.Close()
 	if r.StatusCode != http.StatusBadRequest || len(fs.keys) != 2 {
 		t.Fatalf("disallowed key: status %d keys %v", r.StatusCode, fs.keys)
+	}
+	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/runs/%d/keys", ts.URL, run.ID), url.Values{"key": {"7"}})
+	r.Body.Close()
+	if r.StatusCode != http.StatusFound || fs.keys[2] != "s:5|7" {
+		t.Fatalf("digit key: status %d keys %v", r.StatusCode, fs.keys)
 	}
 }
 

@@ -182,3 +182,31 @@ func MatchKind(r Rules, line string) string {
 	}
 	return ""
 }
+
+// Option is one numbered choice of a dialog ("› 1. Try new model").
+type Option struct {
+	Key   string // the digit to press
+	Label string
+}
+
+var optionRe = regexp.MustCompile(`^[❯›>]?\s*(\d)[.)]\s+(.+)$`)
+
+// Options extracts the numbered choices a dialog offers, in screen order,
+// so the UI can show real buttons instead of a fixed 1/2/3.
+func Options(lines []string) []Option {
+	var out []Option
+	seen := map[string]bool{}
+	for _, l := range lines {
+		m := optionRe.FindStringSubmatch(strings.TrimSpace(l))
+		if m == nil || seen[m[1]] {
+			continue
+		}
+		label := strings.TrimSpace(m[2])
+		if len([]rune(label)) > 48 {
+			label = string([]rune(label)[:47]) + "…"
+		}
+		seen[m[1]] = true
+		out = append(out, Option{Key: m[1], Label: label})
+	}
+	return out
+}

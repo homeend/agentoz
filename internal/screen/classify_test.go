@@ -127,3 +127,29 @@ func TestStepDuration(t *testing.T) {
 		}
 	}
 }
+
+// Captured live 2026-09-08 from codex 0.153.4 at startup.
+const codexDialog = `  GPT-5.4 Mini will be deprecated soon
+  Codex now uses GPT-5.6 Luna in place of GPT-5.4 Mini. Switch to GPT-5.6 Luna to continue.
+  Choose how you'd like Codex to proceed.
+› 1. Try new model
+  2. Use existing model
+  Use ↑/↓ to move, press enter to confirm
+`
+
+func TestCodexDialogIsQuestionWithOptions(t *testing.T) {
+	lines := Tail(codexDialog, 15)
+	if got := Classify(DefaultRules("codex"), lines); got != Question {
+		t.Fatalf("state = %q", got)
+	}
+	opts := Options(lines)
+	if len(opts) != 2 || opts[0].Key != "1" || opts[0].Label != "Try new model" || opts[1].Label != "Use existing model" {
+		t.Fatalf("options = %+v", opts)
+	}
+	if got := Options(Tail(questionScreen, 15)); len(got) != 3 || got[2].Key != "3" {
+		t.Fatalf("claude options = %+v", got)
+	}
+	if got := Options([]string{"❯", "no options here", "2024. a year"}); len(got) != 0 {
+		t.Fatalf("false options = %+v", got)
+	}
+}

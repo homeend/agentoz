@@ -280,6 +280,22 @@ setInterval(function () {
   var errEl = document.getElementById('screenerr');
   var stateEl = document.getElementById('screenstate');
   var keypad = document.getElementById('keypad');
+  var keypadKeys = document.getElementById('keypad-keys');
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function btn(key, label, cls) {
+    return '<button class="btn small' + (cls ? ' ' + cls : '') + '" name="key" value="' + esc(key) + '"' +
+      (label !== key ? ' title="' + esc(key + ' — ' + label) + '"' : '') + '>' + esc(label) + '</button>';
+  }
+  // Rebuild the answer buttons from the dialog's own numbered options;
+  // arrows only when the dialog has none we could read.
+  function renderKeys(options) {
+    if (!keypadKeys) return;
+    var html = '';
+    (options || []).forEach(function (o) { html += btn(o.key, o.key + ' · ' + o.label, 'opt'); });
+    if (!options || !options.length) html += btn('Up', '↑') + btn('Down', '↓');
+    html += btn('Enter', 'Enter', 'primary') + btn('Escape', 'Esc');
+    keypadKeys.innerHTML = html;
+  }
   // Mirrors stallAfter in watch.go: silence this long while working (or
   // unclassified) is a stall; silence while waiting/question is normal.
   var stallAfter = 120;
@@ -346,6 +362,7 @@ setInterval(function () {
         activity = f.activity || 0;
         state = f.state || '';
         step = f.step || 0;
+        if (state === 'question') renderKeys(f.options);
         tickAge();
       } catch (err) { /* ignore malformed */ }
     });

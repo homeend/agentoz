@@ -185,3 +185,4 @@ a:hover { text-decoration: underline; }
 .tl.m-working { color: #8ce99a; }
 .tl.m-waiting { color: #a9c8ff; }
 .tl.m-question { color: #f2d479; }
+.keypad .btn.opt { max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
