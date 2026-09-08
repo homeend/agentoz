@@ -380,3 +380,35 @@ working.
 - No change to the spawn environment or the skill: with a launcher on
   PATH spawned agents inherit it, and the preamble's absolute path keeps
   working regardless.
+
+## Amendment: self-serve workflow, skill v3 (2026-09-09)
+
+Seen live twice with agy started by hand ("configure yourself as an
+erbrus provider using the erbrus skill"): with no server running the
+agent read the binary and the source tree; with the server up but no
+run of its own it listed tmux sessions and guessed run ids 1–10. The
+skill had told it to ask the human for a run, which agents do not do.
+
+Changes:
+
+- Skill ground rules (v2): everything goes through the `erbrus` command;
+  on "server unreachable" stop and ask for `erbrus serve`; on 404 the
+  server is an old build; never read/grep/`strings` the binary, source
+  or config; provider names are the ids from `agents list`;
+  `agents setup --agents <id>` creates a missing built-in entry.
+- Skill v3 makes the run self-serve: step 3 is
+  `erbrus start <name> --prompt '…'` from inside any git repository
+  (prints `spawned <name> (run <id>)`), step 4 captures the same run
+  several times over a minute (question dialog right after start,
+  working while it counts, waiting when done), step 7 is
+  `erbrus stop <id>`. Never run the CLI or tmux directly, never guess
+  ids.
+- Server: a `preset` value that names no preset but a configured
+  provider spawns that provider with its defaults (explicit `provider`
+  still wins). `erbrus start` prints the run id. New `erbrus stop
+  <run-id>` over the existing `POST /api/runs/{id}/stop`.
+- `agents setup` writes config.yaml when the running server refuses
+  the providers API (old build), and says so.
+
+Verified on the throwaway instance: `erbrus start shell --prompt …`
+→ run id printed → `screen capture --run` → `stop`.
