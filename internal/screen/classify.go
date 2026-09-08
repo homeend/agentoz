@@ -40,8 +40,13 @@ var defaults = map[string][3][]string{
 		{`^❯ \d+\.`, `Esc to cancel`, `Esc to go back`, `\(y/n\)`, `\[Y/n\]`, `Do you want to proceed`},
 	},
 	"codex": {
-		{`Working \(\d+`, `esc to interrupt`},
-		{`^[›>]\s*$`},
+		{`Working \(\d+`, `(?i)esc to interrupt`},
+		// The input box is a › line (placeholder "Ask Codex to do anything"
+		// or typed text) directly above the status line "<model> <effort>
+		// · <cwd>". A user message echoed in the transcript also starts
+		// with › but is followed by other text. Captured live 2026-09-08
+		// (codex 0.153.4).
+		{`^›[^\n]*\n[^\n]*· /`},
 		{`\(y/n\)`, `\[Y/n\]`, `Press Enter`, `^\s*[›>] \d+\.`},
 	},
 	"": {

@@ -153,3 +153,31 @@ func TestCodexDialogIsQuestionWithOptions(t *testing.T) {
 		t.Fatalf("false options = %+v", got)
 	}
 }
+
+// Captured live 2026-09-08 from codex 0.153.4 after it answered in plain
+// text and returned to its prompt (placeholder text in the input box).
+const codexIdle = `› ask me using ask user tool: what deser I prefer: icecream, rolls, or fruits?
+  (sent from the erbrus chat — the sender sees only the channel, not this terminal)
+• I can’t use the ask-user tool in this mode.
+  What dessert do you prefer: icecream, rolls, or fruits?
+› Ask Codex to do anything
+  gpt-5.4-mini low · /mnt/t/others/gigagit.worktrees/chore-comment-audit
+`
+
+func TestCodexIdleAndTyped(t *testing.T) {
+	r := DefaultRules("codex")
+	if got := Classify(r, Tail(codexIdle, 15)); got != Waiting {
+		t.Fatalf("idle: %q", got)
+	}
+	typed := strings.Replace(codexIdle, "› Ask Codex to do anything", "› rolls, thanks", 1)
+	if got := Classify(r, Tail(typed, 15)); got != Waiting {
+		t.Fatalf("typed-but-unsubmitted: %q", got)
+	}
+	// The echoed user message alone (no status line under it) is not the box.
+	if got := Classify(r, Tail("› do the thing\n• Working on it\n", 15)); got != Unknown {
+		t.Fatalf("echo: %q", got)
+	}
+	if got := Classify(r, Tail("• Working (12s • Esc to interrupt)\n› Ask Codex to do anything\n  gpt-5 low · /x\n", 15)); got != Working {
+		t.Fatalf("working: %q", got)
+	}
+}

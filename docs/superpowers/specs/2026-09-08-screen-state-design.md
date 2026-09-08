@@ -129,7 +129,7 @@ Built-in defaults, keyed by provider name:
 | provider | working | waiting | question |
 |---|---|---|---|
 | `claude-code` | `\S+… \(\d+`, `⎿\s+Running…` | `^─{8,}\n❯` (input box under a rule, typed text or not) | `^❯ \d+\.`, `Esc to cancel`, `Esc to go back`, `\(y/n\)`, `\[Y/n\]`, `Do you want to proceed` |
-| `codex` | `Working \(\d+`, `esc to interrupt` | `^[›>]\s*$` | `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `^\s*[›>] \d+\.` |
+| `codex` | `Working \(\d+`, `(?i)esc to interrupt` | `^›[^\n]*\n[^\n]*· /` (input box above the model/cwd status line; verified live) | `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `^\s*[›>] \d+\.` |
 | anything else | (none) | `^[❯›>$]\s*$` | `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `Do you want to` |
 
 Codex defaults are best-effort from its TUI's known strings, not from a
