@@ -109,8 +109,10 @@ func TestProviderHookCodex(t *testing.T) {
 	if !strings.Contains(args, notifyScript) {
 		t.Errorf("args must reference the notify script, got %q", args)
 	}
-	if !strings.Contains(args, "-c notify=") {
-		t.Errorf("args must contain -c notify=, got %q", args)
+	// codex parses the value as TOML: a quoted-string array, shell-quoted
+	// as one argument.
+	if !strings.Contains(args, `-c 'notify=["`+notifyScript+`"]'`) {
+		t.Errorf("args must carry a TOML array, got %q", args)
 	}
 	data, err := os.ReadFile(notifyScript)
 	if err != nil {

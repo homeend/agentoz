@@ -127,6 +127,10 @@ exec %s msg send --system "codex notify: turn complete"
 		return "", err
 	}
 
-	// Return the codex config override args to register the notify script.
-	return fmt.Sprintf(`-c notify=[%s]`, provider.ShellQuote(notifyScript)), nil
+	// Register the notify script via a config override. The value must be
+	// TOML: an array of quoted strings. The whole key=value is shell-quoted
+	// once; quoting only the path made codex receive `notify=[/path]`, a
+	// bare string, and refuse to start ("expected a sequence") — seen live
+	// 2026-09-08.
+	return "-c " + provider.ShellQuote(fmt.Sprintf(`notify=["%s"]`, notifyScript)), nil
 }
