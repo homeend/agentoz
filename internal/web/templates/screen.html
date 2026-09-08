@@ -18,7 +18,7 @@
   </div>
   <pre class="screen" id="screen" data-run="{{.Run.ID}}"{{if .Note}} data-static="1"{{end}}>{{.Frame.HTML}}</pre>
   {{if and .Live (not .Note)}}
-  <form class="keypad" method="post" action="/ui/runs/{{.Run.ID}}/keys" title="press a key in the agent's window: option numbers, arrows, Enter, Esc">
+  <form class="keypad" id="keypad" method="post" action="/ui/runs/{{.Run.ID}}/keys" title="answer the dialog: option numbers, arrows, Enter, Esc"{{if ne .Frame.State "question"}} hidden{{end}}>
     <input type="hidden" name="back" value="screen">
     <span class="muted small">keys:</span>
     <button class="btn small" name="key" value="1">1</button><button class="btn small" name="key" value="2">2</button><button class="btn small" name="key" value="3">3</button><button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button><button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button>

@@ -203,6 +203,7 @@ setInterval(function () {
   var act = document.getElementById('screenact');
   var errEl = document.getElementById('screenerr');
   var stateEl = document.getElementById('screenstate');
+  var keypad = document.getElementById('keypad');
   // Mirrors stallAfter in watch.go: silence this long while working (or
   // unclassified) is a stall; silence while waiting/question is normal.
   var stallAfter = 120;
@@ -223,6 +224,9 @@ setInterval(function () {
     if (state === 'question') label = 'needs input';
     stateEl.textContent = label;
     stateEl.className = 'state' + (state ? ' st-' + state : '');
+    // The keypad exists to answer a dialog; hide it as soon as the
+    // screen stops showing one (the next frame after a keypress).
+    if (keypad) keypad.hidden = state !== 'question';
     if (!activity) { act.textContent = ''; head.classList.remove('idle'); return; }
     var age = Math.max(0, Math.floor(Date.now() / 1000 - activity));
     act.textContent = 'last output ' + fmtDur(age) + ' ago';

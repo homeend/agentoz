@@ -37,11 +37,18 @@ func TestKeypadShownOnQuestionAndSendsKeys(t *testing.T) {
 			t.Fatalf("keypad missing %q: %s", want, body)
 		}
 	}
-	// The screen page always offers it.
+	// The screen page shows it while the dialog is up, hidden otherwise
+	// (the page's frame stream toggles it live).
 	sp, _ := http.Get(fmt.Sprintf("%s/ui/runs/%d/screen", ts.URL, run.ID))
-	if sb := readAll(t, sp); !strings.Contains(sb, `class="keypad"`) {
-		t.Fatalf("screen page lacks keypad: %s", sb)
+	if sb := readAll(t, sp); !strings.Contains(sb, `id="keypad"`) || strings.Contains(sb, `id="keypad" method="post" action="/ui/runs/`+fmt.Sprint(run.ID)+`/keys" title="answer the dialog: option numbers, arrows, Enter, Esc" hidden`) {
+		t.Fatalf("screen page keypad should be visible on a question: %s", sb)
 	}
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n" + box, Activity: time.Now()})
+	sp, _ = http.Get(fmt.Sprintf("%s/ui/runs/%d/screen", ts.URL, run.ID))
+	if sb := readAll(t, sp); !strings.Contains(sb, `Esc" hidden>`) {
+		t.Fatalf("screen page keypad should be hidden while working: %s", sb)
+	}
+	fs.setScreen("s:5", spawn.Screen{Raw: "Do you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel\n", Activity: time.Now()})
 
 	// Pressing "1" sends exactly that key and redirects back to the channel.
 	r, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/runs/%d/keys", ts.URL, run.ID),
