@@ -16,12 +16,16 @@ func Preamble(erbrusBin, agentName, channelName string) string {
 	return fmt.Sprintf(`You are agent %q working in the erbrus channel #%s.
 Do not start any work on your own until you are explicitly asked to do something.
 Report progress and results to the channel with this exact command (flags go before the message text):
-  %s msg send --report --md "what you did"
+  %s msg send --report --md 'what you did'
+Use SINGLE quotes around the text. If the text itself contains quotes or backticks, pass it on stdin instead:
+  %s msg send --report --md - <<'EOF'
+  what you did, including "quotes" and backticks, untouched
+  EOF
 Format messages as markdown (--md); the channel renders them.
 Attach a produced document with --file:
-  %s msg send --report --md --file /abs/path/to/report.md "summary"
+  %s msg send --report --md --file /abs/path/to/report.md 'summary'
 Post a report as your FINAL step — the next agent picks up from it.`,
-		agentName, channelName, erbrusBin, erbrusBin)
+		agentName, channelName, erbrusBin, erbrusBin, erbrusBin)
 }
 
 func AssemblePrompt(preamble, prompt, context string) string {
@@ -40,8 +44,8 @@ func AssemblePrompt(preamble, prompt, context string) string {
 // task — observed live: an agent answered in-terminal only and the channel
 // got nothing. This puts the routing right next to the question.
 func ChatReplySuffix(erbrusBin string) string {
-	return fmt.Sprintf("\n\n(sent from the erbrus chat — the sender sees only the channel, not this terminal; post your answer with (flags before the text): %s msg send --report \"your answer\")",
-		erbrusBin)
+	return fmt.Sprintf("\n\n(sent from the erbrus chat — the sender sees only the channel, not this terminal; post your answer with (flags before the text): %s msg send --report 'your answer' — or, for text with quotes/backticks: %s msg send --report - <<'EOF' … EOF)",
+		erbrusBin, erbrusBin)
 }
 
 // ForwardToAgent builds the text typed into a RUNNING agent's terminal when
@@ -56,7 +60,7 @@ func ForwardToAgent(erbrusBin string, originChannelID int64, project, channel, b
 	for _, p := range artifactPaths {
 		fmt.Fprintf(&b, "\nattached file (read it yourself): %s", p)
 	}
-	fmt.Fprintf(&b, "\nWhen done, reply to the ORIGIN channel (flags before the text):\n  %s msg send --report --channel %d \"your reply\"",
+	fmt.Fprintf(&b, "\nWhen done, reply to the ORIGIN channel (flags before the text; single quotes, or - with a heredoc for text containing quotes/backticks):\n  %s msg send --report --channel %d 'your reply'",
 		erbrusBin, originChannelID)
 	return b.String()
 }

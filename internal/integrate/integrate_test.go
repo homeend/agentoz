@@ -144,7 +144,7 @@ func TestForwardToAgent(t *testing.T) {
 		"by claude at 2026-08-27 10:00:00",
 		"auth is done",
 		"attached file (read it yourself): /data/artifacts/3/report.md",
-		`/abs/erbrus msg send --report --channel 7 "your reply"`,
+		`/abs/erbrus msg send --report --channel 7 'your reply'`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("missing %q in:\n%s", want, got)
@@ -159,5 +159,21 @@ func TestChatReplySuffix(t *testing.T) {
 	}
 	if !strings.HasPrefix(got, "\n\n(") {
 		t.Fatalf("suffix must be separated from the message body: %q", got[:8])
+	}
+}
+
+func TestPreambleTeachesSafeQuoting(t *testing.T) {
+	got := Preamble("/abs/erbrus", "claude", "general")
+	for _, want := range []string{
+		"/abs/erbrus msg send --report --md 'what you did'",
+		"SINGLE quotes",
+		"/abs/erbrus msg send --report --md - <<'EOF'",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("preamble missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, `--md "what`) {
+		t.Fatal("preamble still shows double-quoted body")
 	}
 }
