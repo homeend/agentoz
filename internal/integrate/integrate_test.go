@@ -114,6 +114,9 @@ func TestProviderHookCodex(t *testing.T) {
 	if !strings.Contains(args, `-c 'notify=["`+notifyScript+`"]'`) {
 		t.Errorf("args must carry a TOML array, got %q", args)
 	}
+	if !strings.Contains(args, "-c sandbox_workspace_write.network_access=true") {
+		t.Errorf("args must open sandbox networking for the erbrus API, got %q", args)
+	}
 	data, err := os.ReadFile(notifyScript)
 	if err != nil {
 		t.Fatal(err)

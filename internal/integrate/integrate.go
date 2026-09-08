@@ -132,5 +132,11 @@ exec %s msg send --system "codex notify: turn complete"
 	// once; quoting only the path made codex receive `notify=[/path]`, a
 	// bare string, and refuse to start ("expected a sequence") — seen live
 	// 2026-09-08.
-	return "-c " + provider.ShellQuote(fmt.Sprintf(`notify=["%s"]`, notifyScript)), nil
+	// Also let the workspace-write sandbox reach the network: erbrus
+	// listens on localhost, and with networking restricted every
+	// `erbrus msg send` failed and escalated to an approval dialog (seen
+	// live 2026-09-08, codex 0.153.4). Codex has no per-host allowlist,
+	// so this is all-or-nothing; a provider's args can override it.
+	return "-c " + provider.ShellQuote(fmt.Sprintf(`notify=["%s"]`, notifyScript)) +
+		" -c sandbox_workspace_write.network_access=true", nil
 }

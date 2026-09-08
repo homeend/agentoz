@@ -181,3 +181,25 @@ func TestCodexIdleAndTyped(t *testing.T) {
 		t.Fatalf("working: %q", got)
 	}
 }
+
+// Codex command-approval dialog, from a screenshot 2026-09-08.
+const codexApproval = `  Would you like to run the following command?
+  Environment: local
+  Reason: Need to send the requested report through the local erbrus service.
+  $ /mnt/t/others/erbrus/bin/erbrus msg send --report 'Current worktree is clean.'
+› 1. Yes, proceed (y)
+  2. Yes, and don't ask again for commands that start with ` + "`" + `/mnt/t/others/erbrus/bin/erbrus msg send --report` + "`" + ` (p)
+  3. No, and tell Codex what to do differently (esc)
+  Press enter to confirm or esc to cancel
+`
+
+func TestCodexApprovalDialog(t *testing.T) {
+	lines := Tail(codexApproval, 15)
+	if got := Classify(DefaultRules("codex"), lines); got != Question {
+		t.Fatalf("state = %q", got)
+	}
+	opts := Options(lines)
+	if len(opts) != 3 || opts[0].Label != "Yes, proceed (y)" || opts[2].Key != "3" {
+		t.Fatalf("options = %+v", opts)
+	}
+}
