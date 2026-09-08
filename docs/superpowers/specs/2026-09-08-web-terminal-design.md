@@ -358,3 +358,37 @@ switch, copy mode) through the terminal; erbrus's own control paths
 - **Two terminals on one run** are two independent view sessions; both
   work, both type into the same pane.
 - xterm.js is loaded only on the screen page; nothing else changes size.
+
+## Amendment 2026-09-08 (same evening): the view must not outlive its window
+
+Seen live right after the merge: the user killed the agent's window from
+their terminal while the browser terminal was open, and the browser kept
+working — on the user's own zsh window. Two things conspired:
+
+1. A grouped session whose current window dies switches to another window
+   of the group. `destroy-unattached` does not help; the client is still
+   attached.
+2. `tmux display -p -t =session:N` for a missing window N silently answers
+   for the session's *current* window, so the 2 s size poll never failed.
+
+Fixes, both verified on tmux 3.7c (throwaway sessions, then the opt-in
+live test):
+
+- `Tmux.Size` now goes through `list-windows -t =session -F '#{window_index} …'`
+  and matches the index itself; a missing window is an error ("window
+  gone"), never another window's size.
+- `Viewer.GuardView(view)` installs, in a tmux call of its own after the
+  pty client is up, `set-hook -t <view> session-window-changed "run-shell
+  'tmux kill-session -t =<view>'"`. `session-window-changed` fires in the
+  view session exactly when its window is removed and not when other
+  windows of the group are (probed: `window-unlinked`/`window-linked` fire
+  for both, so they are unsuitable). Two details that cost a probe each:
+  the hook cannot be part of the creating command chain, because tmux
+  queues that chain's own `select-window` notification and delivers it
+  after `set-hook`, killing the view at once; and `kill-session` straight
+  in the hook did not take effect, while `run-shell 'tmux kill-session …'`
+  does. `set-hook` rejects the `=` target prefix; the nonce keeps the name
+  unambiguous.
+- The handler calls `GuardView` right after `termview.Start`; a failure
+  closes the socket (1011) rather than running unguarded. The size poll
+  stays as the fallback (≤ 2 s).

@@ -31,21 +31,47 @@ func TestViewCommand(t *testing.T) {
 }
 
 func TestSize(t *testing.T) {
-	rec := &recorder{out: map[string]string{"tmux display": "120 35\n"}}
+	// Window 7 among others: only its own line counts.
+	rec := &recorder{out: map[string]string{"tmux list-windows": "1 134 36\n7 120 35\n9 80 24\n"}}
 	cols, rows, err := NewTmux(rec.run).Size("erbrus-web:7")
 	if err != nil || cols != 120 || rows != 35 {
 		t.Fatalf("size = %d x %d, %v", cols, rows, err)
 	}
-	if rec.calls[0] != "tmux display -p -t =erbrus-web:7 #{window_width} #{window_height}" {
+	if rec.calls[0] != "tmux list-windows -t =erbrus-web -F #{window_index} #{window_width} #{window_height}" {
 		t.Errorf("call = %q", rec.calls[0])
 	}
-	rec = &recorder{fail: map[string]error{"tmux display": errors.New("can't find window")}}
-	if _, _, err := NewTmux(rec.run).Size("erbrus-web:7"); err == nil {
-		t.Error("missing window must error")
+	// Window gone while the session lives: an error, never another
+	// window's size (tmux display would silently answer for the current
+	// window; that is how a browser terminal ended up on the user's shell).
+	rec = &recorder{out: map[string]string{"tmux list-windows": "1 134 36\n"}}
+	if _, _, err := NewTmux(rec.run).Size("erbrus-web:7"); err == nil || !strings.Contains(err.Error(), "window gone") {
+		t.Errorf("missing window: %v", err)
 	}
-	rec = &recorder{out: map[string]string{"tmux display": "x y\n"}}
+	rec = &recorder{fail: map[string]error{"tmux list-windows": errors.New("no such session")}}
+	if _, _, err := NewTmux(rec.run).Size("erbrus-web:7"); err == nil {
+		t.Error("missing session must error")
+	}
+	rec = &recorder{out: map[string]string{"tmux list-windows": "7 x y\n"}}
 	if _, _, err := NewTmux(rec.run).Size("erbrus-web:7"); err == nil {
 		t.Error("garbage must error")
+	}
+	if _, _, err := NewTmux(rec.run).Size("nocolon"); err == nil {
+		t.Error("malformed handle accepted")
+	}
+}
+
+func TestGuardView(t *testing.T) {
+	rec := &recorder{}
+	if err := NewTmux(rec.run).GuardView("erbrus-view-12-a1b2c3d4"); err != nil {
+		t.Fatal(err)
+	}
+	want := "tmux set-hook -t erbrus-view-12-a1b2c3d4 session-window-changed run-shell 'tmux kill-session -t =erbrus-view-12-a1b2c3d4'"
+	if len(rec.calls) != 1 || rec.calls[0] != want {
+		t.Errorf("calls = %v", rec.calls)
+	}
+	rec = &recorder{fail: map[string]error{"tmux set-hook": errors.New("no such session")}}
+	if err := NewTmux(rec.run).GuardView("erbrus-view-12-a1b2c3d4"); err == nil {
+		t.Error("failure must surface")
 	}
 }
 

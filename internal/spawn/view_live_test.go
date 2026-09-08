@@ -63,4 +63,31 @@ func TestViewClientLive(t *testing.T) {
 	if err := exec.Command("tmux", "has-session", "-t", "="+view).Run(); err == nil {
 		t.Fatalf("view session %s survived the client", view)
 	}
+
+	// Guard: the viewed window dies while a second window exists in the
+	// session. The view must die too, not switch to the other window.
+	if out, err := exec.Command("tmux", "new-window", "-d", "-t", sess, "cat").CombinedOutput(); err != nil {
+		t.Fatalf("new-window: %v %s", err, out)
+	}
+	view2 := ViewName(2)
+	argv2, _ := tm.ViewCommand(h, view2)
+	term2, err := termview.Start(argv2, 60, 15, termview.Env(os.Environ()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer term2.Close()
+	time.Sleep(500 * time.Millisecond)
+	if err := tm.GuardView(view2); err != nil {
+		t.Fatal(err)
+	}
+	if err := exec.Command("tmux", "kill-window", "-t", "="+string(h)).Run(); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(700 * time.Millisecond)
+	if err := exec.Command("tmux", "has-session", "-t", "="+view2).Run(); err == nil {
+		t.Fatalf("view %s survived its window and now shows another one", view2)
+	}
+	if _, _, err := tm.Size(h); err == nil {
+		t.Fatal("Size must fail for the killed window")
+	}
 }

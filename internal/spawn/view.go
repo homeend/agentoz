@@ -16,8 +16,12 @@ type Viewer interface {
 	// window's own size without affecting other clients, in a session
 	// named view. internal/termview runs it in a pty.
 	ViewCommand(h Handle, view string) ([]string, error)
-	// Size reports the window's current columns and rows.
+	// Size reports the window's current columns and rows; an error when
+	// the window is gone (never a fallback to another window).
 	Size(h Handle) (cols, rows int, err error)
+	// GuardView arranges for the view session to end as soon as the
+	// window it shows disappears, so it can never show another one.
+	GuardView(view string) error
 }
 
 // viewPrefix names the sessions erbrus creates for browser terminals.
@@ -51,22 +55,50 @@ func (t *Tmux) ViewCommand(h Handle, view string) ([]string, error) {
 	return argv, nil
 }
 
-// Size is the window's size as tmux renders it to every client.
+// Size is the window's size as tmux renders it to every client. It goes
+// through list-windows and matches the index itself: `display -t
+// =session:N` for a missing N silently answers for the session's CURRENT
+// window, which let a browser terminal survive its window's death and
+// land on the user's own shell (seen live 2026-09-08).
 func (t *Tmux) Size(h Handle) (int, int, error) {
-	out, err := t.run("tmux", "display", "-p", "-t", exact(string(h)), "#{window_width} #{window_height}")
+	session, index, ok := strings.Cut(string(h), ":")
+	if !ok {
+		return 0, 0, fmt.Errorf("malformed handle %q", h)
+	}
+	out, err := t.run("tmux", "list-windows", "-t", exact(session), "-F", "#{window_index} #{window_width} #{window_height}")
 	if err != nil {
 		return 0, 0, fmt.Errorf("size of %s: %w", h, err)
 	}
-	f := strings.Fields(string(out))
-	if len(f) != 2 {
-		return 0, 0, fmt.Errorf("size of %s: unexpected %q", h, out)
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		f := strings.Fields(line)
+		if len(f) != 3 || f[0] != index {
+			continue
+		}
+		cols, err1 := strconv.Atoi(f[1])
+		rows, err2 := strconv.Atoi(f[2])
+		if err1 != nil || err2 != nil || cols <= 0 || rows <= 0 {
+			return 0, 0, fmt.Errorf("size of %s: unexpected %q", h, line)
+		}
+		return cols, rows, nil
 	}
-	cols, err1 := strconv.Atoi(f[0])
-	rows, err2 := strconv.Atoi(f[1])
-	if err1 != nil || err2 != nil || cols <= 0 || rows <= 0 {
-		return 0, 0, fmt.Errorf("size of %s: unexpected %q", h, out)
+	return 0, 0, fmt.Errorf("size of %s: window gone", h)
+}
+
+// GuardView makes the view session die the moment its window does. A
+// grouped session whose current window is killed switches to another
+// window of the group — the user's own shell — and a browser terminal
+// would keep typing there (seen live 2026-09-08). session-window-changed
+// fires exactly then and never for other windows (probed on tmux 3.7c).
+// It must be installed in a call of its own: set in the creating command
+// chain, it would consume that chain's own queued select-window event.
+// set-hook takes no "=" prefix; the nonce makes the name exact enough.
+func (t *Tmux) GuardView(view string) error {
+	_, err := t.run("tmux", "set-hook", "-t", view, "session-window-changed",
+		"run-shell 'tmux kill-session -t "+exact(view)+"'")
+	if err != nil {
+		return fmt.Errorf("guard view %s: %w", view, err)
 	}
-	return cols, rows, nil
+	return nil
 }
 
 // SweepViews kills view sessions nobody is attached to — leftovers of a
