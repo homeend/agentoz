@@ -326,3 +326,25 @@ value is shell-quoted; args keep the metacharacter check.
   the editing path for now; the page keeps its screen-rules editor.
 - **Windows**: `agents setup` works (paths under the Windows home) but the
   prompt-paste and screen features need tmux as before.
+
+## Implementation notes (2026-09-08, same night)
+
+- Verified live on the throwaway instance: `agents setup --agents kimi`
+  installed `~/.kimi-code/skills/erbrus/SKILL.md` and added the provider
+  through the running server; spawning kimi showed the trust dialog
+  (state question, paste held), the keypad's Enter answered it, the
+  prompt was pasted ("kimi: prompt delivered"), and the working rule
+  matched kimi's retry spinner. The Kimi API returned 500 throughout, so
+  a real "thinking" screen is still unverified.
+- `agents list` on the developer machine detects all five registry
+  entries.
+- yaml.v3 writes the moon-phase regex as a double-quoted `\U0001F311…`
+  scalar; it loads back identically. Cosmetic.
+- Probing a closed low port from WSL can hang about 30 s, so
+  `agents setup` pings the server with a 2 s timeout and the tests use a
+  just-released ephemeral port.
+- The paste watcher trusts "waiting" only from provider-specific rules
+  (config override or built-ins for that name); the generic fallback
+  makes it wait for a screen that stopped changing instead.
+- The "skill in action" check (a Claude Code session configuring junie
+  through the skill) has not been run yet.
