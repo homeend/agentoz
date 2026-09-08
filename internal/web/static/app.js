@@ -1,3 +1,25 @@
+// shortDur mirrors Go's shortDur: "5s", "3m", "1h12m".
+function shortDur(s) {
+  if (s < 60) return s + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  return Math.floor(s / 3600) + 'h' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + 'm';
+}
+
+// Agent badges carry data-since; tick their elapsed time every second so
+// "working 0s" does not sit frozen until the next server render. The
+// label word comes from data-label (working/idle) and the stalled prefix
+// from the class, so the text is rebuilt, not appended to.
+setInterval(function () {
+  var now = Math.floor(Date.now() / 1000);
+  document.querySelectorAll('.state[data-since]').forEach(function (el) {
+    var since = parseInt(el.dataset.since, 10);
+    if (!since) return;
+    var word = el.dataset.label === 'waiting' ? 'idle' : el.dataset.label;
+    if (el.classList.contains('stalled')) word = 'stalled · ' + word;
+    el.textContent = word + ' ' + shortDur(Math.max(0, now - since));
+  });
+}, 1000);
+
 // erbrus UI script: SSE-driven refresh for the channel view.
 // Contract: on "message"/"run" events whose channel_id matches the open
 // channel, refetch the corresponding partial and swap innerHTML.

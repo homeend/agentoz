@@ -120,21 +120,22 @@ func shortDur(d time.Duration) string {
 	}
 }
 
-// badge renders the rail label + CSS class for a run state.
-func (rs runState) badge(now time.Time) (label, class string) {
-	// Durations are "since this state began", computed at render time:
-	// the spinner's own step timer would freeze between rail refreshes.
+// badge renders the rail label + CSS class for a run state. timed
+// reports whether the label ends in a "since this state began" duration
+// the page should keep ticking client-side (the server only re-renders the
+// rail on transitions).
+func (rs runState) badge(now time.Time) (label, class string, timed bool) {
 	switch rs.State {
 	case screen.Working:
-		label = "working " + shortDur(now.Sub(rs.Since))
+		label, timed = "working", true
 	case screen.Waiting:
 		// "idle", not "waiting": readers took "waiting 59s" for busy.
-		label = "idle " + shortDur(now.Sub(rs.Since))
+		label, timed = "idle", true
 	case screen.Question:
 		label = "needs input"
 	default:
 		if !rs.Stalled {
-			return "", ""
+			return "", "", false
 		}
 		label = "no output"
 	}
@@ -143,5 +144,5 @@ func (rs runState) badge(now time.Time) (label, class string) {
 		label = "stalled · " + label
 		class += " stalled"
 	}
-	return label, class
+	return label, class, timed
 }

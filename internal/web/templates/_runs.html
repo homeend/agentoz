@@ -3,7 +3,7 @@
 <div class="runcard st-{{.Status}}{{if .Running}} running{{end}}{{if .StateName}} agent-{{.StateName}}{{end}}{{if .Stalled}} stalled{{end}}">
   <span class="dot"></span><strong>{{.AgentName}}</strong>
   {{if .Running}}
-  {{if .StateLabel}}<span class="{{.StateClass}}">{{.StateLabel}}</span>{{else}}<span class="state">detecting…</span>{{end}}
+  {{if .StateLabel}}<span class="{{.StateClass}}"{{if .StateSince}} data-since="{{.StateSince}}" data-label="{{.StateName}}"{{end}}>{{.StateLabel}}</span>{{else}}<span class="state">detecting…</span>{{end}}
   <div class="muted small">{{.Provider}} · up since {{.Started}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
   {{if .TmuxTarget}}<a class="btn small" href="/ui/runs/{{.ID}}/screen" target="screen:{{.TmuxTarget}}" title="opens (or focuses) the tab for tmux {{.TmuxTarget}}">Screen</a>{{end}}
   <form method="post" action="/ui/runs/{{.ID}}/stop">

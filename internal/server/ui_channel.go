@@ -56,6 +56,9 @@ type runView struct {
 	// never reads as "busy".
 	StateName string
 	Stalled   bool
+	// StateSince (unix seconds) is set for timed labels; the page appends
+	// and ticks the elapsed time itself.
+	StateSince int64
 }
 
 type channelPage struct {
@@ -178,8 +181,13 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		}
 		if v.Running {
 			if rs, ok := s.stateOf(r.ID); ok {
-				v.StateLabel, v.StateClass = rs.badge(time.Now())
+				label, class, timed := rs.badge(time.Now())
+				v.StateLabel, v.StateClass = label, class
 				v.StateName, v.Stalled = string(rs.State), rs.Stalled
+				if timed {
+					v.StateSince = rs.Since.Unix()
+					v.StateLabel = label + " " + shortDur(time.Since(rs.Since))
+				}
 			}
 		}
 		return v
