@@ -268,12 +268,72 @@ setInterval(function () {
   if (runs) setInterval(function () { refresh(runs, '/ui/channels/' + channelID + '/runs-panel'); }, 15000);
 })();
 
+// Interactive terminal: xterm.js over a websocket to a pty running a
+// size-neutral tmux client (docs/superpowers/specs/2026-09-08-web-terminal-design.md).
+// The terminal is exactly the tmux window's size (server-sent), never
+// fitted to the page; when the socket fails the read-only <pre> returns.
+(function () {
+  var el = document.getElementById('term');
+  if (!el) return;
+  var screen = document.getElementById('screen');
+  var errEl = document.getElementById('screenerr');
+  function fallback(reason) {
+    if (el.hidden) return;
+    el.hidden = true;
+    if (screen) screen.hidden = false;
+    if (reason && errEl) errEl.textContent = reason;
+    document.dispatchEvent(new CustomEvent('erbrus:terminal-fallback'));
+  }
+  if (typeof Terminal === 'undefined') { fallback('terminal script did not load'); return; }
+  var term = new Terminal({
+    cursorBlink: true, scrollback: 0, fontSize: 13,
+    fontFamily: 'ui-monospace, Menlo, Consolas, "DejaVu Sans Mono", monospace',
+    theme: { background: '#0c0d0f', foreground: '#d6d8dc' }
+  });
+  term.open(el);
+  var ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + el.dataset.ws);
+  ws.binaryType = 'arraybuffer';
+  var gotOutput = false;
+  ws.onmessage = function (ev) {
+    if (typeof ev.data === 'string') {
+      try {
+        var sz = JSON.parse(ev.data);
+        if (sz.cols > 0 && sz.rows > 0) term.resize(sz.cols, sz.rows);
+      } catch (e) { /* not a size message */ }
+      return;
+    }
+    gotOutput = true;
+    term.write(new Uint8Array(ev.data));
+  };
+  ws.onclose = function (ev) {
+    fallback(ev.reason || (gotOutput ? 'terminal closed' : 'terminal unavailable'));
+  };
+  term.onData(function (d) { if (ws.readyState === WebSocket.OPEN) ws.send(d); });
+  term.onBinary(function (d) {
+    if (ws.readyState !== WebSocket.OPEN) return;
+    var b = new Uint8Array(d.length);
+    for (var i = 0; i < d.length; i++) b[i] = d.charCodeAt(i) & 255;
+    ws.send(b);
+  });
+  el.addEventListener('click', function () { term.focus(); });
+  if (term.textarea) {
+    term.textarea.addEventListener('focus', function () { el.classList.add('typing'); });
+    term.textarea.addEventListener('blur', function () { el.classList.remove('typing'); });
+  }
+  term.focus();
+})();
+
 // Screen view: one EventSource per open screen page, frames swap the <pre>.
 // The activity age is computed client-side from the last frame's unix
 // timestamp so the server only talks when the screen actually changes.
 (function () {
   var screen = document.getElementById('screen');
   if (!screen || screen.dataset.static) return; // not a live screen page
+  // With the terminal showing, frames are for the header/keypad only:
+  // ask the server to leave the html out. Fallback flips this back.
+  var termEl = document.getElementById('term');
+  var wantHTML = !termEl || termEl.hidden;
+  document.addEventListener('erbrus:terminal-fallback', function () { wantHTML = true; connect(); });
   var runID = screen.dataset.run;
   var head = document.getElementById('screenhead');
   var act = document.getElementById('screenact');
@@ -348,7 +408,7 @@ setInterval(function () {
   function alive() { lastSeen = Date.now(); }
   function connect() {
     if (es) es.close();
-    es = new EventSource('/ui/runs/' + runID + '/screen/events');
+    es = new EventSource('/ui/runs/' + runID + '/screen/events' + (wantHTML ? '' : '?html=0'));
     es.onopen = alive;
     es.addEventListener('ping', alive);
     es.addEventListener('frame', function (e) {
@@ -358,7 +418,7 @@ setInterval(function () {
         if (f.error) { errEl.textContent = f.error; return; }
         errEl.textContent = f.dead ? 'process exited — final screen' : '';
         dead = !!f.dead;
-        screen.innerHTML = f.html;
+        if (f.html !== undefined) screen.innerHTML = f.html;
         activity = f.activity || 0;
         state = f.state || '';
         step = f.step || 0;
