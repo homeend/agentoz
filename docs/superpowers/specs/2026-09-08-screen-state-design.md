@@ -192,3 +192,27 @@ provider names use the generic row.
   one is the test.
 - Codex patterns are unverified.
 - Rail badges show the step duration as of the last refresh, not live.
+
+## Amendments after live use (2026-09-08, same day)
+
+- **Labels.** The waiting state is labeled **idle** everywhere a human reads
+  it ("idle 59s", "finished its turn — idle, waiting for input"); "waiting"
+  read as busy. Internal state name stays `waiting`.
+- **Run card.** The dot follows the agent state (grey until classified,
+  green working, blue idle, amber question/stalled); the lifecycle status
+  line reads "up since …" instead of "running". Timed labels carry
+  `data-since` and the page ticks them every second; the rail re-fetches
+  every 15 s.
+- **Keypad.** `POST /ui/runs/{id}/keys` presses one of `1 2 3 Up Down
+  Enter Escape` (allow-list, nothing else) via `Spawner.SendKeys`, then
+  re-observes the screen after 300 ms. Shown on run cards in the question
+  state and always on the screen page (`back=screen` redirects there).
+- **Miniature.** In the question state the card shows the rendered screen
+  from the capture that detected the dialog (`runState.Thumb`, no extra
+  tmux calls) at a glance-size font, linking to the screen page's named
+  tab (`target="screen:<tmux target>"`, one tab per window).
+- **Stalled** requires a live pane (`!Dead`).
+- **Verified live:** working, idle (including an unsubmitted message in the
+  input box), and one real question dialog (Claude Code's trust-folder
+  prompt, matched by "Esc to cancel"). The keypad has not yet answered a
+  real dialog.
