@@ -478,3 +478,12 @@ func TestStaticAssetsAreNoCache(t *testing.T) {
 		t.Fatalf("status %d cache-control %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
 	}
 }
+
+func TestPagesUseVersionedAssets(t *testing.T) {
+	ts, _, _ := newTestServer(t)
+	resp, _ := http.Get(ts.URL + "/ui/projects")
+	body := readAll(t, resp)
+	if !strings.Contains(body, "/static/app.js?v=") || !strings.Contains(body, "/static/app.css?v=") {
+		t.Fatalf("assets not versioned: %s", body)
+	}
+}

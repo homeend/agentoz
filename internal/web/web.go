@@ -2,7 +2,9 @@
 package web
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"html/template"
 	"io/fs"
 	"net/http"
@@ -11,6 +13,26 @@ import (
 
 //go:embed templates/* static/*
 var FS embed.FS
+
+// AssetVersion is a short hash of the embedded static files, appended as
+// ?v= to their URLs so a browser tab never keeps a script from a previous
+// build after the server restarts.
+var AssetVersion = func() string {
+	h := sha256.New()
+	fs.WalkDir(FS, "static", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, _ := FS.ReadFile(path)
+		h.Write([]byte(path))
+		h.Write(b)
+		return nil
+	})
+	return hex.EncodeToString(h.Sum(nil))[:10]
+}()
+
+// Asset returns the versioned URL of an embedded static file.
+func Asset(name string) string { return "/static/" + name + "?v=" + AssetVersion }
 
 // Static returns the embedded static file system rooted at static/.
 func Static() http.Handler {

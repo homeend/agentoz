@@ -53,7 +53,7 @@ func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
 		run:     run,
 		dataDir: cfg.ResolvedDataDir(),
 		hub:     NewHub(),
-		pages:   web.Pages(template.FuncMap{"localtime": localTime, "initial": initial}),
+		pages:   web.Pages(template.FuncMap{"localtime": localTime, "initial": initial, "asset": web.Asset}),
 	}
 	// Resolved per call: SetRuntime wires the spawner after New.
 	s.screens = newScreenFeed(func(h spawn.Handle) (spawn.Screen, error) {

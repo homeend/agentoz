@@ -237,6 +237,20 @@ setInterval(function () {
   setInterval(tickAge, 1000);
   tickAge();
 
+  // Keypad presses go in the background: the page and its frame stream
+  // stay up, and the next frame hides the keypad once the dialog is gone.
+  if (keypad) {
+    keypad.addEventListener('click', function (e) {
+      var b = e.target.closest('button[name="key"]');
+      if (!b) return;
+      e.preventDefault();
+      var fd = new FormData(keypad);
+      fd.set('key', b.value);
+      fetch(keypad.action, { method: 'POST', body: fd, redirect: 'manual' })
+        .catch(function () { /* the stream will show what happened */ });
+    });
+  }
+
   var es = null;
   var lastSeen = Date.now();
   function alive() { lastSeen = Date.now(); }
