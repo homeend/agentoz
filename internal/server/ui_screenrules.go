@@ -43,8 +43,9 @@ type testLine struct {
 }
 
 func (s *Server) screenRuleViews() []screenRuleView {
-	names := make([]string, 0, len(s.cfg.Providers))
-	for n := range s.cfg.Providers {
+	providers := s.providersSnapshot()
+	names := make([]string, 0, len(providers))
+	for n := range providers {
 		names = append(names, n)
 	}
 	sort.Strings(names)
@@ -105,7 +106,7 @@ func splitLines(v string) []string {
 // and applies the rules to the running watcher immediately.
 func (s *Server) handleUISettingsScreen(w http.ResponseWriter, r *http.Request) {
 	provider := r.FormValue("provider")
-	if _, ok := s.cfg.Providers[provider]; !ok {
+	if _, ok := s.providerCfg(provider); !ok {
 		httpError(w, http.StatusBadRequest, "unknown provider")
 		return
 	}

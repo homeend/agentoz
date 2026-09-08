@@ -75,6 +75,8 @@ func TestDetect(t *testing.T) {
 	os.WriteFile(filepath.Join(home, ".gemini", "config", "skills", "erbrus", "SKILL.md"), []byte(agentskill.SkillFile()), 0o644)
 	cfg := config.Defaults()
 	cfg.Providers = map[string]config.Provider{"claude-code": {Command: "claude"}}
+	// A preset counts by its provider, whatever its name.
+	cfg.Presets = map[string]config.Preset{"cc": {Provider: "claude-code"}}
 
 	dets := Detect(home, fakeLook("claude", "junie"), cfg)
 	byID := map[string]Detection{}
@@ -85,10 +87,13 @@ func TestDetect(t *testing.T) {
 		t.Error("codex: no home, no binary → not detected")
 	}
 	c := byID["claude-code"]
-	if c.Status != StatusOutdated || !c.Configured || c.BinaryPath == "" || c.SkillPath != filepath.Join(home, ".claude", "skills", "erbrus", "SKILL.md") {
+	if c.Status != StatusOutdated || !c.Configured || !c.PresetConfigured || c.BinaryPath == "" || c.SkillPath != filepath.Join(home, ".claude", "skills", "erbrus", "SKILL.md") {
 		t.Errorf("claude: %+v", c)
 	}
-	if k := byID["kimi"]; k.Status != StatusNew || k.Configured || k.BinaryPath != "" {
+	if c.Agent.PresetName() != "claude" {
+		t.Errorf("preset name = %q", c.Agent.PresetName())
+	}
+	if k := byID["kimi"]; k.Status != StatusNew || k.Configured || k.PresetConfigured || k.BinaryPath != "" {
 		t.Errorf("kimi (home only): %+v", k)
 	}
 	if j := byID["junie"]; j.Status != StatusNew || j.BinaryPath == "" {

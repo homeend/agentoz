@@ -109,7 +109,7 @@ func (s *Server) buildSpawnPage(chID int64, presetName string, originID int64) (
 	if err != nil {
 		return spawnPage{}, http.StatusInternalServerError, err.Error()
 	}
-	merged := preset.Merge(s.cfg.Presets, repoCfg.Presets)
+	merged := preset.Merge(s.presetsSnapshot(), repoCfg.Presets)
 	presets := make([]string, 0, len(merged))
 	for name := range merged {
 		presets = append(presets, name)

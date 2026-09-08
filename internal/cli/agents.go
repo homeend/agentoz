@@ -135,17 +135,11 @@ func runAgents(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			verb = "refreshed"
 		}
 		fmt.Fprintf(stdout, "✓ %s %s skill v%d → %s\n", verb, d.Agent.Label, agentskill.Version, d.SkillPath)
-		if d.Configured {
+		if d.Configured && d.PresetConfigured {
 			continue
 		}
 		if cfgErr != nil {
-			fmt.Fprintf(stderr, "agents setup: cannot add provider %s: %v\n", d.Agent.ID, cfgErr)
-			failed = true
-			continue
-		}
-		applied, refused, err := addProvider(c, serverUp, cfgPath, d.Agent)
-		if err != nil {
-			fmt.Fprintf(stderr, "agents setup: provider %s: %v\n", d.Agent.ID, err)
+			fmt.Fprintf(stderr, "agents setup: cannot edit config for %s: %v\n", d.Agent.ID, cfgErr)
 			failed = true
 			continue
 		}
@@ -153,13 +147,23 @@ func runAgents(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if d.Agent.Note != "" {
 			note = " (" + d.Agent.Note + ")"
 		}
-		switch {
-		case applied:
-			fmt.Fprintf(stdout, "✓ provider %s added%s and applied to the running erbrus\n", d.Agent.ID, note)
-		case refused != nil:
-			fmt.Fprintf(stdout, "✓ provider %s added to %s%s — the running erbrus did not accept it (%v): restart erbrus serve with this binary\n", d.Agent.ID, cfgPath, note, refused)
-		default:
-			fmt.Fprintf(stdout, "✓ provider %s added to %s%s — restart erbrus serve to pick it up\n", d.Agent.ID, cfgPath, note)
+		if !d.Configured {
+			applied, refused, err := addProvider(c, serverUp, cfgPath, d.Agent)
+			if err != nil {
+				fmt.Fprintf(stderr, "agents setup: provider %s: %v\n", d.Agent.ID, err)
+				failed = true
+				continue
+			}
+			fmt.Fprintln(stdout, addedLine("provider "+d.Agent.ID+note, applied, refused, cfgPath))
+		}
+		if !d.PresetConfigured {
+			applied, refused, err := addPreset(c, serverUp, cfgPath, d.Agent)
+			if err != nil {
+				fmt.Fprintf(stderr, "agents setup: preset %s: %v\n", d.Agent.PresetName(), err)
+				failed = true
+				continue
+			}
+			fmt.Fprintln(stdout, addedLine("preset "+d.Agent.PresetName()+" → "+d.Agent.ID, applied, refused, cfgPath))
 		}
 	}
 	fmt.Fprintln(stdout, "\nNext: let an agent refine its own rules — spawn it with the prompt")
@@ -218,6 +222,42 @@ func addProvider(c *client.Client, serverUp bool, cfgPath string, a agents.Agent
 	return false, refused, os.WriteFile(cfgPath, out, 0o644)
 }
 
+// addPreset seeds `<binary>: {provider: <id>}` the same way addProvider
+// seeds the provider (live when the server takes it, else the file).
+func addPreset(c *client.Client, serverUp bool, cfgPath string, a agents.Agent) (applied bool, refused error, err error) {
+	name := a.PresetName()
+	if serverUp {
+		_, err := c.PutPreset(name, map[string]any{"provider": a.ID})
+		if err == nil {
+			return true, nil, nil
+		}
+		refused = err
+	}
+	doc, err := os.ReadFile(cfgPath)
+	if err != nil && !os.IsNotExist(err) {
+		return false, refused, err
+	}
+	out, err := config.SetPreset(doc, name, config.PresetPatch{Provider: config.Str(a.ID)})
+	if err != nil {
+		return false, refused, err
+	}
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
+		return false, refused, err
+	}
+	return false, refused, os.WriteFile(cfgPath, out, 0o644)
+}
+
+// addedLine says where a provider/preset landed and what happens next.
+func addedLine(what string, applied bool, refused error, cfgPath string) string {
+	switch {
+	case applied:
+		return "✓ " + what + " added and applied to the running erbrus"
+	case refused != nil:
+		return fmt.Sprintf("✓ %s added to %s — the running erbrus did not accept it (%v): restart erbrus serve with this binary", what, cfgPath, refused)
+	}
+	return fmt.Sprintf("✓ %s added to %s — erbrus serve picks it up on start (a running one reloads it within seconds)", what, cfgPath)
+}
+
 func nz(l []string) []string {
 	if l == nil {
 		return []string{}
@@ -239,7 +279,11 @@ func printAgents(w io.Writer, dets []agents.Detection) {
 				prov += " (" + d.Agent.Note + ")"
 			}
 		}
-		fmt.Fprintf(w, "  %d. %s %-12s %-45s %-11s %s\n", i+1, box, d.Agent.Label, d.SkillPath, d.Status, prov)
+		pre := "preset: configured"
+		if !d.PresetConfigured {
+			pre = "preset: will be added (" + d.Agent.PresetName() + ")"
+		}
+		fmt.Fprintf(w, "  %d. %s %-12s %-45s %-11s %s · %s\n", i+1, box, d.Agent.Label, d.SkillPath, d.Status, prov, pre)
 	}
 }
 

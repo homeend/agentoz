@@ -48,9 +48,11 @@ and already knows them.
   (`claude-code`, `codex`, `kimi`, `junie`, `antigravity`, …).
   `erbrus provider show <name>` prints the entry. If it does not exist
   and the CLI is one of those built in, `erbrus agents setup
-  --agents <id>` creates it with the built-in template and screen rules;
-  for any other CLI, write it yourself (step 2 below). Then refine the
-  screen rules (steps 3–6).
+  --agents <id>` creates it (plus its preset) with the built-in template
+  and screen rules; for any other CLI, write both yourself (step 2
+  below). Then refine the screen rules (steps 3–6).
+- Done means: provider entry, preset, and all three screen-rule lists
+  saved and tested. Report anything you could not verify.
 - Screens come only from a run that erbrus itself started. The one way
   to get such a run is `erbrus start <name> --prompt '…'` (step 3), which
   prints the run id. Never run the CLI or tmux yourself, never list or
@@ -95,6 +97,14 @@ must not be able to fake a state.
    ```
    `erbrus provider show <name>` prints what is saved and whether the
    rules are built-in.
+   Then make sure a preset exists — the short name the spawn form and
+   `erbrus start` offer, normally the CLI's binary name (`agy` for
+   antigravity, `claude` for claude-code):
+   ```
+   erbrus preset show <binary>
+   erbrus preset set <binary> --provider <name>
+   ```
+   Add `--model <id>` only if the CLI's own default is wrong for erbrus.
 3. Start the CLI as an erbrus run, from inside any git repository (erbrus
    registers it as a project when needed):
    ```

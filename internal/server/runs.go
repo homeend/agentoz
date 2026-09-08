@@ -151,14 +151,15 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	if err != nil {
 		return nil, http.StatusBadRequest, "repo config invalid: " + err.Error()
 	}
-	presets := preset.Merge(s.cfg.Presets, repoCfg.Presets)
+	providers := s.providersSnapshot()
+	presets := preset.Merge(s.presetsSnapshot(), repoCfg.Presets)
 	var presetCfg config.Preset
 	if req.Preset != "" && req.Provider == "" {
 		// `erbrus start <name>`: a name that is no preset but a provider
 		// means "that provider with its defaults" (agents configuring
 		// themselves through the skill start their CLI this way).
 		if _, isPreset := presets[req.Preset]; !isPreset {
-			if _, isProvider := s.cfg.Providers[req.Preset]; isProvider {
+			if _, isProvider := providers[req.Preset]; isProvider {
 				req.Provider, req.Preset = req.Preset, ""
 			}
 		}
@@ -173,7 +174,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	if providerName == "" {
 		return nil, http.StatusBadRequest, "provider is required"
 	}
-	if _, ok := s.cfg.Providers[providerName]; !ok {
+	if _, ok := providers[providerName]; !ok {
 		return nil, http.StatusBadRequest, fmt.Sprintf("unknown provider %q", providerName)
 	}
 	model := firstNonEmpty(req.Model, presetCfg.Model)
@@ -268,12 +269,12 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	fullPrompt := integrate.AssemblePrompt(preamble, promptText, handoffContext)
 	// Paste mode: the CLI starts without the prompt and deliverPrompt
 	// types it in once the input box is up (see paste.go).
-	paste := pasteMode(s.cfg.Providers[providerName])
+	paste := pasteMode(providers[providerName])
 	cmdPrompt := fullPrompt
 	if paste {
 		cmdPrompt = ""
 	}
-	command, err := provider.Registry(s.cfg.Providers).Render(providerName, model, fullArgs, cmdPrompt)
+	command, err := provider.Registry(providers).Render(providerName, model, fullArgs, cmdPrompt)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err.Error()
 	}

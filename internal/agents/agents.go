@@ -24,6 +24,11 @@ type Agent struct {
 	Note     string
 }
 
+// PresetName is the short name humans and `erbrus start` use: the
+// binary name (claude, codex, kimi, junie, agy), which is what existing
+// hand-written configs already use.
+func (a Agent) PresetName() string { return a.Binary }
+
 // Builtins is the registry. Defaults never pin a model: an empty {model}
 // drops the flag and the CLI uses its own default.
 func Builtins() []Agent {
@@ -84,6 +89,8 @@ type Detection struct {
 	SkillPath  string // absolute
 	Status     Status
 	Configured bool // providers.<ID> exists in cfg
+	// PresetConfigured: some preset (any name) points at providers.<ID>.
+	PresetConfigured bool
 }
 
 func resolve(p, home string) string {
@@ -111,6 +118,12 @@ func Detect(homeDir string, lookPath func(string) (string, error), cfg config.Gl
 		}
 		d := Detection{Agent: a, BinaryPath: bin, SkillPath: resolve(a.Skill, homeDir)}
 		_, d.Configured = cfg.Providers[a.ID]
+		for _, p := range cfg.Presets {
+			if p.Provider == a.ID {
+				d.PresetConfigured = true
+				break
+			}
+		}
 		d.Status = status(d.SkillPath)
 		out = append(out, d)
 	}

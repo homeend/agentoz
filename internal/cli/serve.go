@@ -77,6 +77,9 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	}
 	// 10s: also paces screen-state detection (working/waiting/question).
 	srv.StartReconcileLoop(10*time.Second, make(chan struct{}))
+	// Hand edits and `erbrus agents setup` without a reachable API land in
+	// config.yaml; pick them up without a restart.
+	srv.StartConfigWatch(2*time.Second, make(chan struct{}))
 
 	fmt.Fprintf(stdout, "erbrus serving on http://%s (data: %s)\n", ln.Addr(), dataDir)
 	if serveAddrHook != nil {

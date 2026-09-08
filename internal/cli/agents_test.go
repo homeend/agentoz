@@ -43,7 +43,7 @@ func TestAgentsList(t *testing.T) {
 		t.Fatalf("%d %s", code, errOut.String())
 	}
 	s := out.String()
-	for _, want := range []string{"Claude Code", "outdated", "provider: configured", "Kimi Code", "new", "will be added"} {
+	for _, want := range []string{"Claude Code", "outdated", "provider: configured", "preset: will be added (claude)", "Kimi Code", "new", "will be added"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("list missing %q:\n%s", want, s)
 		}
@@ -64,13 +64,13 @@ func TestAgentsSetupByIDWritesSkillAndProvider(t *testing.T) {
 		t.Fatalf("skill not installed: %v", err)
 	}
 	doc, _ := os.ReadFile(os.Getenv("ERBRUS_CONFIG"))
-	for _, want := range []string{"# mine", "  claude-code:", "  kimi:", "prompt: paste", "screen_waiting:"} {
+	for _, want := range []string{"# mine", "  claude-code:", "  kimi:", "prompt: paste", "screen_waiting:", "presets:", "    provider: kimi"} {
 		if !strings.Contains(string(doc), want) {
 			t.Errorf("config missing %q:\n%s", want, doc)
 		}
 	}
-	if !strings.Contains(out.String(), "restart erbrus serve") {
-		t.Errorf("no-server path must say to restart:\n%s", out.String())
+	if !strings.Contains(out.String(), "picks it up on start") || !strings.Contains(out.String(), "preset kimi → kimi") {
+		t.Errorf("no-server path must name the file and the preset:\n%s", out.String())
 	}
 	// Claude untouched (not selected); provider kept as is.
 	if b, _ := os.ReadFile(filepath.Join(home, ".claude", "skills", "erbrus", "SKILL.md")); !strings.Contains(string(b), "v0") {

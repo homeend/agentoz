@@ -135,6 +135,30 @@ func (c *Client) PutProvider(name string, patch map[string]any) (Provider, error
 	return p, c.do("PUT", "/api/providers/"+name, "application/json", bytes.NewReader(b), &p)
 }
 
+type Preset struct {
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
+	Model    string `json:"model"`
+	Prompt   string `json:"prompt"`
+	Args     string `json:"args"`
+	Agent    string `json:"agent_name"`
+}
+
+func (c *Client) GetPreset(name string) (Preset, error) {
+	var p Preset
+	return p, c.do("GET", "/api/presets/"+name, "", nil, &p)
+}
+
+// PutPreset sends a partial update; keys absent from patch are kept.
+func (c *Client) PutPreset(name string, patch map[string]any) (Preset, error) {
+	var p Preset
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return p, err
+	}
+	return p, c.do("PUT", "/api/presets/"+name, "application/json", bytes.NewReader(b), &p)
+}
+
 type ScreenOption struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`

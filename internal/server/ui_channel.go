@@ -214,7 +214,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 	}
 
 	repoCfg, _, _ := config.LoadRepo(project.RepoPath)
-	merged := preset.Merge(s.cfg.Presets, repoCfg.Presets)
+	merged := preset.Merge(s.presetsSnapshot(), repoCfg.Presets)
 	presets := make([]string, 0, len(merged))
 	for name := range merged {
 		presets = append(presets, name)

@@ -156,6 +156,8 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/providers/{name}/screen-test", s.handleAPIScreenTest)
 		r.Get("/providers/{name}", s.handleAPIGetProvider)
 		r.Put("/providers/{name}", s.handleAPIPutProvider)
+		r.Get("/presets/{name}", s.handleAPIGetPreset)
+		r.Put("/presets/{name}", s.handleAPIPutPreset)
 		r.Get("/artifacts/{id}", s.handleArtifactDownload)
 	})
 	r.Get("/events", s.handleEvents)

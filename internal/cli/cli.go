@@ -19,6 +19,7 @@ commands:
   msg        send/read channel messages (msg send | msg read)
   agents     detect installed agent CLIs; setup installs the erbrus skill (agents list | agents setup)
   provider   show/set a provider in config.yaml through the server (provider show | provider set)
+  preset     show/set a preset (short name → provider + model) through the server (preset show | preset set)
   screen     read or classify a run's terminal (screen capture | screen test)
   launcher   install a script on your PATH that runs this binary as "erbrus"
   version    print version
@@ -50,6 +51,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runAgents(args[1:], os.Stdin, stdout, stderr)
 	case "provider":
 		return runProvider(args[1:], stdout, stderr)
+	case "preset":
+		return runPreset(args[1:], stdout, stderr)
 	case "screen":
 		return runScreen(args[1:], stdout, stderr)
 	case "launcher":

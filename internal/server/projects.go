@@ -137,7 +137,7 @@ func (s *Server) ensureChannels(p store.Project) string {
 // missing repo instead. summary reads like "archived: feat; created:
 // hotfix" ("" when nothing changed); warning collects detection errors.
 func (s *Server) syncChannels(p store.Project) (summary, warning string) {
-	wts, err := wt.List(s.run, s.cfg.WtBin, p.RepoPath)
+	wts, err := wt.List(s.run, s.wtBin(), p.RepoPath)
 	if err != nil {
 		// err already reads "worktree detection failed (wt and git): ..." —
 		// don't double the prefix.
