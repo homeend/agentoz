@@ -26,7 +26,7 @@ a:hover { text-decoration: underline; }
 /* overflow: hidden + min-height: 0 on the columns keep scrolling inside
    each column (grid items default to min-height auto and would otherwise
    stretch the page and scroll the whole window) */
-.shell { display: grid; grid-template-columns: 220px 1fr 280px; height: calc(100vh - 45px); overflow: hidden; }
+.shell { display: grid; grid-template-columns: 250px 1fr 340px; height: calc(100vh - 45px); overflow: hidden; }
 .sidebar, .stream, .rail { min-height: 0; }
 .sidebar { background: #1d1f23; border-right: 1px solid #2c2f35; overflow-y: auto; padding: 10px 0; }
 .sidebar .proj { padding: 6px 14px 2px; font-weight: 600; }
@@ -153,6 +153,8 @@ a:hover { text-decoration: underline; }
 .state.st-waiting { border-color: #4a5a7a; color: #a9c8ff; background: #1a2436; }
 .state.st-question, .state.stalled { border-color: #b8860b; color: #f2d479; background: #2a2416; }
 /* dialog keypad on run cards (question state) and the screen page */
-.keypad { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0; }
-.keypad .btn { padding: 2px 8px; min-width: 26px; text-align: center; }
+/* .runcard form.keypad: outrank ".runcard form { display: inline }" */
+.keypad, .runcard form.keypad { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+.keypad .btn { padding: 3px 9px; min-width: 30px; text-align: center; }
+.runcard .btn + form, .runcard a.btn { margin-right: 6px; }
 .screenpage .keypad { margin-top: 8px; }
