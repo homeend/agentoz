@@ -208,9 +208,12 @@ handler answers 501 there.
 7. Any pump ending closes everything: socket, `Term.Close()`, which ends
    the tmux client, which triggers `destroy-unattached`.
 
-Handlers hold a per-run count only for the limit; nothing is shared
-between connections. `Server.Close()` (or the existing shutdown path)
-closes every open `Term`.
+Handlers hold a global count only for the limit; nothing is shared
+between connections. erbrus has no graceful shutdown path (`serve` runs
+`http.Serve` until killed): when the process dies the kernel closes the
+pty masters, each tmux view client gets SIGHUP and exits, and
+`destroy-unattached` removes its session. `SweepViews` at the next start
+covers anything that survived.
 
 ### Screen page
 
@@ -299,7 +302,7 @@ finally killed, `Size` fails and the socket closes with `window gone`.
 | pty start fails (no /dev/ptmx, tmux missing) | 1011 with text; fallback |
 | Too many terminals | 503 before upgrade; page shows "too many open terminals" in `#screenerr` and falls back |
 | Browser closes mid-output | pump write error → everything closed |
-| erbrus stops | all `Term`s closed on shutdown; if it crashed, `SweepViews` at next start kills unattached `erbrus-view-*` |
+| erbrus stops | pty masters close with the process, the view clients get SIGHUP and their sessions self-destroy; `SweepViews` at next start kills any unattached `erbrus-view-*` left over |
 
 Nothing is posted to the channel for typed input; the human in the
 terminal is not an event.
