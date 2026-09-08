@@ -374,6 +374,7 @@ setInterval(function () {
     if (state === 'working' && step) label += ' · step ' + fmtDur(step);
     if (state === 'waiting') label = 'idle — waiting for input';
     if (state === 'question') label = 'needs input';
+    if (state === 'unavailable') label = 'not available';
     stateEl.textContent = label;
     stateEl.className = 'state' + (state ? ' st-' + state : '');
     // The keypad exists to answer a dialog; hide it as soon as the
@@ -415,7 +416,14 @@ setInterval(function () {
       alive();
       try {
         var f = JSON.parse(e.data);
-        if (f.error) { errEl.textContent = f.error; return; }
+        if (f.error) {
+          // The window is gone (or tmux is): the last known state would
+          // be a lie, and the keypad has nothing to answer.
+          errEl.textContent = f.error;
+          state = 'unavailable'; activity = 0; step = 0;
+          tickAge();
+          return;
+        }
         errEl.textContent = f.dead ? 'process exited — final screen' : '';
         dead = !!f.dead;
         if (f.html !== undefined) screen.innerHTML = f.html;

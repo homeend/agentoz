@@ -13,7 +13,7 @@
     <strong>{{.Run.AgentName}}</strong>
     <span class="muted">{{.Run.Provider}} · {{.Run.Status}}{{if .Run.TmuxTarget}} · <span class="mono">{{.Run.TmuxTarget}}</span>{{end}}</span>
     <span class="spacer"></span>
-    <span id="screenstate" class="state{{if .Frame.State}} st-{{.Frame.State}}{{end}}" data-state="{{.Frame.State}}" data-step="{{.Frame.Step}}">{{.Frame.State}}</span>
+    {{if .Frame.Error}}<span id="screenstate" class="state st-unavailable" data-state="unavailable" data-step="0">not available</span>{{else}}<span id="screenstate" class="state{{if .Frame.State}} st-{{.Frame.State}}{{end}}" data-state="{{.Frame.State}}" data-step="{{.Frame.Step}}">{{.Frame.State}}</span>{{end}}
     <span id="screenact" class="muted small" data-activity="{{.Frame.Activity}}"></span>
     {{if .Warning}}<span class="small warn">{{.Warning}}</span>{{end}}
     <span id="screenerr" class="small warn">{{if .Note}}{{.Note}}{{else if .Frame.Error}}{{.Frame.Error}}{{else if .Frame.Dead}}process exited — final screen{{end}}</span>
