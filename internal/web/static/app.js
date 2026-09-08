@@ -196,6 +196,7 @@
   function tickAge() {
     var label = state || 'unknown';
     if (state === 'working' && step) label += ' · step ' + fmtDur(step);
+    if (state === 'waiting') label = 'idle — waiting for input';
     if (state === 'question') label = 'needs input';
     stateEl.textContent = label;
     stateEl.className = 'state' + (state ? ' st-' + state : '');

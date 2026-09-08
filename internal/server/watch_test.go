@@ -126,7 +126,7 @@ func TestWatchScreensTurnEnd(t *testing.T) {
 
 	// Rail badge.
 	resp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
-	if body := readAll(t, resp); !strings.Contains(body, `class="state st-waiting"`) || !strings.Contains(body, ">waiting ") {
+	if body := readAll(t, resp); !strings.Contains(body, `class="state st-waiting"`) || !strings.Contains(body, ">idle ") {
 		t.Fatalf("badge missing: %s", body)
 	}
 

@@ -76,7 +76,7 @@ func (s *Server) observe(run store.AgentRun, sc spawn.Screen, now time.Time) {
 		case st == screen.Question:
 			notes = append(notes, fmt.Sprintf("%s is asking a question — needs your input", run.AgentName))
 		case st == screen.Waiting && prev.State == screen.Working:
-			notes = append(notes, fmt.Sprintf("%s finished its turn — waiting for input", run.AgentName))
+			notes = append(notes, fmt.Sprintf("%s finished its turn — idle, waiting for input", run.AgentName))
 		}
 	}
 	next.StepFor = screen.StepDuration(lines)
@@ -128,7 +128,8 @@ func (rs runState) badge(now time.Time) (label, class string) {
 	case screen.Working:
 		label = "working " + shortDur(now.Sub(rs.Since))
 	case screen.Waiting:
-		label = "waiting " + shortDur(now.Sub(rs.Since))
+		// "idle", not "waiting": readers took "waiting 59s" for busy.
+		label = "idle " + shortDur(now.Sub(rs.Since))
 	case screen.Question:
 		label = "needs input"
 	default:
