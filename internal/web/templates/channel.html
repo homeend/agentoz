@@ -10,7 +10,7 @@
     <button class="btn small" type="submit" title="archive channels whose worktree is gone, add channels for new worktrees">Re-sync worktrees</button>
   </form>{{end}}
   <span class="spacer"></span>
-  <a class="btn primary" href="/ui/spawn?channel={{.Channel.ID}}">+ Spawn agent</a>
+  {{if not .Channel.Archived}}<a class="btn primary" href="/ui/spawn?channel={{.Channel.ID}}">+ Spawn agent</a>{{end}}
 </header>
 <div class="shell">
   <nav class="sidebar">

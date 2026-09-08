@@ -161,6 +161,10 @@ func (s *Server) syncChannels(p store.Project) (summary, warning string) {
 		addWarn("channel listing failed: " + err.Error())
 		return "", warning
 	}
+	// A missing repo root (unmounted drive, e.g. /mnt/t before WSL mounts
+	// it) is not "every worktree was removed": never archive in that case.
+	// The project card already flags the missing repo. Restores still run.
+	repoPresent := dirExists(p.RepoPath)
 	byName := map[string]store.Channel{}
 	for _, c := range existing {
 		byName[c.Name] = c
@@ -169,7 +173,7 @@ func (s *Server) syncChannels(p store.Project) (summary, warning string) {
 		}
 		exists := dirExists(c.WorktreePath)
 		switch {
-		case !exists && !c.Archived:
+		case !exists && !c.Archived && repoPresent:
 			if err := s.st.SetChannelArchived(c.ID, true); err != nil {
 				addWarn(fmt.Sprintf("archive %s: %s", c.Name, err))
 				continue

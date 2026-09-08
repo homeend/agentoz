@@ -57,8 +57,8 @@ func TestSyncArchivesRestoresCreates(t *testing.T) {
 		t.Fatalf("projects page lacks archived list: %s", body)
 	}
 	page, _ = http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch2))
-	if body := readAll(t, page); !strings.Contains(body, "This channel is archived") {
-		t.Fatalf("archived channel page lacks banner: %s", body)
+	if body := readAll(t, page); !strings.Contains(body, "This channel is archived") || strings.Contains(body, "+ Spawn agent") {
+		t.Fatalf("archived channel page: banner missing or spawn offered: %s", body)
 	}
 
 	// The worktree comes back: restored. A new worktree appears: created.
@@ -89,5 +89,23 @@ func TestSyncArchivesRestoresCreates(t *testing.T) {
 	r.Body.Close()
 	if loc := r.Header.Get("Location"); !strings.HasPrefix(loc, fmt.Sprintf("/ui/channels/%d", ch2)) {
 		t.Fatalf("channel redirect: %s", loc)
+	}
+}
+
+// An unmounted drive makes every path vanish at once; that must not
+// archive anything.
+func TestSyncSkipsArchiveWhenRepoMissing(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	if err := os.MkdirAll(root+"-wt-feat", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ch1, ch2 := twoChannels(t, ts.URL, root)
+	c1, _, _ := st.ChannelByID(ch1)
+	os.RemoveAll(root + "-wt-feat")
+	os.RemoveAll(root)
+	r, _ := noRedirect().PostForm(fmt.Sprintf("%s/ui/projects/%d/sync", ts.URL, c1.ProjectID), url.Values{})
+	r.Body.Close()
+	if c, _, _ := st.ChannelByID(ch2); c.Archived {
+		t.Fatal("archived while the repo root itself is missing")
 	}
 }
