@@ -161,9 +161,11 @@ func (s *Server) handleUISettingsScreen(w http.ResponseWriter, r *http.Request) 
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	s.rulesMu.Lock()
 	p := s.cfg.Providers[provider]
 	p.ScreenWorking, p.ScreenWaiting, p.ScreenQuestion = working, waiting, question
 	s.cfg.Providers[provider] = p
+	s.rulesMu.Unlock()
 	if len(working)+len(waiting)+len(question) == 0 {
 		s.setRules(provider, nil)
 	} else {
