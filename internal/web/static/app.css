@@ -160,7 +160,6 @@ a:hover { text-decoration: underline; }
    inside the page instead of being fitted; the border shows keyboard focus. */
 .term { display: inline-block; max-width: 100%; overflow: auto; padding: 8px; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; }
 .term.typing { border-color: #61afef; }
-.term .xterm { line-height: 1.2; }
 /* run state badges (watcher) */
 .state { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 8px; padding: 1px 8px; margin-left: 6px; border: 1px solid #3a3d44; color: #a7acb5; background: #24262b; }
 .state.st-working { border-color: #3f7d58; color: #8ce99a; background: #17251d; }

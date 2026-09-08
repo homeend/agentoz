@@ -20,7 +20,7 @@ import (
 // screen page (initial render and every SSE update).
 type screenFrame struct {
 	HTML     template.HTML   `json:"html,omitempty"` // omitted on ?html=0 streams
-	Activity int64           `json:"activity"` // unix seconds; 0 when unknown
+	Activity int64           `json:"activity"`       // unix seconds; 0 when unknown
 	Dead     bool            `json:"dead"`
 	Cols     int             `json:"cols"`
 	Rows     int             `json:"rows"`
