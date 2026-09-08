@@ -108,6 +108,70 @@ func (c *Client) postJSON(path string, in, out any) error {
 	return c.do("POST", path, "application/json", bytes.NewReader(b), out)
 }
 
+// Provider mirrors the server's provider JSON (GET/PUT /api/providers/{name}).
+type Provider struct {
+	Name           string   `json:"name"`
+	Command        string   `json:"command"`
+	DefaultModel   string   `json:"default_model"`
+	Prompt         string   `json:"prompt"`
+	ScreenWorking  []string `json:"screen_working"`
+	ScreenWaiting  []string `json:"screen_waiting"`
+	ScreenQuestion []string `json:"screen_question"`
+	RulesSource    string   `json:"rules_source"`
+}
+
+func (c *Client) GetProvider(name string) (Provider, error) {
+	var p Provider
+	return p, c.do("GET", "/api/providers/"+name, "", nil, &p)
+}
+
+// PutProvider sends a partial update; keys absent from patch are kept.
+func (c *Client) PutProvider(name string, patch map[string]any) (Provider, error) {
+	var p Provider
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return p, err
+	}
+	return p, c.do("PUT", "/api/providers/"+name, "application/json", bytes.NewReader(b), &p)
+}
+
+type ScreenOption struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+}
+
+// Screen is a run's terminal as the classifier sees it.
+type Screen struct {
+	State   string         `json:"state"`
+	Lines   []string       `json:"lines"`
+	Options []ScreenOption `json:"options"`
+	Cols    int            `json:"cols"`
+	Rows    int            `json:"rows"`
+	Dead    bool           `json:"dead"`
+}
+
+func (c *Client) RunScreen(runID int64, lines int) (Screen, error) {
+	var s Screen
+	return s, c.do("GET", fmt.Sprintf("/api/runs/%d/screen?lines=%d", runID, lines), "", nil, &s)
+}
+
+type ScreenTestLine struct {
+	Text  string `json:"text"`
+	Match string `json:"match"`
+}
+
+type ScreenTest struct {
+	State string           `json:"state"`
+	Lines []ScreenTestLine `json:"lines"`
+}
+
+// ScreenTest classifies a run's screen with unsaved patterns.
+func (c *Client) ScreenTest(provider string, runID int64, working, waiting, question []string) (ScreenTest, error) {
+	var out ScreenTest
+	return out, c.postJSON("/api/providers/"+provider+"/screen-test",
+		map[string]any{"run": runID, "working": working, "waiting": waiting, "question": question}, &out)
+}
+
 // SendMessage posts body to a channel. format is "" (plain) or "md"
 // (rendered as markdown in the UI).
 func (c *Client) SendMessage(channelID int64, kind, format, body string, files []string) (Message, error) {

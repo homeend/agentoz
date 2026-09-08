@@ -23,7 +23,9 @@ func msgTestServer(t *testing.T) (string, int64) {
 	cfg := config.Defaults()
 	cfg.DataDir = t.TempDir()
 	run := func(dir, name string, args ...string) ([]byte, error) { return nil, fmt.Errorf("no") }
-	ts := httptest.NewServer(server.New(st, cfg, run).Handler())
+	srv := server.New(st, cfg, run)
+	lastTestServer, lastTestStore = srv, st
+	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	p, _ := st.CreateProject("x", t.TempDir())
 	c, _ := st.CreateChannel(p.ID, "general", "", "")

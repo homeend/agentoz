@@ -16,6 +16,9 @@ commands:
   init       register the current repo as a project (auto-configure)
   start      spawn an agent run from a preset
   msg        send/read channel messages (msg send | msg read)
+  agents     detect installed agent CLIs; setup installs the erbrus skill (agents list | agents setup)
+  provider   show/set a provider in config.yaml through the server (provider show | provider set)
+  screen     read or classify a run's terminal (screen capture | screen test)
   version    print version
 `
 
@@ -39,6 +42,12 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runMsg(args[1:], os.Stdin, stdout, stderr)
 	case "wrap":
 		return runWrap(args[1:], stdout, stderr)
+	case "agents":
+		return runAgents(args[1:], os.Stdin, stdout, stderr)
+	case "provider":
+		return runProvider(args[1:], stdout, stderr)
+	case "screen":
+		return runScreen(args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n%s", args[0], usage)
 		return 2
