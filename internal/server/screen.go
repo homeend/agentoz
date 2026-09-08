@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"runtime"
 	"sync"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 // screenFrame is one rendered snapshot of a run's terminal as sent to the
 // screen page (initial render and every SSE update).
 type screenFrame struct {
-	HTML     template.HTML   `json:"html"`
+	HTML     template.HTML   `json:"html,omitempty"` // omitted on ?html=0 streams
 	Activity int64           `json:"activity"` // unix seconds; 0 when unknown
 	Dead     bool            `json:"dead"`
 	Cols     int             `json:"cols"`
@@ -166,6 +167,9 @@ type screenPage struct {
 	Note string
 	// Warning: ?warning= from a redirect (e.g. a failed keypress).
 	Warning string
+	// Terminal: the page hosts the interactive terminal (live tmux run on
+	// a Viewer spawner, on a host with ptys). The <pre> is the fallback.
+	Terminal bool
 }
 
 func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
@@ -189,6 +193,9 @@ func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
 	default:
 		sc, err := s.spawner.Capture(spawn.Handle(run.TmuxTarget))
 		page.Frame, _ = frameOf(sc, err, s.rulesFor(run.Provider))
+	}
+	if _, ok := s.spawner.(spawn.Viewer); ok && page.Live && page.Note == "" && runtime.GOOS != "windows" {
+		page.Terminal = true
 	}
 	page.Warning = r.URL.Query().Get("warning")
 	s.render(w, "screen", page)
@@ -217,6 +224,9 @@ func (s *Server) handleUIScreenEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	frames, cancel := s.screens.Subscribe(run.ID, spawn.Handle(run.TmuxTarget), s.rulesFor(run.Provider))
 	defer cancel()
+	// ?html=0: the page shows the interactive terminal and only needs the
+	// header/keypad fields, not a second copy of the screen twice a second.
+	noHTML := r.URL.Query().Get("html") == "0"
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -236,6 +246,9 @@ func (s *Server) handleUIScreenEvents(w http.ResponseWriter, r *http.Request) {
 			}
 			fl.Flush()
 		case f := <-frames:
+			if noHTML {
+				f.HTML = ""
+			}
 			b, err := json.Marshal(f)
 			if err != nil {
 				continue
