@@ -87,6 +87,15 @@ func ProviderHook(provider, runDir, erbrusBin string) (string, error) {
 
 func claudeHook(runDir, erbrusBin string) (string, error) {
 	settings := map[string]any{
+		// The agent talks to erbrus through `erbrus msg …`. Claude Code's
+		// auto-mode classifier judged `msg send` as a network write and
+		// blocked it (seen live 2026-09-08). Permission rules are resolved
+		// before the classifier runs and only broad rules like Bash(*) are
+		// suspended in auto mode, so this narrow allow keeps the channel
+		// open without widening anything else.
+		"permissions": map[string]any{
+			"allow": []any{fmt.Sprintf("Bash(%s msg *)", erbrusBin)},
+		},
 		"hooks": map[string]any{
 			"Stop": []any{map[string]any{
 				"hooks": []any{map[string]any{

@@ -72,6 +72,26 @@ func TestProviderHookClaude(t *testing.T) {
 	}
 }
 
+func TestProviderHookClaudeAllowsMsg(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := ProviderHook("claude-code", dir, "/abs/erbrus"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "claude-settings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Permissions struct{ Allow []string } `json:"permissions"`
+	}
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Permissions.Allow) != 1 || got.Permissions.Allow[0] != "Bash(/abs/erbrus msg *)" {
+		t.Fatalf("allow = %v", got.Permissions.Allow)
+	}
+}
+
 func TestProviderHookUnknownProvider(t *testing.T) {
 	args, err := ProviderHook("junie", t.TempDir(), "/abs/erbrus")
 	if err != nil || args != "" {
