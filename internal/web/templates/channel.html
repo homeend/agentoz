@@ -54,9 +54,8 @@
     </form>
     {{if .Channel.Archived}}
     <h3>Archived channel</h3>
-    <div class="muted small">Worktree gone. Deleting removes this channel with all its messages, artifacts and run history.</div>
     <form method="post" action="/ui/channels/{{.Channel.ID}}/delete" data-confirm="Delete archived channel #{{.Channel.Name}} and everything in it?">
-      <button class="btn danger small" type="submit">Delete channel</button>
+      <button class="btn danger small" type="submit" title="worktree gone — removes this channel with all its messages, artifacts and run history">Delete channel</button>
     </form>
     {{end}}
   </aside>
