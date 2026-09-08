@@ -6,6 +6,7 @@
   {{if .StateLabel}}<span class="{{.StateClass}}"{{if .StateSince}} data-since="{{.StateSince}}" data-label="{{.StateName}}"{{end}}>{{.StateLabel}}</span>{{else}}<span class="state">detecting…</span>{{end}}
   <div class="muted small">{{.Provider}} · up since {{.Started}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
   {{if eq .StateName "question"}}
+  {{if .Thumb}}<a class="thumb" href="/ui/runs/{{.ID}}/screen" target="screen:{{.TmuxTarget}}" title="the agent is showing a dialog — click to open the live screen with the keypad"><pre>{{.Thumb}}</pre></a>{{end}}
   <form class="keypad" method="post" action="/ui/runs/{{.ID}}/keys" title="answer the dialog: pick an option by number, move with the arrows, Enter confirms, Esc cancels">
     <input type="hidden" name="channel" value="{{$.Channel.ID}}">
     <button class="btn small" name="key" value="1">1</button><button class="btn small" name="key" value="2">2</button><button class="btn small" name="key" value="3">3</button><button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button><button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button>

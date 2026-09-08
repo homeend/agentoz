@@ -59,6 +59,8 @@ type runView struct {
 	// StateSince (unix seconds) is set for timed labels; the page appends
 	// and ticks the elapsed time itself.
 	StateSince int64
+	// Thumb: miniature of the screen, only while a dialog needs input.
+	Thumb template.HTML
 }
 
 type channelPage struct {
@@ -184,6 +186,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 				label, class, timed := rs.badge(time.Now())
 				v.StateLabel, v.StateClass = label, class
 				v.StateName, v.Stalled = string(rs.State), rs.Stalled
+				v.Thumb = rs.Thumb
 				if timed {
 					v.StateSince = rs.Since.Unix()
 					v.StateLabel = label + " " + shortDur(time.Since(rs.Since))

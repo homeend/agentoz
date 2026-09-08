@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"html/template"
 	"net/http"
 	"net/url"
 	"time"
@@ -17,6 +18,10 @@ type runState struct {
 	Since   time.Time
 	Stalled bool
 	StepFor time.Duration // current step per the spinner; 0 when unknown
+	// Thumb is the rendered screen from the capture that showed the
+	// dialog; set only in the question state so the rail can show a
+	// "look here" miniature without extra tmux calls.
+	Thumb template.HTML
 }
 
 // stallAfter: no terminal output for this long while (apparently) working
@@ -71,6 +76,14 @@ func (s *Server) observe(run store.AgentRun, sc spawn.Screen, now time.Time) {
 	next := prev
 	changed := false
 	var notes []string
+	switch st {
+	case screen.Question:
+		next.Thumb = template.HTML(screen.ToHTML(sc.Raw))
+	case screen.Unknown:
+		// mid-redraw: keep whatever we had
+	default:
+		next.Thumb = ""
+	}
 	if st != screen.Unknown && st != prev.State {
 		next.State, next.Since = st, now
 		changed = true

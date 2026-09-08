@@ -22,15 +22,17 @@ func TestKeypadShownOnQuestionAndSendsKeys(t *testing.T) {
 	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n" + box, Activity: time.Now()})
 	testSrv.WatchScreens()
 	resp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
-	if body := readAll(t, resp); strings.Contains(body, `class="keypad"`) {
-		t.Fatalf("keypad shown while working: %s", body)
+	if body := readAll(t, resp); strings.Contains(body, `class="keypad"`) || strings.Contains(body, `class="thumb"`) {
+		t.Fatalf("keypad/thumb shown while working: %s", body)
 	}
 	// Keypad appears on a question.
 	fs.setScreen("s:5", spawn.Screen{Raw: "Do you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel\n", Activity: time.Now()})
 	testSrv.WatchScreens()
 	resp, _ = http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
 	body := readAll(t, resp)
-	for _, want := range []string{`class="keypad"`, fmt.Sprintf(`action="/ui/runs/%d/keys"`, run.ID), `value="1"`, `value="Escape"`, `value="Enter"`, `value="Down"`} {
+	for _, want := range []string{`class="keypad"`, fmt.Sprintf(`action="/ui/runs/%d/keys"`, run.ID), `value="1"`, `value="Escape"`, `value="Enter"`, `value="Down"`,
+		// miniature of the dialog, linking to the screen page's named tab
+		fmt.Sprintf(`class="thumb" href="/ui/runs/%d/screen" target="screen:s:5"`, run.ID), "Do you want to proceed?"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("keypad missing %q: %s", want, body)
 		}

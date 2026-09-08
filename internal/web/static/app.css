@@ -158,3 +158,8 @@ a:hover { text-decoration: underline; }
 .keypad .btn { padding: 3px 9px; min-width: 30px; text-align: center; }
 .runcard .btn + form, .runcard a.btn { margin-right: 6px; }
 .screenpage .keypad { margin-top: 8px; }
+/* dialog miniature on a run card: the whole screen at a glance-size font;
+   a cue to open the live view, not something to read */
+.thumb { display: block; margin: 8px 0 4px; border: 1px solid #b8860b; border-radius: 6px; background: #0c0d0f; overflow: hidden; max-height: 150px; }
+.thumb:hover { border-color: #e5c07b; text-decoration: none; }
+.thumb pre { margin: 0; padding: 4px; font: 4.5px/1.2 ui-monospace, monospace; color: #d6d8dc; white-space: pre; }
