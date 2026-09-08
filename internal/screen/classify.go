@@ -185,8 +185,8 @@ func MatchKind(r Rules, line string) string {
 
 // Option is one numbered choice of a dialog ("› 1. Try new model").
 type Option struct {
-	Key   string // the digit to press
-	Label string
+	Key   string `json:"key"` // the digit to press
+	Label string `json:"label"`
 }
 
 var optionRe = regexp.MustCompile(`^[❯›>]?\s*(\d)[.)]\s+(.+)$`)

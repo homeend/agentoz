@@ -215,4 +215,9 @@ func TestScreenEventsStreamFrames(t *testing.T) {
 	if d := nextFrame(); !strings.Contains(d, `"html":"second"`) || !strings.Contains(d, `"dead":true`) {
 		t.Fatalf("second frame = %s", d)
 	}
+	// Dialog options travel as lowercase keys, which is what the page reads.
+	fs.setScreen("s:5", spawn.Screen{Raw: "Do you want to proceed?\n❯ 1. Yes\n  2. No\nEsc to cancel\n"})
+	if d := nextFrame(); !strings.Contains(d, `"options":[{"key":"1","label":"Yes"},{"key":"2","label":"No"}]`) {
+		t.Fatalf("options frame = %s", d)
+	}
 }
