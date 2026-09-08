@@ -59,8 +59,31 @@ func TestClassifyClaudeCode(t *testing.T) {
 	}
 }
 
+// Captured 2026-09-08: turn finished, next message pasted into the input
+// box but not submitted. Idle all the same.
+const typedScreen = `● Sent (message 23) — the README.md diff adding the [ui] diff_syntax paragraph.
+✻ Crunched for 12s · done 2:28 AM
+──────────────────────────────────────────────────────────────────────
+❯ provide diff of the next modified file
+──────────────────────────────────────────────────────────────────────
+  homeend@homeend-p14s  /mnt/…/gigagit.worktrees/feat-diff-syntax-highlighting  Sonnet 5
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 2 agents
+`
+
+func TestClassifyTypedButUnsubmitted(t *testing.T) {
+	if got := Classify(DefaultRules("claude-code"), Tail(typedScreen, 15)); got != Waiting {
+		t.Errorf("got %q want waiting", got)
+	}
+	// A user message echoed in the transcript (no rule above it) is not
+	// the input box.
+	echo := "❯ do the thing\n  (sent from the erbrus chat)\n● Working on it\n"
+	if got := Classify(DefaultRules("claude-code"), Tail(echo, 15)); got != Unknown {
+		t.Errorf("echo: got %q want unknown", got)
+	}
+}
+
 func TestClassifyStripsBeforeMatching(t *testing.T) {
-	raw := "\x1b[38;5;246m❯ \x1b[39m\n"
+	raw := "\x1b[38;5;244m────────────────\x1b[39m\n\x1b[38;5;246m❯ \x1b[39m\n"
 	if got := Classify(DefaultRules("claude-code"), Tail(Strip(raw), 15)); got != Waiting {
 		t.Errorf("got %q", got)
 	}

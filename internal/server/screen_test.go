@@ -148,7 +148,9 @@ func TestScreenPageRendersCapture(t *testing.T) {
 	}
 	// The runs panel links to the page.
 	presp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
-	if pb := readAll(t, presp); !strings.Contains(pb, fmt.Sprintf(`href="/ui/runs/%d/screen"`, run.ID)) {
+	// One named tab per tmux window: a second click focuses it instead of
+	// opening another.
+	if pb := readAll(t, presp); !strings.Contains(pb, fmt.Sprintf(`href="/ui/runs/%d/screen" target="screen:s:5"`, run.ID)) {
 		t.Errorf("runs panel lacks Screen link: %s", pb)
 	}
 }
@@ -180,7 +182,7 @@ func TestScreenEventsStreamFrames(t *testing.T) {
 	fastPoll(t)
 	ts, st, root := newTestServer(t)
 	fs := &fakeSpawner{}
-	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n❯\n"})
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n" + box})
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 	ch1, _ := twoChannels(t, ts.URL, root)
 	run := claudeRun(t, st, ch1)

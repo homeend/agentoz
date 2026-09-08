@@ -165,6 +165,9 @@
       refreshAll(); // catch messages missed while the pipe was dead
     }
   }, 15000);
+  // The agent badges carry "working 3m"-style durations that only the
+  // server renders, so re-fetch the rail on a slow clock too.
+  if (runs) setInterval(function () { refresh(runs, '/ui/channels/' + channelID + '/runs-panel'); }, 30000);
 })();
 
 // Screen view: one EventSource per open screen page, frames swap the <pre>.

@@ -122,12 +122,11 @@ func shortDur(d time.Duration) string {
 
 // badge renders the rail label + CSS class for a run state.
 func (rs runState) badge(now time.Time) (label, class string) {
+	// Durations are "since this state began", computed at render time:
+	// the spinner's own step timer would freeze between rail refreshes.
 	switch rs.State {
 	case screen.Working:
-		label = "working"
-		if rs.StepFor > 0 {
-			label += " " + shortDur(rs.StepFor)
-		}
+		label = "working " + shortDur(now.Sub(rs.Since))
 	case screen.Waiting:
 		label = "waiting " + shortDur(now.Sub(rs.Since))
 	case screen.Question:

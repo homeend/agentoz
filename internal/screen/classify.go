@@ -19,7 +19,9 @@ const (
 
 // Rules are the per-provider patterns. Checks are ordered Working →
 // Waiting → Question so that a phrase quoted in scrollback can never
-// outrank the prompt box that is still on screen.
+// outrank the prompt box that is still on screen. Patterns run in
+// multi-line mode over the joined tail lines, so ^ and $ bound a line and
+// "\n" lets a rule span two adjacent lines (e.g. rule-line + prompt).
 type Rules struct {
 	Working, Waiting, Question []*regexp.Regexp
 }
@@ -30,7 +32,11 @@ type Rules struct {
 var defaults = map[string][3][]string{
 	"claude-code": {
 		{`\S+… \(\d+`, `⎿\s+Running…`},
-		{`^❯\s*$`},
+		// The input box is a ❯ line directly under a horizontal rule —
+		// whether or not text is typed in it (an unsubmitted message
+		// still means the agent is idle). A user message echoed in the
+		// transcript also starts with ❯ but has no rule above it.
+		{`^─{8,}\n❯`},
 		{`^❯ \d+\.`, `Esc to cancel`, `Esc to go back`, `\(y/n\)`, `\[Y/n\]`, `Do you want to proceed`},
 	},
 	"codex": {
@@ -78,7 +84,7 @@ func Compile(working, waiting, question []string) (Rules, error) {
 func compileAll(ps []string) ([]*regexp.Regexp, error) {
 	out := make([]*regexp.Regexp, 0, len(ps))
 	for _, p := range ps {
-		re, err := regexp.Compile(p)
+		re, err := regexp.Compile("(?m)" + p)
 		if err != nil {
 			return nil, fmt.Errorf("screen pattern %q: %w", p, err)
 		}
@@ -104,23 +110,22 @@ func Tail(text string, n int) []string {
 
 // Classify applies r to the tail lines in structural order.
 func Classify(r Rules, lines []string) State {
+	text := strings.Join(lines, "\n")
 	switch {
-	case anyMatch(r.Working, lines):
+	case anyMatch(r.Working, text):
 		return Working
-	case anyMatch(r.Waiting, lines):
+	case anyMatch(r.Waiting, text):
 		return Waiting
-	case anyMatch(r.Question, lines):
+	case anyMatch(r.Question, text):
 		return Question
 	}
 	return Unknown
 }
 
-func anyMatch(res []*regexp.Regexp, lines []string) bool {
+func anyMatch(res []*regexp.Regexp, text string) bool {
 	for _, re := range res {
-		for _, l := range lines {
-			if re.MatchString(l) {
-				return true
-			}
+		if re.MatchString(text) {
+			return true
 		}
 	}
 	return false

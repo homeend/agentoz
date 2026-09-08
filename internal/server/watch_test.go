@@ -29,7 +29,7 @@ func TestRulesForHonorsConfigOverride(t *testing.T) {
 	if got := screen.Classify(s.rulesFor("broken"), []string{"(y/n)"}); got != screen.Question {
 		t.Errorf("broken falls back to generic: %q", got)
 	}
-	if got := screen.Classify(s.rulesFor("claude-code"), []string{"❯"}); got != screen.Waiting {
+	if got := screen.Classify(s.rulesFor("claude-code"), []string{"──────────", "❯"}); got != screen.Waiting {
 		t.Errorf("unconfigured provider uses built-ins: %q", got)
 	}
 }
@@ -64,6 +64,9 @@ func countRunEvents(ev <-chan sseEvent) int {
 	}
 }
 
+// box is Claude Code's input box: a ❯ line under a rule.
+const box = "──────────\n❯\n"
+
 func claudeRun(t *testing.T, st *store.Store, chID int64) store.AgentRun {
 	t.Helper()
 	run, err := st.CreateRun(store.AgentRun{ChannelID: chID, Provider: "claude-code", AgentName: "claude",
@@ -84,7 +87,7 @@ func TestWatchScreensTurnEnd(t *testing.T) {
 	defer cancel()
 	before := len(systemBodies(t, st, ch1))
 
-	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n❯\n", Activity: time.Now()})
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n" + box, Activity: time.Now()})
 	if err := testSrv.WatchScreens(); err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +101,7 @@ func TestWatchScreensTurnEnd(t *testing.T) {
 		t.Fatalf("entering working must not post: %v", got)
 	}
 
-	fs.setScreen("s:5", spawn.Screen{Raw: "done.\n❯\n", Activity: time.Now()})
+	fs.setScreen("s:5", spawn.Screen{Raw: "done.\n" + box, Activity: time.Now()})
 	testSrv.WatchScreens()
 	got := systemBodies(t, st, ch1)
 	if len(got) != before+1 || !strings.Contains(got[len(got)-1], "finished its turn") {
@@ -152,7 +155,7 @@ func TestWatchScreensQuestionAndStall(t *testing.T) {
 
 	// Working but silent for longer than stallAfter → stalled once.
 	old := time.Now().Add(-stallAfter - time.Minute)
-	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (9m 0s · x)\n❯\n", Activity: old})
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (9m 0s · x)\n" + box, Activity: old})
 	testSrv.WatchScreens()
 	testSrv.WatchScreens()
 	got = systemBodies(t, st, ch1)
@@ -163,11 +166,11 @@ func TestWatchScreensQuestionAndStall(t *testing.T) {
 		t.Fatalf("stalled flag: %+v", rs)
 	}
 	resp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
-	if body := readAll(t, resp); !strings.Contains(body, "stalled · working 9m") {
+	if body := readAll(t, resp); !strings.Contains(body, "stalled · working ") {
 		t.Fatalf("stalled badge: %s", body)
 	}
 	// Output resumes → flag clears, no message.
-	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (9m 5s · x)\n❯\n", Activity: time.Now()})
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (9m 5s · x)\n" + box, Activity: time.Now()})
 	testSrv.WatchScreens()
 	if rs, _ := testSrv.stateOf(run.ID); rs.Stalled {
 		t.Fatalf("stalled not cleared: %+v", rs)
@@ -176,7 +179,7 @@ func TestWatchScreensQuestionAndStall(t *testing.T) {
 		t.Fatalf("clearing stall posted: %v", got)
 	}
 	// Silence while waiting is not a stall.
-	fs.setScreen("s:5", spawn.Screen{Raw: "❯\n", Activity: old})
+	fs.setScreen("s:5", spawn.Screen{Raw: box, Activity: old})
 	testSrv.WatchScreens()
 	if rs, _ := testSrv.stateOf(run.ID); rs.Stalled {
 		t.Fatalf("waiting must not stall: %+v", rs)

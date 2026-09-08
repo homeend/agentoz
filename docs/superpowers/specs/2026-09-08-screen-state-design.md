@@ -42,7 +42,11 @@ user's sessions is off limits): the input box is replaced by a dialog such as
 
 Consequences:
 
-- Regexes run on ANSI-stripped, trimmed, non-empty lines. The raw capture
+- Regexes run in multi-line mode over the ANSI-stripped, trimmed,
+  non-empty tail lines joined with newlines, so a rule may span two
+  adjacent lines. Amended 2026-09-08 after a live miss: the input box can
+  hold an unsubmitted message, so "waiting" is "❯ line directly under a
+  horizontal rule", not "empty ❯ line". The raw capture
   carries color escapes around `❯`, so `^❯\s*$` can only match after
   stripping.
 - Checks are ordered structurally so scrollback text cannot fake a state:
@@ -124,7 +128,7 @@ Built-in defaults, keyed by provider name:
 
 | provider | working | waiting | question |
 |---|---|---|---|
-| `claude-code` | `\S+… \(\d+`, `⎿\s+Running…` | `^❯\s*$` | `^❯ \d+\.`, `Esc to cancel`, `Esc to go back`, `\(y/n\)`, `\[Y/n\]`, `Do you want to proceed` |
+| `claude-code` | `\S+… \(\d+`, `⎿\s+Running…` | `^─{8,}\n❯` (input box under a rule, typed text or not) | `^❯ \d+\.`, `Esc to cancel`, `Esc to go back`, `\(y/n\)`, `\[Y/n\]`, `Do you want to proceed` |
 | `codex` | `Working \(\d+`, `esc to interrupt` | `^[›>]\s*$` | `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `^\s*[›>] \d+\.` |
 | anything else | (none) | `^[❯›>$]\s*$` | `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `Do you want to` |
 
