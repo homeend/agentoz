@@ -19,16 +19,17 @@ import (
 )
 
 type msgView struct {
-	ID        int64
-	Kind      string
-	Author    string
-	Body      string
-	When      string // localtime-rendered
-	IsReport  bool
-	IsSystem  bool
-	Artifacts []store.Artifact
-	Origin    string // "report from <project> / #<channel> by <author>", "" if not a forward or lookup failed
-	Target    string // agent name this message was typed at, "" for plain messages
+	ID         int64
+	Kind       string
+	Author     string
+	AuthorKind string // human | agent | system — picks the avatar color
+	Body       string
+	When       string // localtime-rendered
+	IsReport   bool
+	IsSystem   bool
+	Artifacts  []store.Artifact
+	Origin     string // "report from <project> / #<channel> by <author>", "" if not a forward or lookup failed
+	Target     string // agent name this message was typed at, "" for plain messages
 	// BodyHTML is set (and shown instead of Body) for format=md messages.
 	BodyHTML template.HTML
 	// InlineDocs are attached .md files rendered into the chat.
@@ -122,16 +123,17 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		}
 
 		mv := msgView{
-			ID:        m.ID,
-			Kind:      m.Kind,
-			Author:    m.AuthorName,
-			Body:      m.Body,
-			When:      m.CreatedAt.Local().Format("Jan _2 15:04"),
-			IsReport:  m.Kind == "report",
-			IsSystem:  m.Kind == "system",
-			Artifacts: arts,
-			Origin:    origin,
-			Target:    m.TargetLabel,
+			ID:         m.ID,
+			Kind:       m.Kind,
+			Author:     m.AuthorName,
+			AuthorKind: m.AuthorKind,
+			Body:       m.Body,
+			When:       m.CreatedAt.Local().Format("Jan _2 15:04"),
+			IsReport:   m.Kind == "report",
+			IsSystem:   m.Kind == "system",
+			Artifacts:  arts,
+			Origin:     origin,
+			Target:     m.TargetLabel,
 		}
 		if m.Format == "md" {
 			mv.BodyHTML = renderMarkdown(m.Body)

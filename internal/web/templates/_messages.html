@@ -1,35 +1,42 @@
 {{define "_messages.html"}}
 {{range .Messages}}
 {{if .IsSystem}}
-<div class="msg system">— {{.Body}} —
-  <div class="delform">
+<div class="msg system">
+  <span class="pill">{{.Body}}</span>
+  <span class="delform">
     <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
     <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete" data-confirm="Delete this entry?"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
-  </div>
+  </span>
 </div>
 {{else}}
-<div class="msg">
-  <div class="meta">
+<div class="msg card{{if .IsReport}} report{{end}}">
+  <div class="card-head">
+    <span class="avatar {{.AuthorKind}}">{{initial .Author}}</span>
     <span class="author">{{.Author}}</span>
     {{if .Target}}<span class="tag totag">→ {{.Target}}</span>{{end}}
     {{if .IsReport}}<span class="tag">REPORT</span>{{end}}
-    <span>{{.When}}</span>
+    <span class="spacer"></span>
+    <span class="when">{{.When}}</span>
   </div>
-  {{if .Origin}}<div class="muted small">↳ {{.Origin}}</div>{{end}}
-  {{if .BodyHTML}}<div class="body mdbody">{{.BodyHTML}}</div>{{else}}<div class="body">{{.Body}}</div>{{end}}
-  {{range .Artifacts}}
-  <a class="artifact" href="/api/artifacts/{{.ID}}">{{.Filename}} ({{.Size}} B)</a>
-  {{end}}
-  {{range .InlineDocs}}
-  <div class="mdbody inlinedoc">{{.}}</div>
-  {{end}}
-  <div class="actions">
-    {{if .IsReport}}<a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>{{end}}
-    <a href="/ui/forward?message={{.ID}}">Forward…</a>
+  {{if .Origin}}<div class="origin">↳ {{.Origin}}</div>{{end}}
+  <div class="card-body">
+    {{if .BodyHTML}}<div class="body mdbody">{{.BodyHTML}}</div>{{else}}<div class="body">{{.Body}}</div>{{end}}
+    {{range .Artifacts}}
+    <a class="artifact" href="/api/artifacts/{{.ID}}">{{.Filename}} ({{.Size}} B)</a>
+    {{end}}
+    {{range .InlineDocs}}
+    <div class="mdbody inlinedoc">{{.}}</div>
+    {{end}}
   </div>
-  <div class="delform">
-    <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
-    <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete" data-confirm="Delete this entry?"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+  <div class="card-foot">
+    <div class="actions">
+      {{if .IsReport}}<a href="/ui/spawn?channel={{$.Channel.ID}}&amp;origin={{.ID}}">Spawn agent from this</a>{{end}}
+      <a href="/ui/forward?message={{.ID}}">Forward…</a>
+    </div>
+    <div class="delform">
+      <input type="checkbox" class="selbox" name="msg" value="{{.ID}}" form="batchdel">
+      <form class="inlineform" method="post" action="/ui/messages/{{.ID}}/delete" data-confirm="Delete this entry?"><button class="linkbtn" type="submit" title="delete entry">×</button></form>
+    </div>
   </div>
 </div>
 {{end}}

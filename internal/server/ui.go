@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"erbrus/internal/store"
@@ -17,6 +18,14 @@ func localTime(dbTime string) string {
 		return dbTime
 	}
 	return t.Local().Format("Jan _2 15:04")
+}
+
+// initial returns the first letter of a name, upper-cased, for avatars.
+func initial(name string) string {
+	for _, r := range strings.TrimSpace(name) {
+		return strings.ToUpper(string(r))
+	}
+	return "?"
 }
 
 func (s *Server) render(w http.ResponseWriter, page string, data any) {
