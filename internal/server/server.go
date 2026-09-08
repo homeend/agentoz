@@ -45,6 +45,9 @@ type Server struct {
 	baseURL   string
 
 	configPath string
+
+	// terminals counts open browser terminals (handleUITerminal).
+	terminals int32
 }
 
 func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
@@ -166,6 +169,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/channels/{id}/runs-panel", s.handleUIRunsPanel)
 	r.Get("/ui/runs/{id}/screen", s.handleUIScreen)
 	r.Get("/ui/runs/{id}/screen/events", s.handleUIScreenEvents)
+	r.Get("/ui/runs/{id}/terminal", s.handleUITerminal)
 	r.Post("/ui/channels/{id}/messages", s.handleUIComposeMessage)
 	r.Post("/ui/channels/{id}/delete", s.handleUIDeleteChannel)
 	r.Post("/ui/runs/{id}/stop", s.handleUIStopRun)
