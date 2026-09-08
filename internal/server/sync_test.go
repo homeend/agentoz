@@ -1,10 +1,13 @@
 package server
 
 import (
+	"erbrus/internal/spawn"
+	"erbrus/internal/store"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -112,5 +115,60 @@ func TestSyncSkipsArchiveWhenRepoMissing(t *testing.T) {
 	r.Body.Close()
 	if c, _, _ := st.ChannelByID(ch2); c.Archived {
 		t.Fatal("archived while the repo root itself is missing")
+	}
+}
+
+func TestDeleteArchivedChannelOnly(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	fs := &fakeSpawner{}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	ch1, ch2 := twoChannels(t, ts.URL, root)
+	c1, _, _ := st.ChannelByID(ch1)
+	pid := c1.ProjectID
+	if _, err := st.CreateMessage(store.Message{ChannelID: ch2, Kind: "message", AuthorKind: "human", Body: "old"}); err != nil {
+		t.Fatal(err)
+	}
+	run := runningAgent(t, st, ch2, "ghost")
+	runDir := filepath.Join(testSrv.dataDir, "runs", fmt.Sprint(run.ID))
+	os.MkdirAll(runDir, 0o755)
+
+	// Live channel: no button, delete refused.
+	page, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch2))
+	if body := readAll(t, page); strings.Contains(body, "Delete channel") {
+		t.Fatal("delete offered on a live channel")
+	}
+	r, _ := noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/delete", ts.URL, ch2), url.Values{})
+	r.Body.Close()
+	if r.StatusCode != http.StatusConflict {
+		t.Fatalf("live delete status = %d", r.StatusCode)
+	}
+
+	// Archive it (worktree gone), then the rail offers deletion.
+	os.RemoveAll(root + "-wt-feat")
+	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/projects/%d/sync", ts.URL, pid), url.Values{})
+	r.Body.Close()
+	page, _ = http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch2))
+	if body := readAll(t, page); !strings.Contains(body, fmt.Sprintf(`action="/ui/channels/%d/delete"`, ch2)) {
+		t.Fatalf("archived channel lacks delete button: %s", body)
+	}
+	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/delete", ts.URL, ch2), url.Values{})
+	r.Body.Close()
+	if r.StatusCode != http.StatusFound || !strings.HasPrefix(r.Header.Get("Location"), "/ui/projects?warning=deleted") {
+		t.Fatalf("delete redirect: %d %s", r.StatusCode, r.Header.Get("Location"))
+	}
+	if _, ok, _ := st.ChannelByID(ch2); ok {
+		t.Fatal("channel survived")
+	}
+	if _, ok, _ := st.RunByID(run.ID); ok {
+		t.Fatal("run survived")
+	}
+	if _, err := os.Stat(runDir); !os.IsNotExist(err) {
+		t.Fatal("run dir survived")
+	}
+	if len(fs.killed) != 1 || fs.killed[0] != spawn.Handle("s:5") {
+		t.Fatalf("running agent not stopped: %v", fs.killed)
+	}
+	if _, ok, _ := st.ChannelByID(ch1); !ok {
+		t.Fatal("general must survive")
 	}
 }

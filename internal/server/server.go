@@ -151,6 +151,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/runs/{id}/screen", s.handleUIScreen)
 	r.Get("/ui/runs/{id}/screen/events", s.handleUIScreenEvents)
 	r.Post("/ui/channels/{id}/messages", s.handleUIComposeMessage)
+	r.Post("/ui/channels/{id}/delete", s.handleUIDeleteChannel)
 	r.Post("/ui/runs/{id}/stop", s.handleUIStopRun)
 	r.Post("/ui/runs/{id}/keys", s.handleUIRunKeys)
 	r.Post("/ui/runs/{id}/delete", s.handleUIDeleteRun)

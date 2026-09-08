@@ -52,6 +52,13 @@
     <form method="post" action="/ui/channels/{{.Channel.ID}}/clear" data-confirm="Clear all messages in this channel?">
       <button class="btn danger small" type="submit">Clear chat</button>
     </form>
+    {{if .Channel.Archived}}
+    <h3>Archived channel</h3>
+    <div class="muted small">Worktree gone. Deleting removes this channel with all its messages, artifacts and run history.</div>
+    <form method="post" action="/ui/channels/{{.Channel.ID}}/delete" data-confirm="Delete archived channel #{{.Channel.Name}} and everything in it?">
+      <button class="btn danger small" type="submit">Delete channel</button>
+    </form>
+    {{end}}
   </aside>
 </div>
 {{end}}

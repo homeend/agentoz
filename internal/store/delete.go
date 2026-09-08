@@ -102,3 +102,52 @@ func (s *Store) ActiveRunsByProject(projectID int64) ([]AgentRun, error) {
 	return s.runsWhere(`WHERE channel_id IN (`+projectChans+`)
 		AND status IN ('starting','running') ORDER BY id`, projectID)
 }
+
+// Channel-scoped deletion set, mirroring the project one.
+const (
+	chanMsgs = `SELECT id FROM messages WHERE channel_id = ?`
+	chanRuns = `SELECT id FROM agent_runs WHERE channel_id = ?`
+)
+
+// DeleteChannel removes one channel with its messages, artifact rows and
+// runs in one transaction, nulling every backlink into the deletion set
+// first (same reasoning as DeleteProject). Deleting a missing channel is a
+// no-op. Callers decide whether the channel may go (the UI only offers it
+// for archived channels).
+func (s *Store) DeleteChannel(channelID int64) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	stmts := []string{
+		`UPDATE messages SET origin_message_id = NULL WHERE origin_message_id IN (` + chanMsgs + `)`,
+		`UPDATE agent_runs SET origin_message_id = NULL WHERE origin_message_id IN (` + chanMsgs + `)`,
+		`UPDATE messages SET agent_run_id = NULL WHERE agent_run_id IN (` + chanRuns + `)`,
+		`DELETE FROM artifacts WHERE message_id IN (` + chanMsgs + `)`,
+		`DELETE FROM messages WHERE channel_id = ?`,
+		`DELETE FROM agent_runs WHERE channel_id = ?`,
+		`DELETE FROM channels WHERE id = ?`,
+	}
+	for _, q := range stmts {
+		if _, err := tx.Exec(q, channelID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// ChannelCleanupIDs: the on-disk directories a channel delete removes
+// after commit (see ProjectCleanupIDs).
+func (s *Store) ChannelCleanupIDs(channelID int64) (artifactMsgIDs, runIDs []int64, err error) {
+	artifactMsgIDs, err = s.idList(
+		`SELECT DISTINCT message_id FROM artifacts WHERE message_id IN (`+chanMsgs+`) ORDER BY message_id`, channelID)
+	if err != nil {
+		return nil, nil, err
+	}
+	runIDs, err = s.idList(chanRuns+` ORDER BY id`, channelID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return artifactMsgIDs, runIDs, nil
+}

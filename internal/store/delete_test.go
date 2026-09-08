@@ -180,3 +180,39 @@ func TestActiveRunsByProject(t *testing.T) {
 		t.Fatalf("active runs = %+v, want just id %d", got, live.ID)
 	}
 }
+
+func TestDeleteChannelCascadesAndKeepsSiblings(t *testing.T) {
+	s := open(t)
+	p, ch, run, report := seedProject(t, s, "proj", "/repo")
+	other, err := s.CreateChannel(p.ID, "keep", "/repo-wt-keep", "refs/heads/keep")
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, err := s.CreateMessage(Message{ChannelID: other.ID, Kind: "message", AuthorKind: "human", Body: "stays",
+		OriginMessageID: report.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.DeleteChannel(ch.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, _ := s.ChannelByID(ch.ID); ok {
+		t.Fatal("channel row survived")
+	}
+	if _, ok, _ := s.RunByID(run.ID); ok {
+		t.Fatal("run row survived")
+	}
+	if _, ok, _ := s.MessageByID(report.ID); ok {
+		t.Fatal("message row survived")
+	}
+	if _, ok, _ := s.ProjectByID(p.ID); !ok {
+		t.Fatal("project must survive")
+	}
+	got, ok, _ := s.MessageByID(kept.ID)
+	if !ok || got.OriginMessageID != 0 {
+		t.Fatalf("sibling message: ok=%v origin=%d (backlink must be nulled)", ok, got.OriginMessageID)
+	}
+	if err := s.DeleteChannel(999); err != nil {
+		t.Fatalf("missing channel must be a no-op: %v", err)
+	}
+}

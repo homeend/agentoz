@@ -224,3 +224,72 @@ func (s *Server) handleUIDeleteProject(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, target, http.StatusFound)
 }
+
+// deleteChannelCore removes an ARCHIVED channel: its messages, artifacts,
+// runs and their directories. Live channels are refused (409) — they
+// belong to a worktree that still exists; archive by re-sync first.
+func (s *Server) deleteChannelCore(id int64) (warning string, status int, errMsg string) {
+	ch, ok, err := s.st.ChannelByID(id)
+	if err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+	if !ok {
+		return "", http.StatusNotFound, "channel not found"
+	}
+	if !ch.Archived {
+		return "", http.StatusConflict, "only archived channels can be deleted"
+	}
+	warn := func(msg string) {
+		if warning == "" {
+			warning = msg
+		} else {
+			warning += "; " + msg
+		}
+	}
+	runs, err := s.st.RunsByChannel(id)
+	if err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+	for _, r := range runs {
+		if (r.Status != "starting" && r.Status != "running") || r.TmuxTarget == "" || s.spawner == nil {
+			continue
+		}
+		if err := s.spawner.Stop(spawn.Handle(r.TmuxTarget)); err != nil {
+			warn(fmt.Sprintf("stop of %s reported: %s", r.AgentName, err))
+		}
+	}
+	artifactMsgIDs, runIDs, err := s.st.ChannelCleanupIDs(id)
+	if err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+	if err := s.st.DeleteChannel(id); err != nil {
+		return "", http.StatusInternalServerError, err.Error()
+	}
+	for _, msgID := range artifactMsgIDs {
+		if err := os.RemoveAll(filepath.Join(s.dataDir, "artifacts", fmt.Sprint(msgID))); err != nil {
+			warn(fmt.Sprintf("artifact cleanup: %s", err))
+		}
+	}
+	for _, runID := range runIDs {
+		if err := os.RemoveAll(filepath.Join(s.dataDir, "runs", fmt.Sprint(runID))); err != nil {
+			warn(fmt.Sprintf("run cleanup: %s", err))
+		}
+	}
+	return warning, 0, ""
+}
+
+// handleUIDeleteChannel: the rail's "Delete channel" on an archived
+// channel. Lands on the projects page (the channel is gone).
+func (s *Server) handleUIDeleteChannel(w http.ResponseWriter, r *http.Request) {
+	ch, ok, _ := s.st.ChannelByID(chiInt64(r, "id"))
+	warning, status, errMsg := s.deleteChannelCore(chiInt64(r, "id"))
+	if status != 0 {
+		httpError(w, status, errMsg)
+		return
+	}
+	note := "deleted archived channel #" + ch.Name
+	if ok && warning != "" {
+		note += " · " + warning
+	}
+	http.Redirect(w, r, "/ui/projects?warning="+url.QueryEscape(note), http.StatusFound)
+}
