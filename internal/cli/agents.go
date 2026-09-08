@@ -42,6 +42,10 @@ func runAgents(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	home, _ := agentsHomeDir()
 	dets := agents.Detect(home, agentsLookPath, cfg)
 	switch args[0] {
+	case "list", "setup":
+		warnNotOnPath(stderr)
+	}
+	switch args[0] {
 	case "list":
 		if len(dets) == 0 {
 			fmt.Fprintln(stdout, "no supported agents detected")

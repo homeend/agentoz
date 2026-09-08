@@ -348,3 +348,35 @@ value is shell-quoted; args keep the metacharacter check.
   makes it wait for a screen that stopped changing instead.
 - The "skill in action" check (a Claude Code session configuring junie
   through the skill) has not been run yet.
+
+## Amendment: `erbrus launcher` (2026-09-08, late)
+
+Problem seen live: agy could not find `erbrus`. The preamble carries the
+absolute path, but the skill says plain `erbrus …`, and on a developer
+machine the binary lives in `bin/` of a checkout, not on PATH. Every
+agent that follows the skill text hits this.
+
+Fix: `erbrus launcher [--dir DIR] [--force]` writes a two-line script
+named `erbrus` (`erbrus.cmd` on Windows) that `exec`s the absolute,
+symlink-resolved path of the binary the command was run with. Rerunning
+from another build repoints it, so the worktree → main flow keeps
+working.
+
+- Directory choice: PATH is scanned for entries under the home
+  directory; `~/.local/bin`, `~/bin`, `~/go/bin`, `~/.cargo/bin` rank
+  first (offered even when missing, created on install), other existing
+  ones follow in PATH order. The menu default is the first entry; a
+  number or a typed path (with `~`) also works, `q` cancels. With no
+  entry under home the command asks for a directory, default
+  `~/.local/bin`. `--dir` skips the prompt.
+- A file at the target that lacks the `erbrus launcher` marker is refused
+  unless `--force`; a marked file is overwritten silently.
+- After writing, a PATH hint (`export PATH=…` or `setx`) is printed if the
+  directory is not on PATH.
+- `erbrus agents list|setup` warn on stderr when `erbrus` does not
+  resolve on PATH, naming both fixes (copy the binary, or run
+  `<bin> launcher`). Setup continues; nothing is copied or linked
+  automatically.
+- No change to the spawn environment or the skill: with a launcher on
+  PATH spawned agents inherit it, and the preamble's absolute path keeps
+  working regardless.

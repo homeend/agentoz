@@ -19,6 +19,7 @@ commands:
   agents     detect installed agent CLIs; setup installs the erbrus skill (agents list | agents setup)
   provider   show/set a provider in config.yaml through the server (provider show | provider set)
   screen     read or classify a run's terminal (screen capture | screen test)
+  launcher   install a script on your PATH that runs this binary as "erbrus"
   version    print version
 `
 
@@ -48,6 +49,8 @@ func Run(args []string, stdout, stderr io.Writer) int {
 		return runProvider(args[1:], stdout, stderr)
 	case "screen":
 		return runScreen(args[1:], stdout, stderr)
+	case "launcher":
+		return runLauncher(args[1:], os.Stdin, stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command %q\n%s", args[0], usage)
 		return 2
