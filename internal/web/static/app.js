@@ -376,6 +376,11 @@ setInterval(function () {
     if (state === 'question') label = 'needs input';
     if (state === 'unavailable') label = 'not available';
     stateEl.textContent = label;
+    // Unknown means no screen rule matched, not that nothing is happening:
+    // a provider without rules (a plain shell, a new tool) is always unknown.
+    stateEl.title = state ? '' :
+      'no screen rule matched this provider\'s screen, so its state cannot be read. ' +
+      'Rules exist for claude-code and codex; add yours under Settings → Screen rules (Test against agent shows what the screen looks like).';
     stateEl.className = 'state' + (state ? ' st-' + state : '');
     // The keypad exists to answer a dialog; hide it as soon as the
     // screen stops showing one (the next frame after a keypress).
