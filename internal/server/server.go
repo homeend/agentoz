@@ -35,6 +35,7 @@ type Server struct {
 
 	// rules: per-provider screen classification overrides from config,
 	// compiled once. states: what the watcher last saw per running run.
+	rulesMu sync.RWMutex
 	rules   map[string]screen.Rules
 	stateMu sync.Mutex
 	states  map[int64]runState
@@ -80,10 +81,25 @@ func New(st *store.Store, cfg config.Global, run wt.Runner) *Server {
 
 // rulesFor: config override if present, else built-ins for the name.
 func (s *Server) rulesFor(provider string) screen.Rules {
-	if r, ok := s.rules[provider]; ok {
+	s.rulesMu.RLock()
+	r, ok := s.rules[provider]
+	s.rulesMu.RUnlock()
+	if ok {
 		return r
 	}
 	return screen.DefaultRules(provider)
+}
+
+// setRules applies a provider's override at runtime (settings page save);
+// nil-rules removes the override so built-ins apply again.
+func (s *Server) setRules(provider string, r *screen.Rules) {
+	s.rulesMu.Lock()
+	defer s.rulesMu.Unlock()
+	if r == nil {
+		delete(s.rules, provider)
+		return
+	}
+	s.rules[provider] = *r
 }
 
 // SetRuntime wires the spawn runtime (spawner, erbrus binary path, and the
@@ -165,6 +181,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/settings", s.handleUISettings)
 	r.Post("/ui/settings/global", s.handleUISettingsGlobal)
 	r.Post("/ui/settings/repo", s.handleUISettingsRepo)
+	r.Post("/ui/settings/screen", s.handleUISettingsScreen)
 	return r
 }
 

@@ -172,3 +172,16 @@ a:hover { text-decoration: underline; }
 .thumb { display: block; margin: 8px 0 4px; border: 1px solid #b8860b; border-radius: 6px; background: #0c0d0f; overflow: hidden; max-height: 150px; }
 .thumb:hover { border-color: #e5c07b; text-decoration: none; }
 .thumb pre { margin: 0; padding: 4px; font: 4.5px/1.2 ui-monospace, monospace; color: #d6d8dc; white-space: pre; }
+/* settings: screen rules */
+.rules { margin-top: 14px; padding-top: 10px; border-top: 1px solid #2c2f35; }
+.rules h3 { margin: 0 0 6px; font-size: 14px; }
+.rulegrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.rulegrid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #8a8f98; }
+.settings .rulegrid textarea { min-height: 64px; }
+.rules .foot { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.rules select { background: #141517; color: #d6d8dc; border: 1px solid #3a3d44; border-radius: 6px; font: inherit; font-size: 12px; padding: 4px 6px; flex: 1; }
+.testresult { margin-top: 10px; font-size: 13px; }
+.testlines { margin: 6px 0 0; padding: 8px 10px; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; font: 12px/1.4 ui-monospace, monospace; overflow-x: auto; }
+.tl.m-working { color: #8ce99a; }
+.tl.m-waiting { color: #a9c8ff; }
+.tl.m-question { color: #f2d479; }

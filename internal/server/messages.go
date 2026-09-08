@@ -53,6 +53,12 @@ func decodeBody(r *http.Request, v any) error {
 	return json.NewDecoder(r.Body).Decode(v)
 }
 
+// chiInt64Form parses an int64 form field (0 when absent or invalid).
+func chiInt64Form(r *http.Request, name string) int64 {
+	n, _ := strconv.ParseInt(r.FormValue(name), 10, 64)
+	return n
+}
+
 func chiInt64(r *http.Request, name string) int64 {
 	n, _ := strconv.ParseInt(chi.URLParam(r, name), 10, 64)
 	return n

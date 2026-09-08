@@ -94,6 +94,12 @@ type settingsPage struct {
 	GlobalContent  string
 	Projects       []repoSettingsSection
 	Error          string
+	Notice         string
+	// Screen rules: one editable card per configured provider, plus the
+	// running agents a rule set can be tested against.
+	ScreenRules []screenRuleView
+	RunOptions  []runOption
+	ScreenTest  *screenTestResult
 }
 
 // readOrScaffold returns the raw file contents at path, or starter if the
@@ -121,6 +127,9 @@ func (s *Server) settingsPageData() (settingsPage, error) {
 		page.GlobalContent = content
 	}
 
+	page.ScreenRules = s.screenRuleViews()
+	page.RunOptions, _ = s.runOptions()
+
 	projects, err := s.st.Projects()
 	if err != nil {
 		return settingsPage{}, err
@@ -147,6 +156,7 @@ func (s *Server) handleUISettings(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	page.Notice = r.URL.Query().Get("notice")
 	s.render(w, "settings", page)
 }
 

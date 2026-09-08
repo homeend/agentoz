@@ -6,8 +6,43 @@
   <span class="spacer"></span>
 </header>
 <main class="page settings">
-  <div class="banner">changes take effect after restarting erbrus serve</div>
+  <div class="banner">changes take effect after restarting erbrus serve (screen rules apply immediately)</div>
   {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+  {{if .Notice}}<div class="banner">{{.Notice}}</div>{{end}}
+
+  <div class="card">
+    <h2>Screen rules</h2>
+    <div class="muted small">How erbrus reads an agent's terminal: RE2 patterns, one per line, matched in multi-line mode against the bottom 15 lines of the screen (so <span class="mono">^</span> and <span class="mono">$</span> bound a line and <span class="mono">\n</span> can join two). Order: working → idle → needs input. Any non-empty list replaces all built-in rules for that provider; leave all three empty to go back to built-ins.</div>
+    {{if not .ScreenRules}}<div class="muted small">no providers in the global config yet — add one above first.</div>{{end}}
+    {{range .ScreenRules}}
+    <form class="rules" method="post" action="/ui/settings/screen">
+      <input type="hidden" name="provider" value="{{.Provider}}">
+      <h3>{{.Provider}} <span class="muted small">— {{.Source}}</span></h3>
+      <div class="rulegrid">
+        <label>working<textarea name="working" spellcheck="false" rows="3">{{.Working}}</textarea></label>
+        <label>idle (waiting for input)<textarea name="waiting" spellcheck="false" rows="3">{{.Waiting}}</textarea></label>
+        <label>needs input (dialog)<textarea name="question" spellcheck="false" rows="3">{{.Question}}</textarea></label>
+      </div>
+      <div class="foot">
+        <select name="run" title="running agent to test these patterns against">
+          <option value="">— pick a running agent —</option>
+          {{range $.RunOptions}}<option value="{{.ID}}">{{.Label}}</option>{{end}}
+        </select>
+        <button class="btn" type="submit" name="action" value="test">Test against agent</button>
+        <button class="btn primary" type="submit" name="action" value="save">Save</button>
+      </div>
+      {{if and $.ScreenTest (eq $.ScreenTest.Provider .Provider)}}
+      <div class="testresult">
+        {{if $.ScreenTest.Error}}<div class="error">{{$.ScreenTest.Error}}</div>{{else}}
+        <div>{{$.ScreenTest.RunLabel}} → state: <span class="state{{if $.ScreenTest.State}} st-{{$.ScreenTest.State}}{{end}}">{{if $.ScreenTest.State}}{{$.ScreenTest.State}}{{else}}unknown{{end}}</span></div>
+        <pre class="testlines">{{range $.ScreenTest.Lines}}<span class="tl{{if .Match}} m-{{.Match}}{{end}}">{{if .Match}}[{{.Match}}] {{else}}          {{end}}{{.Text}}</span>
+{{end}}</pre>
+        {{end}}
+      </div>
+      {{end}}
+    </form>
+    {{end}}
+  </div>
 
   <div class="card">
     <h2>Global</h2>

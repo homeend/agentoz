@@ -155,3 +155,30 @@ func StepDuration(lines []string) time.Duration {
 	}
 	return 0
 }
+
+// HasDefaults reports whether erbrus ships rules for this provider name.
+func HasDefaults(provider string) bool { _, ok := defaults[provider]; return ok }
+
+// Patterns renders compiled rules back to one pattern per line, without
+// the (?m) prefix Compile adds — the form on the settings page.
+func Patterns(res []*regexp.Regexp) string {
+	out := make([]string, 0, len(res))
+	for _, re := range res {
+		out = append(out, strings.TrimPrefix(re.String(), "(?m)"))
+	}
+	return strings.Join(out, "\n")
+}
+
+// MatchKind reports which list of r a single line matches, checked in
+// the same order as Classify ("" when none) — for the rule tester.
+func MatchKind(r Rules, line string) string {
+	switch {
+	case anyMatch(r.Working, line):
+		return string(Working)
+	case anyMatch(r.Waiting, line):
+		return string(Waiting)
+	case anyMatch(r.Question, line):
+		return string(Question)
+	}
+	return ""
+}

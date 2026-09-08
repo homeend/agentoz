@@ -3,6 +3,9 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -191,5 +194,70 @@ func TestWatchScreensQuestionAndStall(t *testing.T) {
 	testSrv.WatchScreens()
 	if rs, _ := testSrv.stateOf(run.ID); rs.Stalled {
 		t.Fatalf("waiting must not stall: %+v", rs)
+	}
+}
+
+func TestSettingsScreenRulesSaveTestAndApply(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	fs := &fakeSpawner{}
+	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	os.WriteFile(cfgPath, []byte("# mine\nproviders:\n  kimi:\n    command: kimi\n  codex:\n    command: codex\n"), 0o644)
+	testSrv.SetConfigPath(cfgPath)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	run := claudeRun(t, st, ch1)
+
+	// Page lists both providers with their sources.
+	resp, _ := http.Get(ts.URL + "/ui/settings")
+	body := readAll(t, resp)
+	for _, want := range []string{`value="kimi"`, "built-in (generic)", `value="codex"`, "built-in (codex)", fmt.Sprintf(`<option value="%d">`, run.ID)} {
+		if !strings.Contains(body, want) {
+			t.Errorf("settings page missing %q", want)
+		}
+	}
+
+	// Test: unsaved patterns classify the agent's live screen.
+	fs.setScreen("s:5", spawn.Screen{Raw: "please CONFIRM the plan\n", Activity: time.Now()})
+	r, _ := noRedirect().PostForm(ts.URL+"/ui/settings/screen", url.Values{
+		"provider": {"kimi"}, "question": {"CONFIRM"}, "action": {"test"}, "run": {fmt.Sprint(run.ID)}})
+	body = readAll(t, r)
+	if r.StatusCode != http.StatusOK || !strings.Contains(body, "state: <span class=\"state st-question\">question") || !strings.Contains(body, "[question] please CONFIRM the plan") {
+		t.Fatalf("test result: %d %s", r.StatusCode, body)
+	}
+	if got := screen.Classify(testSrv.rulesFor("kimi"), []string{"CONFIRM"}); got != screen.Unknown {
+		t.Fatal("test must not apply rules")
+	}
+
+	// Bad pattern: 422, nothing written.
+	r, _ = noRedirect().PostForm(ts.URL+"/ui/settings/screen", url.Values{"provider": {"kimi"}, "working": {"("}, "action": {"save"}})
+	r.Body.Close()
+	if r.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("bad pattern status = %d", r.StatusCode)
+	}
+
+	// Save: config rewritten with the comment kept, rules live at once.
+	r, _ = noRedirect().PostForm(ts.URL+"/ui/settings/screen", url.Values{
+		"provider": {"kimi"}, "working": {`Thinking \(`}, "question": {"CONFIRM\n\\(y/n\\)"}, "action": {"save"}})
+	r.Body.Close()
+	if r.StatusCode != http.StatusFound || !strings.Contains(r.Header.Get("Location"), "notice=") {
+		t.Fatalf("save: %d %s", r.StatusCode, r.Header.Get("Location"))
+	}
+	doc, _ := os.ReadFile(cfgPath)
+	for _, want := range []string{"# mine", "command: kimi", "screen_working: ['Thinking \\(']", "screen_question: ['CONFIRM', '\\(y/n\\)']"} {
+		if !strings.Contains(string(doc), want) {
+			t.Errorf("config missing %q:\n%s", want, doc)
+		}
+	}
+	if got := screen.Classify(testSrv.rulesFor("kimi"), []string{"please CONFIRM"}); got != screen.Question {
+		t.Fatalf("rules not applied live: %q", got)
+	}
+	// Save with all lists empty: back to built-ins.
+	r, _ = noRedirect().PostForm(ts.URL+"/ui/settings/screen", url.Values{"provider": {"kimi"}, "action": {"save"}})
+	r.Body.Close()
+	if got := screen.Classify(testSrv.rulesFor("kimi"), []string{"(y/n)"}); got != screen.Question {
+		t.Fatalf("built-ins not restored: %q", got)
+	}
+	if doc, _ := os.ReadFile(cfgPath); strings.Contains(string(doc), "screen_") {
+		t.Fatalf("screen keys not removed:\n%s", doc)
 	}
 }
