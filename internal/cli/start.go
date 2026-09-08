@@ -122,6 +122,11 @@ func runStart(args []string, stdout, stderr io.Writer) int {
 		os.Setenv(k, v)
 	}
 	fmt.Fprintf(stdout, "running %s in this terminal (channel #%s)\n", res.Run.AgentName, ch.Name)
+	if res.Paste {
+		// The tmux path pastes the prompt once the input box is up; here
+		// the human is the terminal, so hand them the text.
+		fmt.Fprintf(stderr, "this provider takes the prompt by paste; type it into the agent yourself:\n%s\n\n", res.Prompt)
+	}
 	code := runWrap([]string{res.CmdFile}, stdout, stderr)
 	fmt.Fprintf(stdout, "%s finished · exit %d\n", res.Run.AgentName, code)
 	return code

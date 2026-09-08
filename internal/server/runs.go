@@ -51,6 +51,10 @@ type fgJSON struct {
 	Run     runJSON           `json:"run"`
 	CmdFile string            `json:"cmd_file"`
 	Env     map[string]string `json:"env"`
+	// Paste: the provider takes the prompt by paste, which the fg path
+	// cannot do; Prompt is what the human must type in themselves.
+	Paste  bool   `json:"paste,omitempty"`
+	Prompt string `json:"prompt,omitempty"`
 }
 
 func toRunJSON(r store.AgentRun) runJSON {
@@ -252,7 +256,14 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	// Step 7: assemble prompt, render command.
 	preamble := integrate.Preamble(s.erbrusBin, agentName, channel.Name)
 	fullPrompt := integrate.AssemblePrompt(preamble, promptText, handoffContext)
-	command, err := provider.Registry(s.cfg.Providers).Render(providerName, model, fullArgs, fullPrompt)
+	// Paste mode: the CLI starts without the prompt and deliverPrompt
+	// types it in once the input box is up (see paste.go).
+	paste := pasteMode(s.cfg.Providers[providerName])
+	cmdPrompt := fullPrompt
+	if paste {
+		cmdPrompt = ""
+	}
+	command, err := provider.Registry(s.cfg.Providers).Render(providerName, model, fullArgs, cmdPrompt)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err.Error()
 	}
@@ -284,7 +295,11 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	// Step 10: fg path — no spawner needed, run stays "starting".
 	if req.Fg {
 		announceHandoff()
-		return fgJSON{Run: toRunJSON(run), CmdFile: cmdPath, Env: env}, 0, ""
+		fg := fgJSON{Run: toRunJSON(run), CmdFile: cmdPath, Env: env}
+		if paste {
+			fg.Paste, fg.Prompt = true, fullPrompt
+		}
+		return fg, 0, ""
 	}
 
 	// Step 11: tmux path (spawner-nil already checked above).
@@ -320,6 +335,9 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	run.Status = "running"
 	run.TmuxTarget = string(handle)
 	s.system(req.ChannelID, fmt.Sprintf("%s spawned in tmux %s", agentName, handle))
+	if paste {
+		go s.deliverPrompt(run, fullPrompt)
+	}
 	announceHandoff()
 	rj := toRunJSON(run)
 	s.hub.Publish("run", rj)

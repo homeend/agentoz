@@ -236,6 +236,8 @@ type RunResult struct {
 	TmuxTarget string            `json:"tmux_target,omitempty"`
 	Run        *RunResult        `json:"run,omitempty"`
 	CmdFile    string            `json:"cmd_file,omitempty"`
+	Paste      bool              `json:"paste,omitempty"`  // fg: prompt must be typed in by hand
+	Prompt     string            `json:"prompt,omitempty"` // fg + paste: the prompt to type
 	Env        map[string]string `json:"env,omitempty"`
 }
 

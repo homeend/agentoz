@@ -67,6 +67,8 @@ func (f *fakeSpawner) Send(h spawn.Handle, text string) error {
 	if f.sendErr != nil {
 		return f.sendErr
 	}
+	f.capMu.Lock() // deliverPrompt calls Send from its own goroutine
+	defer f.capMu.Unlock()
 	f.sent = append(f.sent, string(h)+"|"+text)
 	return nil
 }

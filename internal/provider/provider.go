@@ -18,7 +18,7 @@ type Registry map[string]config.Provider
 // at emission (agy model names carry spaces and parentheses); the
 // template's own quotes around them are replaced by ours. Emptiness is
 // judged on the raw value, so an empty prompt drops rather than rendering
-// as ''.
+// as ”.
 func (r Registry) Render(name, model, args, prompt string) (string, error) {
 	p, ok := r[name]
 	if !ok {
