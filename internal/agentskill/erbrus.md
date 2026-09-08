@@ -51,10 +51,11 @@ and already knows them.
   --agents <id>` creates it with the built-in template and screen rules;
   for any other CLI, write it yourself (step 2 below). Then refine the
   screen rules (steps 3–6).
-- Screens come only from a run that erbrus itself started (step 3). Do
-  not start the CLI in tmux yourself. Without `ERBRUS_RUN_ID` in your
-  environment you are not that run: ask the human to spawn the CLI from
-  the web UI and give you the run id.
+- Screens come only from a run that erbrus itself started. The one way
+  to get such a run is `erbrus start <name> --prompt '…'` (step 3), which
+  prints the run id. Never run the CLI or tmux yourself, never list or
+  attach tmux sessions, never guess run ids. If `ERBRUS_RUN_ID` is set
+  you already are a run and can capture yourself with that id.
 
 A provider is an entry under `providers:` in erbrus's global
 `config.yaml` (`~/.config/erbrus/config.yaml`). Keys:
@@ -94,16 +95,23 @@ must not be able to fake a state.
    ```
    `erbrus provider show <name>` prints what is saved and whether the
    rules are built-in.
-3. Get a running instance of the CLI under erbrus: spawn it from the web
-   UI, or, if you ARE that CLI, use your own run id from `ERBRUS_RUN_ID`.
-4. Look at the screens:
+3. Start the CLI as an erbrus run, from inside any git repository (erbrus
+   registers it as a project when needed):
+   ```
+   erbrus start <name> --prompt 'Count from one to forty in words, one word per line, then stop.'
+   ```
+   The output says `spawned <name> (run <id>)`. If you ARE already an
+   erbrus run (`ERBRUS_RUN_ID` set), use that id instead of starting one.
+4. Look at the screens, several times over the next minute:
    ```
    erbrus screen capture --run <id> --lines 40
    ```
-   Capture it idle at its input box, while it is busy (if you are the
-   agent, run the capture from a tool call while your turn is in
-   progress — the spinner is on screen then), and on a dialog if you can
-   provoke one safely (a trust prompt, a permission question).
+   Right after the start the CLI may show a trust or permission dialog
+   (a *question* screen; leave it, that is the sample you want, then tell
+   the human it needs answering or stop the run and start it in a
+   directory the CLI already trusts). While it counts you see the busy
+   screen (*working*: spinner, elapsed time). When it has finished you
+   see the empty input box (*waiting*). Keep one capture of each.
 5. Write the three lists and test them without saving:
    ```
    erbrus screen test --provider <name> --run <id> --working '<re>' --waiting '<re>' --question '<re>'
@@ -113,7 +121,8 @@ must not be able to fake a state.
 6. Save: `erbrus provider set <name> --working '<re>' --waiting '<re>' --question '<re>'`
    (repeat flags; `--clear-rules` returns to built-ins). The running
    erbrus applies the change immediately.
-7. Report what you configured and what you could not verify.
+7. `erbrus stop <id>` the run you started, then report what you
+   configured and which of the three states you could not verify.
 
 ### Worked examples (built in)
 

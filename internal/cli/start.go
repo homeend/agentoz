@@ -106,7 +106,7 @@ func runStart(args []string, stdout, stderr io.Writer) int {
 	}
 
 	if !*fg {
-		fmt.Fprintf(stdout, "spawned %s → tmux %s (channel #%s)\n", res.AgentName, res.TmuxTarget, ch.Name)
+		fmt.Fprintf(stdout, "spawned %s (run %d) → tmux %s (channel #%s)\n", res.AgentName, res.ID, res.TmuxTarget, ch.Name)
 		if sess, _, ok := cutHandle(res.TmuxTarget); ok {
 			fmt.Fprintf(stdout, "attach: tmux attach -t %s\n", sess)
 		}

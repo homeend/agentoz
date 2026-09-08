@@ -153,6 +153,16 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 	presets := preset.Merge(s.cfg.Presets, repoCfg.Presets)
 	var presetCfg config.Preset
+	if req.Preset != "" && req.Provider == "" {
+		// `erbrus start <name>`: a name that is no preset but a provider
+		// means "that provider with its defaults" (agents configuring
+		// themselves through the skill start their CLI this way).
+		if _, isPreset := presets[req.Preset]; !isPreset {
+			if _, isProvider := s.cfg.Providers[req.Preset]; isProvider {
+				req.Provider, req.Preset = req.Preset, ""
+			}
+		}
+	}
 	if req.Preset != "" {
 		presetCfg, err = preset.Resolve(req.Preset, presets)
 		if err != nil {
