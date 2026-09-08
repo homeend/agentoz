@@ -62,9 +62,20 @@ func (t *Tmux) Spawn(spec RunSpec) (Handle, error) {
 // input box — observed live 2026-08-28.
 var sendSettle = 300 * time.Millisecond
 
+// sendVerifyDelay is how long Send waits after Enter before checking the
+// screen; sendEnterTries bounds the retries. Twice on 2026-09-08 an agent
+// TUI dropped the Enter and the message sat unsubmitted in its input box
+// until a human noticed.
+var (
+	sendVerifyDelay = 500 * time.Millisecond
+	sendEnterTries  = 3
+)
+
 // Send delivers text into the window as a bracketed paste (-p), then
 // presses Enter. Paste, not send-keys -l: interactive agents submit on
 // newline, so a multiline context block would otherwise fire line by line.
+// After each Enter it checks whether the text is still sitting in the
+// input box and presses again if so; an error means it never went through.
 func (t *Tmux) Send(h Handle, text string) error {
 	if _, err := t.run("tmux", "set-buffer", "--", text); err != nil {
 		return fmt.Errorf("send to %s: %w", h, err)
@@ -73,10 +84,45 @@ func (t *Tmux) Send(h Handle, text string) error {
 		return fmt.Errorf("send to %s: %w", h, err)
 	}
 	time.Sleep(sendSettle)
-	if _, err := t.run("tmux", "send-keys", "-t", exact(string(h)), "Enter"); err != nil {
-		return fmt.Errorf("send Enter to %s: %w", h, err)
+	for i := 0; i < sendEnterTries; i++ {
+		if _, err := t.run("tmux", "send-keys", "-t", exact(string(h)), "Enter"); err != nil {
+			return fmt.Errorf("send Enter to %s: %w", h, err)
+		}
+		time.Sleep(sendVerifyDelay)
+		out, err := t.run("tmux", "capture-pane", "-p", "-t", exact(string(h)))
+		if err != nil || !pendingInInputBox(string(out), text) {
+			return nil // submitted, or we cannot tell: do not spam Enter
+		}
 	}
-	return nil
+	return fmt.Errorf("message to %s was pasted but the agent did not submit it after %d Enter presses — press Enter in its terminal", h, sendEnterTries)
+}
+
+// pendingInInputBox reports whether the first line of text is still shown
+// in the TUI's input box: a prompt-glyph line directly under a horizontal
+// rule (Claude Code's layout; a transcript echo of the message has no
+// rule above it). Unknown layouts read as "not pending".
+func pendingInInputBox(screen, text string) bool {
+	first := strings.TrimSpace(strings.SplitN(text, "\n", 2)[0])
+	if len(first) > 24 {
+		first = first[:24]
+	}
+	if first == "" {
+		return false
+	}
+	lines := strings.Split(screen, "\n")
+	for i := 1; i < len(lines); i++ {
+		above := strings.TrimSpace(lines[i-1])
+		if len(above) < 8 || strings.Trim(above, "─-") != "" {
+			continue
+		}
+		box := strings.TrimSpace(lines[i])
+		box = strings.TrimLeft(box, "❯›>")
+		box = strings.TrimSpace(strings.ReplaceAll(box, "\u00a0", " "))
+		if strings.HasPrefix(box, first) {
+			return true
+		}
+	}
+	return false
 }
 
 // SendKeys presses a single key in the window (tmux key names).

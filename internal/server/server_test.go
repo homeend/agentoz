@@ -466,3 +466,15 @@ func TestIsNameCollision(t *testing.T) {
 		t.Error("want false for nil error")
 	}
 }
+
+func TestStaticAssetsAreNoCache(t *testing.T) {
+	ts, _, _ := newTestServer(t)
+	resp, err := http.Get(ts.URL + "/static/app.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || resp.Header.Get("Cache-Control") != "no-cache" {
+		t.Fatalf("status %d cache-control %q", resp.StatusCode, resp.Header.Get("Cache-Control"))
+	}
+}

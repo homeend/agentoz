@@ -142,6 +142,7 @@ func TestAlive(t *testing.T) {
 }
 
 func TestSendKeys(t *testing.T) {
+	sendSettle, sendVerifyDelay = 0, 0
 	rec := &recorder{}
 	tm := NewTmux(rec.run)
 	if err := tm.Send(Handle("erbrus-x:3"), "fix the tests"); err != nil {
@@ -151,8 +152,9 @@ func TestSendKeys(t *testing.T) {
 		"tmux set-buffer -- fix the tests",
 		"tmux paste-buffer -dp -t =erbrus-x:3",
 		"tmux send-keys -t =erbrus-x:3 Enter",
+		"tmux capture-pane -p -t =erbrus-x:3", // verifies the submit
 	}
-	if len(rec.calls) != 3 || rec.calls[0] != want[0] || rec.calls[1] != want[1] || rec.calls[2] != want[2] {
+	if strings.Join(rec.calls, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("calls = %q, want %q", rec.calls, want)
 	}
 }
@@ -183,6 +185,45 @@ func TestAllTargetsUseExactMatch(t *testing.T) {
 		if i := strings.Index(c, "-t "); i >= 0 && !strings.HasPrefix(c[i+3:], "=") {
 			t.Errorf("target without exact-match prefix: %q", c)
 		}
+	}
+}
+
+func TestSendRetriesEnterWhileTextSitsInInputBox(t *testing.T) {
+	sendSettle, sendVerifyDelay = 0, 0
+	stuck := "● earlier output\n──────────────────\n❯ fix the login bug\n──────────────────\n  status line\n"
+	rec := &recorder{out: map[string]string{"tmux capture-pane": stuck}}
+	err := NewTmux(rec.run).Send("s:5", "fix the login bug\n\n(context block)")
+	if err == nil || !strings.Contains(err.Error(), "did not submit") {
+		t.Fatalf("expected submit failure, got %v", err)
+	}
+	enters := 0
+	for _, c := range rec.calls {
+		if strings.HasSuffix(c, "send-keys -t =s:5 Enter") {
+			enters++
+		}
+	}
+	if enters != 3 {
+		t.Fatalf("Enter presses = %d, calls:\n%s", enters, strings.Join(rec.calls, "\n"))
+	}
+}
+
+func TestSendStopsAfterSubmit(t *testing.T) {
+	sendSettle, sendVerifyDelay = 0, 0
+	// The echo of a submitted message also starts with ❯ but has no rule
+	// above it; the input box under the rule is empty.
+	done := "❯ fix the login bug\n● on it\n──────────────────\n❯\n──────────────────\n"
+	rec := &recorder{out: map[string]string{"tmux capture-pane": done}}
+	if err := NewTmux(rec.run).Send("s:5", "fix the login bug"); err != nil {
+		t.Fatal(err)
+	}
+	enters := 0
+	for _, c := range rec.calls {
+		if strings.HasSuffix(c, "Enter") {
+			enters++
+		}
+	}
+	if enters != 1 {
+		t.Fatalf("Enter presses = %d", enters)
 	}
 }
 

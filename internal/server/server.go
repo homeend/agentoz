@@ -138,7 +138,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/projects", http.StatusFound)
 	})
-	r.Handle("/static/*", http.StripPrefix("/static/", web.Static()))
+	r.Handle("/static/*", noCache(http.StripPrefix("/static/", web.Static())))
 	r.Get("/ui/projects", s.handleUIProjects)
 	r.Post("/ui/projects", s.handleUIAddProject)
 	r.Post("/ui/projects/{id}/git-init", s.handleUIGitInit)
@@ -194,4 +194,15 @@ func (s *Server) bearerRun(r *http.Request) (store.AgentRun, bool, int) {
 		return store.AgentRun{}, false, http.StatusUnauthorized
 	}
 	return run, true, 0
+}
+
+// noCache makes browsers revalidate embedded assets on every load. The
+// embedded FS has no modification times, so without this a tab keeps the
+// script and stylesheet from before a server restart (seen live
+// 2026-09-08: a keypad that "would not hide" was a stale app.js).
+func noCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache")
+		next.ServeHTTP(w, r)
+	})
 }
