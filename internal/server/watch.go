@@ -112,7 +112,9 @@ func (s *Server) observe(run store.AgentRun, sc spawn.Screen, now time.Time) {
 		s.system(run.ChannelID, n)
 	}
 	if changed {
-		s.hub.Publish("run", toRunJSON(run))
+		rj := toRunJSON(run)
+		rj.State, rj.Stalled = string(next.State), next.Stalled
+		s.hub.Publish("run", rj)
 	}
 }
 

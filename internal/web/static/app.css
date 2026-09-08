@@ -68,6 +68,7 @@ a:hover { text-decoration: underline; }
 .msg.system:has(.selbox:checked) .pill { border-color: #2f6fd6; }
 .chattools { display: flex; align-items: center; gap: 10px; padding: 6px 16px 0; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.toggle.off { text-decoration: line-through; opacity: .7; }
 /* system notes (spawn/stop, hook pings, state changes) are noise most of
    the time: hidden unless the toggle is on; still deleted by batch delete */
 #messages:not(.show-system) .msg.system { display: none; }
@@ -149,12 +150,12 @@ a:hover { text-decoration: underline; }
 .mdbody th, .mdbody td { border: 1px solid #3a3d44; padding: 3px 8px; }
 .inlinedoc { border: 1px dashed #3a3d44; border-radius: 4px; padding: 8px 12px; margin-top: 6px; }
 /* screen view */
-.screenpage { padding: 12px 18px; }
+.screenpage { padding: 12px 18px; overflow-x: hidden; }
 .screenhead { display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin-bottom: 8px; background: #1d1f23; border: 1px solid #2c2f35; border-radius: 6px; }
 .screenhead.idle { border-color: #b8860b; background: #2a2416; }
 .screenhead .warn { color: #e5c07b; }
 /* colors here are mirrored by screenFg/screenBg in ansi.go (reverse video) */
-.screen { margin: 0; padding: 10px; font: 12px/1.35 ui-monospace, monospace; color: #d6d8dc; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; overflow: auto; white-space: pre; min-height: 300px; }
+.screen { margin: 0; max-width: 100%; padding: 10px; font: 12px/1.35 ui-monospace, monospace; color: #d6d8dc; background: #0c0d0f; border: 1px solid #2c2f35; border-radius: 6px; overflow: auto; white-space: pre; min-height: 300px; }
 /* run state badges (watcher) */
 .state { display: inline-block; font-size: 12px; font-weight: 600; border-radius: 8px; padding: 1px 8px; margin-left: 6px; border: 1px solid #3a3d44; color: #a7acb5; background: #24262b; }
 .state.st-working { border-color: #3f7d58; color: #8ce99a; background: #17251d; }

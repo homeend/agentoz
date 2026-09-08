@@ -42,6 +42,10 @@ type runJSON struct {
 	Status     string `json:"status"`
 	TmuxTarget string `json:"tmux_target,omitempty"`
 	ExitCode   *int64 `json:"exit_code,omitempty"`
+	// State/Stalled: the watcher's classification, set on run events it
+	// publishes so pages can notify without a round trip.
+	State   string `json:"state,omitempty"`
+	Stalled bool   `json:"stalled,omitempty"`
 }
 
 type fgJSON struct {

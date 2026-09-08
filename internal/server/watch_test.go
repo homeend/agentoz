@@ -94,8 +94,16 @@ func TestWatchScreensTurnEnd(t *testing.T) {
 	if rs, ok := testSrv.stateOf(run.ID); !ok || rs.State != screen.Working || rs.StepFor != 27*time.Second {
 		t.Fatalf("after working screen: %+v", rs)
 	}
-	if n := countRunEvents(ev); n != 1 {
-		t.Fatalf("run events after first classify = %d", n)
+	select {
+	case e := <-ev:
+		if e.Event != "run" || !strings.Contains(string(e.Data), `"state":"working"`) {
+			t.Fatalf("first run event = %s %s", e.Event, e.Data)
+		}
+	default:
+		t.Fatal("no run event after first classify")
+	}
+	if n := countRunEvents(ev); n != 0 {
+		t.Fatalf("extra run events after first classify = %d", n)
 	}
 	if got := systemBodies(t, st, ch1); len(got) != before {
 		t.Fatalf("entering working must not post: %v", got)

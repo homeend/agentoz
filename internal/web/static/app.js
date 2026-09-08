@@ -60,6 +60,64 @@ setInterval(function () {
     });
   }
 
+  // Desktop notifications: needs-input / stalled state changes and new
+  // reports, for any channel, while this tab is open. Permission must be
+  // requested from a user gesture, so it happens in the checkbox handler.
+  var notifyBox = document.getElementById('notify');
+  var notifyOn = false;
+  var lastNotified = {}; // run id -> "state" or "state!" (stalled)
+  function channelName(id) {
+    var a = document.querySelector('a.chan[href="/ui/channels/' + id + '"]');
+    return a ? a.textContent.replace(/\d+$/, '').trim() : '#' + id;
+  }
+  function notify(title, body, url, tag) {
+    if (!notifyOn || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    try {
+      var n = new Notification(title, { body: body, tag: tag });
+      n.onclick = function () { window.focus(); if (url) window.open(url, tag); n.close(); };
+    } catch (err) { /* notifications unavailable */ }
+  }
+  if (notifyBox) {
+    try { notifyOn = localStorage.getItem('erbrus.notify') === '1'; } catch (e) { /* storage blocked */ }
+    if (typeof Notification === 'undefined') {
+      notifyBox.disabled = true;
+      notifyBox.parentNode.title = 'this browser has no Notification API';
+    } else if (notifyOn && Notification.permission !== 'granted') {
+      notifyOn = false;
+    }
+    notifyBox.checked = notifyOn;
+    notifyBox.addEventListener('change', function () {
+      if (!notifyBox.checked) {
+        notifyOn = false;
+        try { localStorage.setItem('erbrus.notify', '0'); } catch (e) { /* ignore */ }
+        return;
+      }
+      Notification.requestPermission().then(function (perm) {
+        notifyOn = perm === 'granted';
+        notifyBox.checked = notifyOn;
+        try { localStorage.setItem('erbrus.notify', notifyOn ? '1' : '0'); } catch (e) { /* ignore */ }
+        if (!notifyOn) notifyBox.parentNode.title = 'notifications are blocked for this site in the browser';
+      });
+    });
+  }
+  function onRunEvent(d) {
+    if (!d.state && !d.stalled) return;
+    var key = (d.state || '') + (d.stalled ? '!' : '');
+    if (lastNotified[d.id] === key) return;
+    lastNotified[d.id] = key;
+    var ch = channelName(d.channel_id);
+    if (d.state === 'question') {
+      notify(d.agent_name + ' needs your input', 'in ' + ch + ' — click to open its screen', '/ui/runs/' + d.id + '/screen', 'screen:' + (d.tmux_target || d.id));
+    } else if (d.stalled) {
+      notify(d.agent_name + ' looks stalled', 'no terminal output for 2+ minutes in ' + ch, '/ui/runs/' + d.id + '/screen', 'screen:' + (d.tmux_target || d.id));
+    }
+  }
+  function onMessageEvent(d) {
+    if (d.kind === 'report') {
+      notify('report from ' + (d.author_name || 'agent'), 'in ' + channelName(d.channel_id) + ': ' + String(d.body || '').slice(0, 120), '/ui/channels/' + d.channel_id, 'erbrus-report-' + d.id);
+    }
+  }
+
   var unselect = document.getElementById('unselect-all');
   if (unselect) {
     unselect.addEventListener('click', function () {
@@ -177,6 +235,7 @@ setInterval(function () {
       alive();
       try {
         var d = JSON.parse(e.data);
+        onMessageEvent(d);
         if (String(d.channel_id) === channelID) {
           refresh(messages, '/ui/channels/' + channelID + '/stream');
         } else {
@@ -188,6 +247,7 @@ setInterval(function () {
       alive();
       try {
         var d = JSON.parse(e.data);
+        onRunEvent(d);
         if (String(d.channel_id) === channelID && runs) {
           refresh(runs, '/ui/channels/' + channelID + '/runs-panel');
         }
