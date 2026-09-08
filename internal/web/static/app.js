@@ -44,6 +44,22 @@ setInterval(function () {
       .catch(function () { /* transient; next event retries */ });
   }
 
+  // System notes toggle: remembered per browser, applied as a class on
+  // #messages so it survives the innerHTML swaps of the message list.
+  var showSys = document.getElementById('show-system');
+  if (showSys) {
+    var key = 'erbrus.showSystem';
+    var on = false;
+    try { on = localStorage.getItem(key) === '1'; } catch (e) { /* storage blocked */ }
+    showSys.checked = on;
+    messages.classList.toggle('show-system', on);
+    showSys.addEventListener('change', function () {
+      messages.classList.toggle('show-system', showSys.checked);
+      try { localStorage.setItem(key, showSys.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+      messages.scrollTop = messages.scrollHeight;
+    });
+  }
+
   var unselect = document.getElementById('unselect-all');
   if (unselect) {
     unselect.addEventListener('click', function () {

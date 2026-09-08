@@ -534,3 +534,12 @@ func TestChannelPageShowsWorkdir(t *testing.T) {
 		}
 	}
 }
+
+func TestChannelPageHasSystemNotesToggle(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	resp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch1))
+	if body := readAll(t, resp); !strings.Contains(body, `id="show-system"`) {
+		t.Fatalf("toggle missing: %s", body)
+	}
+}

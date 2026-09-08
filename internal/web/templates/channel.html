@@ -25,6 +25,8 @@
     {{if .Warning}}<div class="banner">{{.Warning}}</div>{{end}}
     {{if .Channel.Archived}}<div class="banner">This channel is archived: its worktree <span class="mono">{{.Workdir}}</span> no longer exists. History stays readable; recreate the worktree and re-sync to bring it back.</div>{{end}}
     <div class="chattools">
+      <label class="toggle small muted" title="spawn/stop notes, hook pings, state changes — hidden by default"><input type="checkbox" id="show-system"> Show system notes</label>
+      <span class="spacer"></span>
       <form id="batchdel" method="post" action="/ui/channels/{{.Channel.ID}}/messages/delete-batch" data-confirm="Delete the selected entries?">
         <button class="btn small" type="button" id="unselect-all">Unselect all</button>
         <button class="btn danger small" type="submit">Delete selected</button>
