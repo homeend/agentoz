@@ -31,6 +31,9 @@ var testSrv *Server
 // worktree listing contains main + one worktree.
 func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	t.Helper()
+	// Spawning codex writes an execpolicy rules file into the codex home;
+	// tests must never touch the developer's ~/.codex.
+	t.Setenv("CODEX_HOME", t.TempDir())
 	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatal(err)
