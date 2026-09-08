@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,7 +24,15 @@ func agentsTestHome(t *testing.T) string {
 	cfg := filepath.Join(t.TempDir(), "config.yaml")
 	os.WriteFile(cfg, []byte("# mine\nproviders:\n  claude-code:\n    command: claude\n"), 0o644)
 	t.Setenv("ERBRUS_CONFIG", cfg)
-	t.Setenv("ERBRUS_URL", "http://127.0.0.1:1") // no server: file path
+	// No server: a port that was just released refuses at once (a closed
+	// low port can hang for 30 s on WSL).
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	t.Setenv("ERBRUS_URL", "http://"+addr)
 	return home
 }
 

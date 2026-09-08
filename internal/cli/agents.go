@@ -5,11 +5,13 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"erbrus/internal/agents"
 	"erbrus/internal/agentskill"
@@ -161,11 +163,16 @@ func runAgents(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	return 0
 }
 
+// pingServer: is an erbrus server answering? A short timeout — a setup
+// command must not hang when nothing listens (seen: 30 s per attempt on
+// WSL when the port is closed).
 func pingServer(c *client.Client) bool {
 	if c == nil {
 		return false
 	}
-	_, err := c.ListProjects()
+	probe := *c
+	probe.HTTP = &http.Client{Timeout: 2 * time.Second}
+	_, err := probe.ListProjects()
 	return err == nil
 }
 
