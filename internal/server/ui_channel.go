@@ -64,6 +64,9 @@ type channelPage struct {
 	// configured session when no run names one.
 	AttachCmds []string
 	Warning    string // ?warning= from a redirect (e.g. failed agent delivery)
+	// Workdir: where agents spawned from this channel land (same rule as
+	// spawnRunCore's default: worktree path, else repo path).
+	Workdir string
 }
 
 // buildChannelPage assembles a channelPage for chID: channel + project
@@ -220,6 +223,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 	return channelPage{
 		Channel:    channel,
 		Project:    project,
+		Workdir:    firstNonEmpty(channel.WorktreePath, project.RepoPath),
 		Sidebar:    sidebar.Projects,
 		Messages:   msgViews,
 		Runs:       runViews,

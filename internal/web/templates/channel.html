@@ -3,6 +3,7 @@
 <header class="topbar">
   <a class="brand" href="/ui/projects">erbrus</a>
   <span class="crumb">/ {{.Project.Name}} / # {{.Channel.Name}}</span>
+  <span class="workdir" title="agents spawn in this directory">{{.Workdir}}</span>
   <span class="spacer"></span>
   <a class="btn primary" href="/ui/spawn?channel={{.Channel.ID}}">+ Spawn agent</a>
 </header>
@@ -11,7 +12,7 @@
     {{range .Sidebar}}
     <div class="proj">{{.Project.Name}}</div>
     {{range .Channels}}
-    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}"># {{.Name}}{{if .ActiveRuns}}<span class="agentdot" title="{{.ActiveRuns}} agent(s) running"></span>{{end}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}" data-unread="{{.ID}}">{{.Unread}}</span>{{end}}</a>
+    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}" title="{{.Workdir}}"># {{.Name}}{{if .ActiveRuns}}<span class="agentdot" title="{{.ActiveRuns}} agent(s) running"></span>{{end}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}" data-unread="{{.ID}}">{{.Unread}}</span>{{end}}</a>
     {{end}}
     {{end}}
   </nav>

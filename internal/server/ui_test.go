@@ -516,3 +516,21 @@ func TestProjectCardNoGitBadgeAndInit(t *testing.T) {
 		t.Fatalf("git-init status = %d, want 302", r2.StatusCode)
 	}
 }
+
+func TestChannelPageShowsWorkdir(t *testing.T) {
+	ts, _, root := newTestServer(t)
+	ch1, ch2 := twoChannels(t, ts.URL, root)
+	resp, _ := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch1))
+	body := readAll(t, resp)
+	// Sidebar entries carry the resolved spawn directory as a tooltip: the
+	// main channel resolves to the repo, the worktree channel to its path.
+	for _, want := range []string{
+		fmt.Sprintf(`href="/ui/channels/%d" title="%s"`, ch1, root),
+		fmt.Sprintf(`href="/ui/channels/%d" title="%s-wt-feat"`, ch2, root),
+		`class="workdir" title="agents spawn in this directory">` + root + `</span>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("channel page missing %q", want)
+		}
+	}
+}

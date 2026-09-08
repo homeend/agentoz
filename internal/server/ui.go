@@ -39,6 +39,9 @@ type channelView struct {
 	Unread     int64
 	Attention  bool
 	ActiveRuns int64
+	// Workdir is where an agent spawned from this channel lands by
+	// default: the worktree path, else the project's repo.
+	Workdir string
 }
 
 type projectCard struct {
@@ -83,7 +86,7 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 		for _, c := range chans {
 			views = append(views, channelView{Channel: c,
 				Unread: unread[c.ID].Count, Attention: unread[c.ID].Attention,
-				ActiveRuns: active[c.ID]})
+				ActiveRuns: active[c.ID], Workdir: firstNonEmpty(c.WorktreePath, p.RepoPath)})
 			agents += active[c.ID]
 		}
 		card := projectCard{Project: p, RunningAgents: agents, Channels: views}
