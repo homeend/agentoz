@@ -195,13 +195,23 @@ func (s *Server) syncChannels(p store.Project) (summary, warning string) {
 	ensure := func(name, path, branch string) {
 		c, ok := byName[name]
 		if !ok {
-			if _, err := s.st.CreateChannel(p.ID, name, path, branch); err != nil {
+			nc, err := s.st.CreateChannel(p.ID, name, path, branch)
+			if err != nil {
 				addWarn(fmt.Sprintf("failed to create channel %s: %s", name, err))
 				return
 			}
-			if path != p.RepoPath {
-				created = append(created, name)
+			if path == p.RepoPath {
+				return
 			}
+			// git still lists it but the directory is gone (prunable):
+			// start it archived rather than live-then-archived next sync.
+			if repoPresent && !dirExists(path) {
+				if err := s.st.SetChannelArchived(nc.ID, true); err == nil {
+					archived = append(archived, name)
+					return
+				}
+			}
+			created = append(created, name)
 			return
 		}
 		if c.WorktreePath == p.RepoPath || path == c.WorktreePath {

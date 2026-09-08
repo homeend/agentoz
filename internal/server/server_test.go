@@ -37,6 +37,11 @@ func newTestServer(t *testing.T) (*httptest.Server, *store.Store, string) {
 	}
 	t.Cleanup(func() { st.Close() })
 	root := t.TempDir()
+	// The fixture's linked worktree must exist on disk: sync archives
+	// channels whose directory is missing.
+	if err := os.MkdirAll(root+"-wt-feat", 0o755); err != nil {
+		t.Fatal(err)
+	}
 	wtOut := fmt.Sprintf(wtJSON, root, root+"-wt-feat")
 	run := func(dir, name string, args ...string) ([]byte, error) {
 		if name == "wt" {

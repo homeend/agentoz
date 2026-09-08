@@ -207,6 +207,7 @@ setInterval(function () {
   // unclassified) is a stall; silence while waiting/question is normal.
   var stallAfter = 120;
   var activity = parseInt(act.dataset.activity, 10) || 0;
+  var dead = false;
   var state = stateEl.dataset.state || '';
   var step = parseInt(stateEl.dataset.step, 10) || 0;
 
@@ -225,7 +226,7 @@ setInterval(function () {
     if (!activity) { act.textContent = ''; head.classList.remove('idle'); return; }
     var age = Math.max(0, Math.floor(Date.now() / 1000 - activity));
     act.textContent = 'last output ' + fmtDur(age) + ' ago';
-    var stalled = age > stallAfter && (state === 'working' || state === '');
+    var stalled = !dead && age > stallAfter && (state === 'working' || state === '');
     head.classList.toggle('idle', stalled);
     stateEl.classList.toggle('stalled', stalled);
   }
@@ -246,6 +247,7 @@ setInterval(function () {
         var f = JSON.parse(e.data);
         if (f.error) { errEl.textContent = f.error; return; }
         errEl.textContent = f.dead ? 'process exited — final screen' : '';
+        dead = !!f.dead;
         screen.innerHTML = f.html;
         activity = f.activity || 0;
         state = f.state || '';

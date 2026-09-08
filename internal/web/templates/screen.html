@@ -13,8 +13,17 @@
     <span class="spacer"></span>
     <span id="screenstate" class="state{{if .Frame.State}} st-{{.Frame.State}}{{end}}" data-state="{{.Frame.State}}" data-step="{{.Frame.Step}}">{{.Frame.State}}</span>
     <span id="screenact" class="muted small" data-activity="{{.Frame.Activity}}"></span>
+    {{if .Warning}}<span class="small warn">{{.Warning}}</span>{{end}}
     <span id="screenerr" class="small warn">{{if .Note}}{{.Note}}{{else if .Frame.Error}}{{.Frame.Error}}{{else if .Frame.Dead}}process exited — final screen{{end}}</span>
   </div>
   <pre class="screen" id="screen" data-run="{{.Run.ID}}"{{if .Note}} data-static="1"{{end}}>{{.Frame.HTML}}</pre>
+  {{if and .Live (not .Note)}}
+  <form class="keypad" method="post" action="/ui/runs/{{.Run.ID}}/keys" title="press a key in the agent's window: option numbers, arrows, Enter, Esc">
+    <input type="hidden" name="back" value="screen">
+    <span class="muted small">keys:</span>
+    <button class="btn small" name="key" value="1">1</button><button class="btn small" name="key" value="2">2</button><button class="btn small" name="key" value="3">3</button><button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button><button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button>
+    <span class="muted small">— to type text, use the channel composer</span>
+  </form>
+  {{end}}
 </main>
 {{end}}

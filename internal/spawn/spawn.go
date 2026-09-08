@@ -46,4 +46,7 @@ type Spawner interface {
 	// Capture snapshots the run's visible screen. Errors when the window
 	// is gone; a dead-but-retained pane still captures (Dead=true).
 	Capture(h Handle) (Screen, error)
+	// SendKeys presses one key (tmux key name: "Enter", "Escape", "Down",
+	// or a single character) — how a human answers a dialog.
+	SendKeys(h Handle, key string) error
 }

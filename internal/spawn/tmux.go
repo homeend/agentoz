@@ -79,6 +79,14 @@ func (t *Tmux) Send(h Handle, text string) error {
 	return nil
 }
 
+// SendKeys presses a single key in the window (tmux key names).
+func (t *Tmux) SendKeys(h Handle, key string) error {
+	if _, err := t.run("tmux", "send-keys", "-t", exact(string(h)), key); err != nil {
+		return fmt.Errorf("send key %q to %s: %w", key, h, err)
+	}
+	return nil
+}
+
 func (t *Tmux) Stop(h Handle) error {
 	_, err := t.run("tmux", "kill-window", "-t", exact(string(h)))
 	return err

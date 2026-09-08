@@ -158,6 +158,8 @@ type screenPage struct {
 	Frame   screenFrame
 	// Note replaces the live view when there is nothing to poll.
 	Note string
+	// Warning: ?warning= from a redirect (e.g. a failed keypress).
+	Warning string
 }
 
 func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
@@ -182,6 +184,7 @@ func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
 		sc, err := s.spawner.Capture(spawn.Handle(run.TmuxTarget))
 		page.Frame, _ = frameOf(sc, err, s.rulesFor(run.Provider))
 	}
+	page.Warning = r.URL.Query().Get("warning")
 	s.render(w, "screen", page)
 }
 

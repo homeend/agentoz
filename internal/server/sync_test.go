@@ -69,7 +69,8 @@ func TestSyncArchivesRestoresCreates(t *testing.T) {
 	os.MkdirAll(newDir, 0o755)
 	three := fmt.Sprintf(`[{"path": %q, "branch": "refs/heads/main", "head": "a", "is_main": true},
 		{"path": %q, "branch": "refs/heads/wt/feat", "head": "b", "is_main": false},
-		{"path": %q, "branch": "refs/heads/hotfix", "head": "c", "is_main": false}]`, root, root+"-wt-feat", newDir)
+		{"path": %q, "branch": "refs/heads/hotfix", "head": "c", "is_main": false},
+		{"path": %q, "branch": "refs/heads/ghost", "head": "d", "is_main": false}]`, root, root+"-wt-feat", newDir, root+"-wt-ghost")
 	testSrv.run = func(dir, name string, args ...string) ([]byte, error) { return []byte(three), nil }
 	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/projects/%d/sync", ts.URL, pid), url.Values{})
 	r.Body.Close()
@@ -82,6 +83,10 @@ func TestSyncArchivesRestoresCreates(t *testing.T) {
 	}
 	if _, ok, _ := st.ChannelByName(pid, "hotfix"); !ok {
 		t.Fatal("hotfix channel not created")
+	}
+	// Listed by git but no directory: created straight into the archive.
+	if g, ok, _ := st.ChannelByName(pid, "ghost"); !ok || !g.Archived {
+		t.Fatalf("ghost worktree channel: ok=%v %+v", ok, g)
 	}
 
 	// Sync can redirect back to a channel.

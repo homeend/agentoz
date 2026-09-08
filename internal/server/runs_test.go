@@ -22,6 +22,7 @@ type fakeSpawner struct {
 	killed  []spawn.Handle
 	alive   map[spawn.Handle]bool
 	sent    []string // "handle|text" per Send call
+	keys    []string // "handle|key" per SendKeys call
 	sendErr error
 	// screens scripts Capture per handle; captureErr wins when set.
 	// capMu guards them: the screen feed polls from a goroutine.
@@ -29,6 +30,11 @@ type fakeSpawner struct {
 	screens    map[spawn.Handle]spawn.Screen
 	captureErr error
 	captures   int
+}
+
+func (f *fakeSpawner) SendKeys(h spawn.Handle, key string) error {
+	f.keys = append(f.keys, string(h)+"|"+key)
+	return nil
 }
 
 func (f *fakeSpawner) Capture(h spawn.Handle) (spawn.Screen, error) {

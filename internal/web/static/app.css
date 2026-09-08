@@ -152,3 +152,7 @@ a:hover { text-decoration: underline; }
 .state.st-working { border-color: #3f7d58; color: #8ce99a; background: #17251d; }
 .state.st-waiting { border-color: #4a5a7a; color: #a9c8ff; background: #1a2436; }
 .state.st-question, .state.stalled { border-color: #b8860b; color: #f2d479; background: #2a2416; }
+/* dialog keypad on run cards (question state) and the screen page */
+.keypad { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0; }
+.keypad .btn { padding: 2px 8px; min-width: 26px; text-align: center; }
+.screenpage .keypad { margin-top: 8px; }

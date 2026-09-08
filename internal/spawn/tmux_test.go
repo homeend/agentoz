@@ -233,3 +233,13 @@ func TestCaptureWindowGone(t *testing.T) {
 		t.Fatal("expected error when the window is gone")
 	}
 }
+
+func TestSendKeysExactTarget(t *testing.T) {
+	rec := &recorder{}
+	if err := NewTmux(rec.run).SendKeys("s:5", "Escape"); err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.calls) != 1 || rec.calls[0] != "tmux send-keys -t =s:5 Escape" {
+		t.Errorf("calls = %v", rec.calls)
+	}
+}

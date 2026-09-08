@@ -2,6 +2,8 @@ package server
 
 import (
 	"fmt"
+	"net/http"
+	"net/url"
 	"time"
 
 	"erbrus/internal/screen"
@@ -80,7 +82,8 @@ func (s *Server) observe(run store.AgentRun, sc spawn.Screen, now time.Time) {
 		}
 	}
 	next.StepFor = screen.StepDuration(lines)
-	stalled := !sc.Activity.IsZero() && now.Sub(sc.Activity) > stallAfter &&
+	// A dead pane is silent by definition: "stalled" is for live processes.
+	stalled := !sc.Dead && !sc.Activity.IsZero() && now.Sub(sc.Activity) > stallAfter &&
 		(next.State == screen.Working || next.State == screen.Unknown)
 	if stalled != prev.Stalled {
 		changed = true
@@ -146,3 +149,60 @@ func (rs runState) badge(now time.Time) (label, class string, timed bool) {
 	}
 	return label, class, timed
 }
+
+// keypadKeys are the only keys the UI may press in an agent's window:
+// enough to answer any dialog (pick an option, move, confirm, cancel),
+// nothing that could interrupt or type into the agent. Everything else is
+// the chat composer's job.
+var keypadKeys = []string{"1", "2", "3", "Up", "Down", "Enter", "Escape"}
+
+func allowedKey(k string) bool {
+	for _, a := range keypadKeys {
+		if a == k {
+			return true
+		}
+	}
+	return false
+}
+
+// handleUIRunKeys presses one allow-listed key in the run's window, then
+// re-observes the screen right away so the badge does not wait for the
+// next 10s tick. Redirects to the channel (form field "channel") or, with
+// back=screen, to the run's screen page.
+func (s *Server) handleUIRunKeys(w http.ResponseWriter, r *http.Request) {
+	run, ok, err := s.st.RunByID(chiInt64(r, "id"))
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok || run.TmuxTarget == "" {
+		httpError(w, http.StatusNotFound, "run has no tmux window")
+		return
+	}
+	if s.spawner == nil {
+		httpError(w, http.StatusServiceUnavailable, "no spawner configured")
+		return
+	}
+	key := r.FormValue("key")
+	if !allowedKey(key) {
+		httpError(w, http.StatusBadRequest, "key not allowed")
+		return
+	}
+	target := "/ui/channels/" + r.FormValue("channel")
+	if r.FormValue("back") == "screen" {
+		target = fmt.Sprintf("/ui/runs/%d/screen", run.ID)
+	}
+	if err := s.spawner.SendKeys(spawn.Handle(run.TmuxTarget), key); err != nil {
+		http.Redirect(w, r, target+"?warning="+url.QueryEscape(err.Error()), http.StatusFound)
+		return
+	}
+	time.Sleep(keySettle)
+	if sc, err := s.spawner.Capture(spawn.Handle(run.TmuxTarget)); err == nil {
+		s.observe(run, sc, time.Now())
+	}
+	http.Redirect(w, r, target, http.StatusFound)
+}
+
+// keySettle: how long a TUI needs to repaint after a keypress before the
+// re-observe capture is worth taking.
+var keySettle = 300 * time.Millisecond
