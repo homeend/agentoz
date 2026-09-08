@@ -29,7 +29,7 @@ versioned marker, numbered selection).
 | agent | binary, version | skill location (user scope) | prompt / model / auto-approve |
 |---|---|---|---|
 | Claude Code | `claude` 2.1.263 | `~/.claude/skills/<name>/SKILL.md` | positional prompt; `--model`; already configured |
-| Codex | `codex` 0.153.4 | `~/.codex/skills/<name>/SKILL.md` (dir created by codex itself) | positional prompt; `--model`; already configured |
+| Codex | `codex` 0.153.4 | `~/.codex/skills/<name>/SKILL.md` (codex created `~/.codex/skills/.system/` itself and its binary carries a `skills` loader referencing `SKILL.md`) | positional prompt; `--model`; already configured |
 | Kimi Code | `kimi` 0.41.0 | `~/.kimi-code/skills/<name>/SKILL.md` (gg's skill lives there) | **no interactive initial prompt** (`-p` is non-interactive); `--model`; `--yolo` |
 | Junie | `junie` 26.8.24 | `~/.junie/skills/<name>/SKILL.md` (`--skill-default-locations` per user) | positional prompt (as in the settings-page example) |
 | Antigravity | `agy` 1.1.4 | `~/.gemini/config/skills/<name>/SKILL.md` (gg's skill lives there); detect `~/.gemini/antigravity-cli` | `-i "<prompt>"` runs an initial prompt interactively; `--model`; `--dangerously-skip-permissions`; model names contain spaces and parentheses, e.g. `Gemini 3.6 Flash (High)` |
@@ -133,9 +133,15 @@ Entries and their provider defaults:
 |---|---|---|---|
 | claude-code | ~/.claude | ~/.claude/skills/erbrus/SKILL.md | `claude --model {model} {args} "{prompt}"` (matches the settings example; screen rules built-in) |
 | codex | ~/.codex | ~/.codex/skills/erbrus/SKILL.md | `codex --model {model} {args} "{prompt}"` |
-| kimi | ~/.kimi-code | ~/.kimi-code/skills/erbrus/SKILL.md | `kimi --yolo --model {model} {args}`, `default_model: kimi-code/k3`, `prompt: paste`, `screen_working: ['^[🌑🌒🌓🌔🌕🌖🌗🌘] ', 'Retrying \(\d+/\d+\)']`, `screen_waiting: ['^│ >[^\n]*\n╰']`, `screen_question: ['Trust this folder\?', 'Enter select', 'Esc exit']` |
+| kimi | ~/.kimi-code | ~/.kimi-code/skills/erbrus/SKILL.md | `kimi --yolo --model {model} {args}`, `prompt: paste`, `screen_working: ['^[🌑🌒🌓🌔🌕🌖🌗🌘] ', 'Retrying \(\d+/\d+\)']`, `screen_waiting: ['^│ >[^\n]*\n╰']`, `screen_question: ['Trust this folder\?', 'Enter select', 'Esc exit']` |
 | junie | ~/.junie | ~/.junie/skills/erbrus/SKILL.md | `junie {args} "{prompt}"` |
-| antigravity | ~/.gemini/antigravity-cli | ~/.gemini/config/skills/erbrus/SKILL.md | `agy --dangerously-skip-permissions --model "{model}" {args} -i "{prompt}"`, `default_model: Gemini 3.6 Flash (High)` |
+| antigravity | ~/.gemini/antigravity-cli | ~/.gemini/config/skills/erbrus/SKILL.md | `agy --dangerously-skip-permissions --model "{model}" {args} -i "{prompt}"` |
+
+No registry entry sets `default_model`: with an empty model the `--model`
+flag drops out of the rendered command (section 4) and the CLI uses its
+own configured default (kimi's is already `kimi-code/k3`). Whether agy's
+`--model` accepts the display names printed by `agy models` is
+unverified; the user picks a model in the UI when they want one.
 
 ```go
 type Status int // StatusNew, StatusOutdated, StatusUpToDate
@@ -186,15 +192,29 @@ The config path is `configPath()` (honors `ERBRUS_CONFIG`); the home dir
 is `os.UserHomeDir()`, overridable by the package variable
 `agentsHomeDir` for tests.
 
+A running server does not re-read `config.yaml`, so a provider added on
+disk would be unknown to it until restart. `agents setup` therefore adds
+the provider through `PUT /api/providers/{name}` (section 6) when a
+server answers at the configured port, which writes the file and applies
+live; when no server answers it edits the file itself and prints "restart
+erbrus serve to pick up the new provider".
+
+The skill's "working as an erbrus agent" part and `integrate.Preamble`
+say the same things; the preamble text is rendered from the skill
+package's canonical strings so the two cannot drift.
+
 ## 4. Provider config: `prompt` and quoted `{model}`
 
 `config.Provider` gains `Prompt string `yaml:"prompt"`` with values `arg`
 (default) and `paste`. `provider.Render` shell-quotes the model exactly as
 it quotes the prompt, replacing the template's own quotes around `{model}`
-when present. `validModel` then only rejects shell metacharacters
-(`;|&$()\`<>\n` and quotes are fine inside single quotes, so the check
-becomes: no newline, no NUL); the existing tests that reject `$(` are
-adjusted to the new rule. Presets keep working unchanged.
+when present. Render must decide "empty placeholder, drop it and its
+flag" on the **raw** value and quote at emission: today `vals` holds the
+already-quoted prompt, so an empty prompt renders as `''` instead of
+dropping (latent; paste mode renders with an empty prompt and would hit
+it). Since the model is always single-quoted, `validModel` reduces to "no
+newline, no NUL"; the test that currently rejects `$(…)` in a model
+changes to expect the quoted form. Presets keep working unchanged.
 
 ## 5. Prompt by paste
 
@@ -203,10 +223,12 @@ In `spawnCore`, after rendering: `pasteMode := p.Prompt == "paste" ||
 mode the command is rendered with an empty prompt and, after a successful
 tmux spawn, `go s.deliverPrompt(run, fullPrompt, rules)`:
 
-- Poll `Capture` every 500 ms for up to `pasteDeadline` (60 s, package
-  var), plus as long as the screen is in the **question** state (a trust
-  dialog waits for the human; the watcher's normal "needs your input"
-  message covers it).
+- Poll `Capture` every `pastePoll` (500 ms, package var) for up to
+  `pasteDeadline` (60 s, package var); the deadline is extended while the
+  screen is in the **question** state (a trust dialog waits for the
+  human; the watcher's normal "needs your input" message covers it), up
+  to a hard cap `pasteMax` of 30 minutes. The goroutine also stops when
+  `Capture` errors or the run is no longer running.
 - Deliver when `Classify` says **waiting**; when the provider has no
   rules that can say waiting (generic rules only match a bare prompt
   glyph), deliver when the screen has been non-empty and unchanged for
@@ -221,11 +243,14 @@ tmux spawn, `go s.deliverPrompt(run, fullPrompt, rules)`:
 The run row keeps `Prompt` as today, so the screen page and the rail show
 what was meant to be sent.
 
+Behavior change, intended: an existing provider whose command has no
+`{prompt}` switches from "prompt silently lost" to paste delivery.
+
 ## 6. API and CLI for agents
 
 Routes (UI-level, no bearer required, same origin guard as the rest):
 
-- `GET /api/runs/{id}/screen` → `{"state":"waiting","lines":[…15 stripped tail lines…],"options":[{key,label}],"cols":134,"rows":36,"dead":false}`; 404 without a tmux window.
+- `GET /api/runs/{id}/screen?lines=N` → `{"state":"waiting","lines":[…stripped tail lines…],"options":[{key,label}],"cols":134,"rows":36,"dead":false}`; `lines` defaults to 15 (what classification sees) and is capped at 200 so an agent can read a whole TUI screen; `state` is always classified on the 15-line tail; 404 without a tmux window.
 - `POST /api/providers/{name}/screen-test` body `{"run":5,"working":[…],"waiting":[…],"question":[…]}` → `{"state":"…","lines":[{"text":"…","match":"working|waiting|question|"}]}`; 422 on a bad pattern. Unknown provider names are allowed here (an agent may test before saving).
 - `PUT /api/providers/{name}` body `{"command":"…","default_model":"…","prompt":"arg|paste","screen_working":[…],"screen_waiting":[…],"screen_question":[…]}`; omitted fields keep their value, present-but-empty lists clear. Creates the provider when missing. Rewrites `config.yaml` through `config.SetProvider` (a generalization of `SetProviderScreenRules`: same node editing, also sets `command`, `default_model`, `prompt`), then updates `s.cfg.Providers` and `setRules` live. 400 when the server has no config path.
 
