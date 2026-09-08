@@ -63,6 +63,11 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 	if err := srv.Reconcile(); err != nil {
 		fmt.Fprintln(stderr, "reconcile:", err)
 	}
+	// Archive channels whose worktree vanished while we were down, so
+	// nobody spawns into a directory tmux would silently replace by $HOME.
+	for _, line := range srv.SyncAllChannels() {
+		fmt.Fprintln(stderr, "sync:", line)
+	}
 	// 10s: also paces screen-state detection (working/waiting/question).
 	srv.StartReconcileLoop(10*time.Second, make(chan struct{}))
 

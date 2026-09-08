@@ -66,7 +66,9 @@ type channelPage struct {
 	Warning    string // ?warning= from a redirect (e.g. failed agent delivery)
 	// Workdir: where agents spawned from this channel land (same rule as
 	// spawnRunCore's default: worktree path, else repo path).
-	Workdir string
+	// PathMissing: that directory does not exist right now.
+	Workdir     string
+	PathMissing bool
 }
 
 // buildChannelPage assembles a channelPage for chID: channel + project
@@ -221,14 +223,15 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 	}
 
 	return channelPage{
-		Channel:    channel,
-		Project:    project,
-		Workdir:    firstNonEmpty(channel.WorktreePath, project.RepoPath),
-		Sidebar:    sidebar.Projects,
-		Messages:   msgViews,
-		Runs:       runViews,
-		Presets:    presets,
-		AttachCmds: attachCmds,
+		Channel:     channel,
+		Project:     project,
+		Workdir:     firstNonEmpty(channel.WorktreePath, project.RepoPath),
+		PathMissing: !dirExists(firstNonEmpty(channel.WorktreePath, project.RepoPath)),
+		Sidebar:     sidebar.Projects,
+		Messages:    msgViews,
+		Runs:        runViews,
+		Presets:     presets,
+		AttachCmds:  attachCmds,
 	}, 0, ""
 }
 

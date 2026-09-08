@@ -91,7 +91,12 @@ a:hover { text-decoration: underline; }
 .badgerow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
 .badgerow .badge { margin-top: 0; }
 .btn.small { padding: 2px 8px; font-size: 12px; }
-.cardfoot { margin-top: 10px; display: flex; justify-content: flex-end; }
+.cardfoot { margin-top: 10px; display: flex; justify-content: flex-end; gap: 8px; }
+.chanlist a.archived { color: #6c7079; text-decoration: line-through; }
+.chanlist a.archived .muted { text-decoration: none; }
+.pathwarn { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 700; color: #141517; background: #d9b45c; border-radius: 8px; padding: 0 6px; line-height: 15px; vertical-align: 1px; }
+.workdir.missing { color: #e5c07b; }
+.topbar .badge { margin-top: 0; }
 .unreadb { display: inline-block; min-width: 18px; text-align: center; font-size: 11px; line-height: 16px; border-radius: 8px; background: #4a5261; color: #e8eaee; margin-left: 6px; padding: 0 5px; vertical-align: 1px; }
 .unreadb.attn { background: #c0392b; }
 .tag.totag { background: #2f6fd6; color: #fff; border-color: #2f6fd6; }

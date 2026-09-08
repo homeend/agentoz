@@ -42,13 +42,17 @@ type channelView struct {
 	// Workdir is where an agent spawned from this channel lands by
 	// default: the worktree path, else the project's repo.
 	Workdir string
+	// PathMissing: Workdir is not a directory on disk right now. tmux
+	// would start an agent in $HOME instead — a re-sync archives it.
+	PathMissing bool
 }
 
 type projectCard struct {
 	Project store.Project
 	// RunningAgents sums ActiveRuns over the project's channels.
 	RunningAgents int64
-	Channels      []channelView
+	Channels      []channelView // live channels (sidebar + card)
+	Archived      []channelView // worktree gone; card only, dimmed
 	// PathMissing: the repo path no longer exists on disk. NoGit: the path
 	// exists but holds no git repo — agents can still spawn there, and the
 	// card offers an "Init git" button.
@@ -82,14 +86,21 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 			return projectsPage{}, err
 		}
 		views := make([]channelView, 0, len(chans))
+		var archived []channelView
 		var agents int64
 		for _, c := range chans {
-			views = append(views, channelView{Channel: c,
+			v := channelView{Channel: c,
 				Unread: unread[c.ID].Count, Attention: unread[c.ID].Attention,
-				ActiveRuns: active[c.ID], Workdir: firstNonEmpty(c.WorktreePath, p.RepoPath)})
+				ActiveRuns: active[c.ID], Workdir: firstNonEmpty(c.WorktreePath, p.RepoPath)}
+			v.PathMissing = !dirExists(v.Workdir)
+			if c.Archived {
+				archived = append(archived, v)
+				continue
+			}
+			views = append(views, v)
 			agents += active[c.ID]
 		}
-		card := projectCard{Project: p, RunningAgents: agents, Channels: views}
+		card := projectCard{Project: p, RunningAgents: agents, Channels: views, Archived: archived}
 		if fi, err := os.Stat(p.RepoPath); err != nil || !fi.IsDir() {
 			card.PathMissing = true
 		} else if _, err := os.Stat(filepath.Join(p.RepoPath, ".git")); err != nil {
@@ -124,6 +135,34 @@ func (s *Server) handleUIGitInit(w http.ResponseWriter, r *http.Request) {
 		target += "?warning=" + url.QueryEscape(warning)
 	}
 	http.Redirect(w, r, target, http.StatusFound)
+}
+
+// handleUISync re-syncs one project's channels with its worktrees on disk
+// (see syncChannels). Redirects to the projects page, or back to the
+// channel named by ?channel= / form field "channel".
+func (s *Server) handleUISync(w http.ResponseWriter, r *http.Request) {
+	p, ok, err := s.st.ProjectByID(chiInt64(r, "id"))
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if !ok {
+		httpError(w, http.StatusNotFound, "project not found")
+		return
+	}
+	summary, warning := s.syncChannels(p)
+	note := summary
+	if note == "" {
+		note = "worktrees in sync, nothing changed"
+	}
+	if warning != "" {
+		note += " · " + warning
+	}
+	target := "/ui/projects"
+	if ch := r.FormValue("channel"); ch != "" {
+		target = "/ui/channels/" + url.PathEscape(ch)
+	}
+	http.Redirect(w, r, target+"?warning="+url.QueryEscape(note), http.StatusFound)
 }
 
 func (s *Server) handleUIProjects(w http.ResponseWriter, r *http.Request) {

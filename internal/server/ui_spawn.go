@@ -58,7 +58,7 @@ func (s *Server) allChannelOptions(excludeChannel int64) ([]channelOption, error
 			return nil, err
 		}
 		for _, c := range chans {
-			if c.ID == excludeChannel {
+			if c.ID == excludeChannel || c.Archived {
 				continue
 			}
 			opts = append(opts, channelOption{ID: c.ID, Label: p.Name + " / # " + c.Name})

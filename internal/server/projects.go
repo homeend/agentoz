@@ -17,6 +17,7 @@ type channelJSON struct {
 	ProjectID    int64  `json:"project_id"`
 	Name         string `json:"name"`
 	WorktreePath string `json:"worktree_path"`
+	Archived     bool   `json:"archived,omitempty"`
 	Branch       string `json:"branch"`
 }
 
@@ -30,7 +31,7 @@ type projectJSON struct {
 }
 
 func toChannelJSON(c store.Channel) channelJSON {
-	return channelJSON{ID: c.ID, ProjectID: c.ProjectID, Name: c.Name, WorktreePath: c.WorktreePath, Branch: wt.ShortBranch(c.Branch)}
+	return channelJSON{ID: c.ID, ProjectID: c.ProjectID, Name: c.Name, WorktreePath: c.WorktreePath, Branch: wt.ShortBranch(c.Branch), Archived: c.Archived}
 }
 
 func (s *Server) projectJSON(p store.Project, created bool, warning string) (projectJSON, error) {
@@ -120,7 +121,22 @@ func isNameCollision(err error) bool {
 // ensureChannels runs worktree detection for p and creates any missing
 // channels. Returns a warning string ("" when clean).
 func (s *Server) ensureChannels(p store.Project) string {
-	warning := ""
+	_, warning := s.syncChannels(p)
+	return warning
+}
+
+// syncChannels reconciles p's channels with its worktrees on disk:
+//   - a worktree channel whose directory is gone is archived (tmux would
+//     silently start agents in $HOME otherwise — observed live 2026-09-08);
+//   - an archived channel whose directory is back is restored;
+//   - a listed worktree with a known channel name but a new path repoints
+//     the channel;
+//   - new worktrees get channels (the original ensureChannels behavior).
+//
+// "general" (path == repo) is never archived; the project card flags a
+// missing repo instead. summary reads like "archived: feat; created:
+// hotfix" ("" when nothing changed); warning collects detection errors.
+func (s *Server) syncChannels(p store.Project) (summary, warning string) {
 	wts, err := wt.List(s.run, s.cfg.WtBin, p.RepoPath)
 	if err != nil {
 		// err already reads "worktree detection failed (wt and git): ..." —
@@ -137,17 +153,66 @@ func (s *Server) ensureChannels(p store.Project) string {
 			warning += "; " + msg
 		}
 	}
+	var archived, restored, created, moved []string
+
+	// Pass 1: disk truth for existing worktree channels.
+	existing, err := s.st.ChannelsByProject(p.ID)
+	if err != nil {
+		addWarn("channel listing failed: " + err.Error())
+		return "", warning
+	}
+	byName := map[string]store.Channel{}
+	for _, c := range existing {
+		byName[c.Name] = c
+		if c.WorktreePath == "" || c.WorktreePath == p.RepoPath {
+			continue
+		}
+		exists := dirExists(c.WorktreePath)
+		switch {
+		case !exists && !c.Archived:
+			if err := s.st.SetChannelArchived(c.ID, true); err != nil {
+				addWarn(fmt.Sprintf("archive %s: %s", c.Name, err))
+				continue
+			}
+			c.Archived = true
+			archived = append(archived, c.Name)
+		case exists && c.Archived:
+			if err := s.st.SetChannelArchived(c.ID, false); err != nil {
+				addWarn(fmt.Sprintf("restore %s: %s", c.Name, err))
+				continue
+			}
+			c.Archived = false
+			restored = append(restored, c.Name)
+		}
+		byName[c.Name] = c
+	}
+
+	// Pass 2: what the worktree tool lists.
 	ensure := func(name, path, branch string) {
-		_, ok, err := s.st.ChannelByName(p.ID, name)
-		if err != nil {
-			addWarn(fmt.Sprintf("channel lookup %s failed: %s", name, err))
+		c, ok := byName[name]
+		if !ok {
+			if _, err := s.st.CreateChannel(p.ID, name, path, branch); err != nil {
+				addWarn(fmt.Sprintf("failed to create channel %s: %s", name, err))
+				return
+			}
+			if path != p.RepoPath {
+				created = append(created, name)
+			}
 			return
 		}
-		if ok {
+		if c.WorktreePath == p.RepoPath || path == c.WorktreePath {
 			return
 		}
-		if _, err := s.st.CreateChannel(p.ID, name, path, branch); err != nil {
-			addWarn(fmt.Sprintf("failed to create channel %s: %s", name, err))
+		// Same branch name, new location: follow it.
+		if err := s.st.SetChannelWorktree(c.ID, path, branch); err != nil {
+			addWarn(fmt.Sprintf("repoint %s: %s", name, err))
+			return
+		}
+		moved = append(moved, name)
+		if c.Archived && dirExists(path) {
+			if err := s.st.SetChannelArchived(c.ID, false); err == nil {
+				restored = append(restored, name)
+			}
 		}
 	}
 	ensure("general", p.RepoPath, mainBranch(wts))
@@ -163,7 +228,43 @@ func (s *Server) ensureChannels(p store.Project) string {
 			ensure(name, w2.Path, w2.Branch)
 		}
 	}
-	return warning
+
+	var parts []string
+	for _, kv := range []struct {
+		k string
+		v []string
+	}{{"archived", archived}, {"restored", restored}, {"moved", moved}, {"created", created}} {
+		if len(kv.v) > 0 {
+			parts = append(parts, kv.k+": "+strings.Join(kv.v, ", "))
+		}
+	}
+	return strings.Join(parts, "; "), warning
+}
+
+func dirExists(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
+}
+
+// SyncAllChannels runs syncChannels for every project; used at startup so
+// channels for removed worktrees are archived before anyone spawns into
+// them. Returns one line per project that changed or warned.
+func (s *Server) SyncAllChannels() []string {
+	projects, err := s.st.Projects()
+	if err != nil {
+		return []string{"sync: " + err.Error()}
+	}
+	var out []string
+	for _, p := range projects {
+		summary, warning := s.syncChannels(p)
+		if summary != "" {
+			out = append(out, p.Name+": "+summary)
+		}
+		if warning != "" {
+			out = append(out, p.Name+": "+warning)
+		}
+	}
+	return out
 }
 
 func mainBranch(wts []wt.Worktree) string {

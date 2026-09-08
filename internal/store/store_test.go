@@ -195,3 +195,31 @@ func TestArtifactByID(t *testing.T) {
 		t.Fatal("unknown id must be ok=false")
 	}
 }
+
+func TestChannelArchiveAndWorktreeUpdate(t *testing.T) {
+	st := open(t)
+	p, err := st.CreateProject("proj", "/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := st.CreateChannel(p.ID, "feat", "/repo-wt-feat", "refs/heads/feat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetChannelArchived(c.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	if got, _, _ := st.ChannelByID(c.ID); !got.Archived {
+		t.Fatal("not archived")
+	}
+	if err := st.SetChannelWorktree(c.ID, "/elsewhere/feat", "refs/heads/feat2"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetChannelArchived(c.ID, false); err != nil {
+		t.Fatal(err)
+	}
+	got, _, _ := st.ChannelByID(c.ID)
+	if got.Archived || got.WorktreePath != "/elsewhere/feat" || got.Branch != "refs/heads/feat2" {
+		t.Fatalf("after update: %+v", got)
+	}
+}

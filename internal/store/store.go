@@ -196,6 +196,20 @@ func (s *Store) CreateChannel(projectID int64, name, worktreePath, branch string
 
 const chanCols = `id, project_id, name, worktree_path, branch, archived, created_at`
 
+// SetChannelArchived hides (or restores) a worktree channel whose directory
+// is gone (or back). History, runs and messages are untouched.
+func (s *Store) SetChannelArchived(id int64, archived bool) error {
+	_, err := s.db.Exec(`UPDATE channels SET archived = ? WHERE id = ?`, archived, id)
+	return err
+}
+
+// SetChannelWorktree repoints a channel at a worktree that was recreated
+// elsewhere (same branch name, new path).
+func (s *Store) SetChannelWorktree(id int64, worktreePath, branch string) error {
+	_, err := s.db.Exec(`UPDATE channels SET worktree_path = ?, branch = ? WHERE id = ?`, worktreePath, branch, id)
+	return err
+}
+
 func scanChannel(sc interface{ Scan(...any) error }) (Channel, error) {
 	var c Channel
 	var ts string

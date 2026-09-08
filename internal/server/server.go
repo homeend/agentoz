@@ -142,6 +142,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/projects", s.handleUIProjects)
 	r.Post("/ui/projects", s.handleUIAddProject)
 	r.Post("/ui/projects/{id}/git-init", s.handleUIGitInit)
+	r.Post("/ui/projects/{id}/sync", s.handleUISync)
 	r.Get("/ui/projects/{id}/delete", s.handleUIDeleteConfirm)
 	r.Post("/ui/projects/{id}/delete", s.handleUIDeleteProject)
 	r.Get("/ui/channels/{id}", s.handleUIChannel)

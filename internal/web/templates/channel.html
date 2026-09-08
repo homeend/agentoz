@@ -3,7 +3,12 @@
 <header class="topbar">
   <a class="brand" href="/ui/projects">erbrus</a>
   <span class="crumb">/ {{.Project.Name}} / # {{.Channel.Name}}</span>
-  <span class="workdir" title="agents spawn in this directory">{{.Workdir}}</span>
+  <span class="workdir{{if .PathMissing}} missing{{end}}" title="{{if .PathMissing}}this directory does not exist — tmux would start agents in your home directory{{else}}agents spawn in this directory{{end}}">{{.Workdir}}</span>
+  {{if .PathMissing}}<span class="badge warn">path missing</span>
+  <form method="post" action="/ui/projects/{{.Project.ID}}/sync" class="inlineform">
+    <input type="hidden" name="channel" value="{{.Channel.ID}}">
+    <button class="btn small" type="submit" title="archive channels whose worktree is gone, add channels for new worktrees">Re-sync worktrees</button>
+  </form>{{end}}
   <span class="spacer"></span>
   <a class="btn primary" href="/ui/spawn?channel={{.Channel.ID}}">+ Spawn agent</a>
 </header>
@@ -12,12 +17,13 @@
     {{range .Sidebar}}
     <div class="proj">{{.Project.Name}}</div>
     {{range .Channels}}
-    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}" title="{{.Workdir}}"># {{.Name}}{{if .ActiveRuns}}<span class="agentdot" title="{{.ActiveRuns}} agent(s) running"></span>{{end}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}" data-unread="{{.ID}}">{{.Unread}}</span>{{end}}</a>
+    <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}" title="{{.Workdir}}"># {{.Name}}{{if .PathMissing}}<span class="pathwarn" title="directory missing: {{.Workdir}}">!</span>{{end}}{{if .ActiveRuns}}<span class="agentdot" title="{{.ActiveRuns}} agent(s) running"></span>{{end}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}" data-unread="{{.ID}}">{{.Unread}}</span>{{end}}</a>
     {{end}}
     {{end}}
   </nav>
   <section class="stream">
     {{if .Warning}}<div class="banner">{{.Warning}}</div>{{end}}
+    {{if .Channel.Archived}}<div class="banner">This channel is archived: its worktree <span class="mono">{{.Workdir}}</span> no longer exists. History stays readable; recreate the worktree and re-sync to bring it back.</div>{{end}}
     <div class="chattools">
       <form id="batchdel" method="post" action="/ui/channels/{{.Channel.ID}}/messages/delete-batch" data-confirm="Delete the selected entries?">
         <button class="btn small" type="button" id="unselect-all">Unselect all</button>
