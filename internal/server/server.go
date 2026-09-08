@@ -151,6 +151,11 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/runs/{id}/exit", s.handleRunExit)
 		r.Post("/runs/{id}/stop", s.handleRunStop)
 		r.Get("/channels/{id}/runs", s.handleChannelRuns)
+		// For agents configuring providers (see internal/agentskill).
+		r.Get("/runs/{id}/screen", s.handleAPIRunScreen)
+		r.Post("/providers/{name}/screen-test", s.handleAPIScreenTest)
+		r.Get("/providers/{name}", s.handleAPIGetProvider)
+		r.Put("/providers/{name}", s.handleAPIPutProvider)
 		r.Get("/artifacts/{id}", s.handleArtifactDownload)
 	})
 	r.Get("/events", s.handleEvents)
