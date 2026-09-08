@@ -1,4 +1,8 @@
 * { box-sizing: border-box; }
+/* the hidden attribute only sets display:none at UA priority — any author
+   display rule (e.g. .keypad { display:flex }) would override it and the
+   element would stay visible; seen live 2026-09-08 on the screen keypad */
+[hidden] { display: none !important; }
 body { margin: 0; font: 14px/1.5 system-ui, sans-serif; color: #d6d8dc; background: #141517; }
 a { color: #6ea8ff; text-decoration: none; }
 a:hover { text-decoration: underline; }
