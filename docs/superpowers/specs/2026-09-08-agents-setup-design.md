@@ -412,3 +412,38 @@ Changes:
 
 Verified on the throwaway instance: `erbrus start shell --prompt …`
 → run id printed → `screen capture --run` → `stop`.
+
+## Amendment: presets and config reload, skill v4 (2026-09-09)
+
+agy's self-configuration produced a provider with structural rules but
+no preset, so the spawn form still had nothing to offer. Two additions:
+
+- **Presets are first class.** `config.SetPreset` (node editing like
+  `SetProvider`), `GET/PUT /api/presets/{name}` (PUT requires an
+  existing provider, writes the file, applies live), client
+  `GetPreset/PutPreset`, CLI `erbrus preset show|set <name> --provider P
+  [--model] [--prompt] [--args] [--agent-name]`. The registry's preset
+  name is the binary name (`claude`, `codex`, `kimi`, `junie`, `agy`),
+  matching hand-written configs; `agents setup` seeds it when no preset
+  of any name points at the provider, and `agents list` shows a preset
+  column. The skill (v4) tells agents to check/create the preset after
+  the provider entry and defines "done" as provider + preset + three
+  tested rule lists.
+- **config.yaml reloads live.** `Server.ReloadConfig` re-reads the file
+  and swaps providers, presets and `wt_bin` under `rulesMu`, recompiling
+  screen-rule overrides; a file that does not parse keeps the previous
+  config. `StartConfigWatch` polls mtime+size every 2 s from `serve`
+  (polling: no dependency, inotify is unreliable on WSL mounts). The
+  server's own writes reload to an identical config and stay silent.
+  Port, data_dir, terminal and session names are startup-only and are
+  logged as "takes effect after a restart". Every runtime read of
+  providers/presets now goes through locked snapshot accessors
+  (`providersSnapshot`, `presetsSnapshot`, `providerCfg`, `presetCfg`,
+  `wtBin`); `go test -race` covers the server package.
+- `agents setup` without a reachable server now says the file is picked
+  up on start or within seconds by a running one; the refused-API case
+  (old build) still asks for a restart.
+
+Verified live on the throwaway instance: appending a provider and a
+preset to config.yaml by hand showed up in `provider show` and `preset
+show` within 4 s, and `preset set` wrote back into the same file.
