@@ -13,7 +13,7 @@ import (
 
 // Paste delivery pacing. Package vars so tests can shorten them.
 var (
-	pastePoll     = 500 * time.Millisecond
+	pastePoll = 500 * time.Millisecond
 	// pasteDeadline: how long a screen may stay unclassified before the
 	// prompt is given up (a dialog extends it). Junie on a slow start (update
 	// extraction, auth, logo) took over a minute to show its box — seen live

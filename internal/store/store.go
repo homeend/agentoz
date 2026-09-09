@@ -51,6 +51,21 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	// run_ids hands out run ids that are never reused. agent_runs.id is a
+	// plain INTEGER PRIMARY KEY (max+1), so deleting the newest run gave
+	// its id to the next spawn, and everything keyed by run id — the
+	// screen feed, the watcher state, messages' agent_run_id — pointed at
+	// the wrong run (seen live 2026-09-09). AUTOINCREMENT cannot be added
+	// to an existing table; a sequence table can. Seeded past every id
+	// still in agent_runs.
+	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS run_ids (id INTEGER PRIMARY KEY AUTOINCREMENT)`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`INSERT INTO run_ids (id)
+		SELECT MAX(id) FROM agent_runs
+		WHERE (SELECT MAX(id) FROM agent_runs) IS NOT NULL AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'run_ids')`); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -396,16 +411,35 @@ func newToken() string {
 
 func (s *Store) CreateRun(r AgentRun) (AgentRun, error) {
 	r.Token = newToken()
-	res, err := s.db.Exec(
-		`INSERT INTO agent_runs (channel_id, preset_name, provider, agent_name, model, extra_args,
-			prompt, workdir, status, spawner, tmux_target, token, origin_message_id)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.ChannelID, r.PresetName, r.Provider, r.AgentName, r.Model, r.ExtraArgs,
-		r.Prompt, r.Workdir, r.Status, r.Spawner, r.TmuxTarget, r.Token, nz(r.OriginMessageID))
+	tx, err := s.db.Begin()
 	if err != nil {
 		return AgentRun{}, err
 	}
-	id, _ := res.LastInsertId()
+	defer tx.Rollback()
+	// A fresh id from the never-reused sequence (see migrate); the rows
+	// themselves are bookkeeping and pruned as we go.
+	res, err := tx.Exec(`INSERT INTO run_ids DEFAULT VALUES`)
+	if err != nil {
+		return AgentRun{}, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return AgentRun{}, err
+	}
+	if _, err := tx.Exec(`DELETE FROM run_ids WHERE id < ?`, id); err != nil {
+		return AgentRun{}, err
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO agent_runs (id, channel_id, preset_name, provider, agent_name, model, extra_args,
+			prompt, workdir, status, spawner, tmux_target, token, origin_message_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, r.ChannelID, r.PresetName, r.Provider, r.AgentName, r.Model, r.ExtraArgs,
+		r.Prompt, r.Workdir, r.Status, r.Spawner, r.TmuxTarget, r.Token, nz(r.OriginMessageID)); err != nil {
+		return AgentRun{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return AgentRun{}, err
+	}
 	got, _, err := s.RunByID(id)
 	return got, err
 }

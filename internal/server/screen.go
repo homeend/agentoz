@@ -78,7 +78,11 @@ type screenPoll struct {
 	last   screenFrame
 	lastFP string
 	stop   chan struct{}
+	once   sync.Once // stop closes once: cancel, Forget and a handle switch may all try
 }
+
+// end stops the poll's loop; safe to call more than once.
+func (p *screenPoll) end() { p.once.Do(func() { close(p.stop) }) }
 
 func newScreenFeed(capture func(spawn.Handle) (spawn.Screen, error)) *screenFeed {
 	return &screenFeed{capture: capture, interval: screenPollInterval, runs: map[int64]*screenPoll{}}
@@ -91,6 +95,15 @@ func (f *screenFeed) Subscribe(runID int64, h spawn.Handle, rules screen.Rules) 
 	ch := make(chan screenFrame, 4)
 	f.mu.Lock()
 	p, ok := f.runs[runID]
+	if ok && p.handle != h {
+		// Same run id, another window: SQLite hands a deleted run's id to
+		// the next one, and a page left open on the old run kept its poll
+		// alive — the new run's page then showed the old, dead window
+		// (seen live 2026-09-09). The old poll ends; its viewers go quiet.
+		p.end()
+		delete(f.runs, runID)
+		ok = false
+	}
 	if !ok {
 		p = &screenPoll{handle: h, rules: rules, subs: map[chan screenFrame]struct{}{}, stop: make(chan struct{})}
 		f.runs[runID] = p
@@ -109,12 +122,23 @@ func (f *screenFeed) Subscribe(runID int64, h spawn.Handle, rules screen.Rules) 
 			defer f.mu.Unlock()
 			delete(p.subs, ch)
 			if len(p.subs) == 0 {
-				close(p.stop)
+				p.end()
 				if f.runs[runID] == p {
 					delete(f.runs, runID)
 				}
 			}
 		})
+	}
+}
+
+// Forget stops polling runID (the run was deleted); viewers of that page
+// stop receiving frames.
+func (f *screenFeed) Forget(runID int64) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if p, ok := f.runs[runID]; ok {
+		p.end()
+		delete(f.runs, runID)
 	}
 }
 

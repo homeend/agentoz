@@ -102,6 +102,12 @@ func (s *Server) handleUIDeleteRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = os.RemoveAll(filepath.Join(s.dataDir, "runs", fmt.Sprint(id)))
+	// Per-run runtime state must not outlive the row: SQLite may give the
+	// id to the next run (seen live 2026-09-09).
+	s.screens.Forget(id)
+	s.stateMu.Lock()
+	delete(s.states, id)
+	s.stateMu.Unlock()
 	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", run.ChannelID), http.StatusFound)
 }
 
