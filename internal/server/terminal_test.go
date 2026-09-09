@@ -21,14 +21,14 @@ type fakeViewer struct {
 	cols, rows int
 	sizeErr    error
 	argv       []string
-	guarded    []string // view names GuardView was called with
+	views      []string // view names ViewCommand was asked for
 }
 
 func (f *fakeViewer) ViewCommand(h spawn.Handle, view string) ([]string, error) {
+	f.views = append(f.views, view)
 	return f.argv, nil
 }
 func (f *fakeViewer) Size(h spawn.Handle) (int, int, error) { return f.cols, f.rows, f.sizeErr }
-func (f *fakeViewer) GuardView(view string) error           { f.guarded = append(f.guarded, view); return nil }
 
 func wsURL(tsURL string, runID int64) string {
 	return "ws" + strings.TrimPrefix(tsURL, "http") + fmt.Sprintf("/ui/runs/%d/terminal", runID)
@@ -76,8 +76,8 @@ func TestTerminalRelaysBytesAndSize(t *testing.T) {
 	if got, err := readUntilWS(ctx, c, "30 100"); err != nil {
 		t.Fatalf("pty size not relayed: %q %v", got, err)
 	}
-	if len(fv.guarded) != 1 || !strings.HasPrefix(fv.guarded[0], "erbrus-view-") {
-		t.Fatalf("view not guarded: %v", fv.guarded)
+	if len(fv.views) != 1 || !strings.HasPrefix(fv.views[0], "erbrus-view-") {
+		t.Fatalf("view session not named per tab: %v", fv.views)
 	}
 	if err := c.Write(ctx, websocket.MessageBinary, []byte("ping\r")); err != nil {
 		t.Fatal(err)

@@ -392,3 +392,44 @@ live test):
 - The handler calls `GuardView` right after `termview.Start`; a failure
   closes the socket (1011) rather than running unguarded. The size poll
   stays as the fallback (≤ 2 s).
+
+## Amendment 2026-09-09: the guard hook was wrong twice; views now own one linked window
+
+Reported: "sometimes the screen is interactive, very often it isn't".
+Measured on the throwaway instance with a raw websocket client: 3 of 8
+opens closed with 1011 `guard view erbrus-view-N-xxxx: exit status 1`.
+The pty client that creates the view session and the server's separate
+`set-hook` race; when `set-hook` arrives first the session does not exist
+yet, the handler closes the socket and the page falls back to the
+read-only `<pre>` (the reason sits in the small status line, easy to
+miss). The "sometimes" was simply which process reached tmux first.
+
+Worse, probed with marker files on tmux 3.7c: a session-level
+`session-window-changed` hook set on the view NEVER fires when the viewed
+window is killed or exits (a global hook does, per-session ones do not),
+so the guard in the previous amendment never worked; the size poll was
+the only protection all along. The previous amendment's "fires exactly
+then" claim is withdrawn.
+
+Replacement, no hook at all: the view is a plain session that owns
+exactly one window, the run's, linked in:
+
+```
+tmux new-session -s <view> -n erbrus-placeholder -f ignore-size 'sleep 2147483647'
+  ; set -t <view> status off ; set -t <view> destroy-unattached on
+  ; set -t <view> prefix None ; set -t <view> prefix2 None
+  ; link-window -s =<session>:<index> -t =<view>:
+  ; kill-window -t =<view>:erbrus-placeholder
+```
+
+`link-window` shares the window object (keys and output are the real
+thing); `-t <view>:` with no index links at the next free index, never
+the placeholder's, whatever `base-index` is (the user runs 1); the
+placeholder is then killed by name. When the run's window dies the view
+has no windows, tmux destroys it, the pty client exits, the handler ends
+("window gone"). Verified: the view lists exactly the linked window; it
+dies with the window; a second view on the same window and the run's
+session survive one view being killed; `-f ignore-size` still keeps the
+user's window size; the opt-in live test covers the first-window case
+(run window at base-index); the raw websocket client then opened 8 of 8.
+`Viewer.GuardView` is gone; the size poll remains the fallback.

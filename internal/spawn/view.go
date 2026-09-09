@@ -19,9 +19,6 @@ type Viewer interface {
 	// Size reports the window's current columns and rows; an error when
 	// the window is gone (never a fallback to another window).
 	Size(h Handle) (cols, rows int, err error)
-	// GuardView arranges for the view session to end as soon as the
-	// window it shows disappears, so it can never show another one.
-	GuardView(view string) error
 }
 
 // viewPrefix names the sessions erbrus creates for browser terminals.
@@ -29,29 +26,45 @@ type Viewer interface {
 const viewPrefix = "erbrus-view-"
 
 // ViewName returns a session name unique per browser tab, so two tabs on
-// one run get independent grouped sessions.
+// one run get independent view sessions.
 func ViewName(runID int64) string {
 	var b [4]byte
 	rand.Read(b[:])
 	return fmt.Sprintf("%s%d-%s", viewPrefix, runID, hex.EncodeToString(b[:]))
 }
 
-// ViewCommand builds a grouped session (-t <session>: shares the windows,
-// has its own current window), size-neutral (-f ignore-size: the user's
-// `window-size latest` server would otherwise reflow their terminal to
-// the browser's size — seen in probes 2026-09-08), self-destroying when
-// the pty client goes, without status line or prefix key so a browser
-// tab cannot issue tmux commands, showing exactly h's window.
+// placeholderWindow names the throwaway first window of a view session;
+// the chain kills it by name once h's window is linked in, so the view
+// owns exactly one window whatever base-index the user runs.
+const placeholderWindow = "erbrus-placeholder"
+
+// ViewCommand builds a view session that owns exactly ONE window: h's,
+// linked in from its own session (link-window shares the window object,
+// so keystrokes and output are the real thing). When that window dies
+// the session has no windows left, tmux destroys it, and the pty client
+// exits — no hook needed. The earlier grouped-session design switched to
+// the user's other windows on death and its guard hook never fired on
+// tmux 3.7c (session-level session-window-changed is silent; measured
+// 2026-09-09), while installing it from a second process raced the
+// client creating the session (3 of 8 opens failed).
+//
+// -f ignore-size keeps the client size-neutral (the user's `window-size
+// latest` server would otherwise reflow their terminal to the browser's
+// size); destroy-unattached ends the session with the pty; no status
+// line and no prefix key, so a browser tab cannot issue tmux commands.
 func (t *Tmux) ViewCommand(h Handle, view string) ([]string, error) {
 	session, index, ok := strings.Cut(string(h), ":")
 	if !ok || session == "" || index == "" {
 		return nil, fmt.Errorf("malformed handle %q", h)
 	}
-	argv := []string{"tmux", "new-session", "-t", session, "-s", view, "-f", "ignore-size"}
+	argv := []string{"tmux", "new-session", "-s", view, "-n", placeholderWindow, "-f", "ignore-size", "sleep 2147483647"}
 	for _, kv := range [][2]string{{"status", "off"}, {"destroy-unattached", "on"}, {"prefix", "None"}, {"prefix2", "None"}} {
 		argv = append(argv, ";", "set", "-t", view, kv[0], kv[1])
 	}
-	argv = append(argv, ";", "select-window", "-t", exact(view+":"+index))
+	// -t view: (no index) = next free index, never the placeholder's,
+	// whatever base-index is; the linked window becomes current.
+	argv = append(argv, ";", "link-window", "-s", exact(session+":"+index), "-t", exact(view+":"))
+	argv = append(argv, ";", "kill-window", "-t", exact(view+":"+placeholderWindow))
 	return argv, nil
 }
 
@@ -82,23 +95,6 @@ func (t *Tmux) Size(h Handle) (int, int, error) {
 		return cols, rows, nil
 	}
 	return 0, 0, fmt.Errorf("size of %s: window gone", h)
-}
-
-// GuardView makes the view session die the moment its window does. A
-// grouped session whose current window is killed switches to another
-// window of the group — the user's own shell — and a browser terminal
-// would keep typing there (seen live 2026-09-08). session-window-changed
-// fires exactly then and never for other windows (probed on tmux 3.7c).
-// It must be installed in a call of its own: set in the creating command
-// chain, it would consume that chain's own queued select-window event.
-// set-hook takes no "=" prefix; the nonce makes the name exact enough.
-func (t *Tmux) GuardView(view string) error {
-	_, err := t.run("tmux", "set-hook", "-t", view, "session-window-changed",
-		"run-shell 'tmux kill-session -t "+exact(view)+"'")
-	if err != nil {
-		return fmt.Errorf("guard view %s: %w", view, err)
-	}
-	return nil
 }
 
 // SweepViews kills view sessions nobody is attached to — leftovers of a

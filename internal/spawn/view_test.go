@@ -13,12 +13,13 @@ func TestViewCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "tmux new-session -t erbrus-web -s erbrus-view-12-a1b2c3d4 -f ignore-size" +
+	want := "tmux new-session -s erbrus-view-12-a1b2c3d4 -n erbrus-placeholder -f ignore-size sleep 2147483647" +
 		" ; set -t erbrus-view-12-a1b2c3d4 status off" +
 		" ; set -t erbrus-view-12-a1b2c3d4 destroy-unattached on" +
 		" ; set -t erbrus-view-12-a1b2c3d4 prefix None" +
 		" ; set -t erbrus-view-12-a1b2c3d4 prefix2 None" +
-		" ; select-window -t =erbrus-view-12-a1b2c3d4:7"
+		" ; link-window -s =erbrus-web:7 -t =erbrus-view-12-a1b2c3d4:" +
+		" ; kill-window -t =erbrus-view-12-a1b2c3d4:erbrus-placeholder"
 	if got := strings.Join(argv, " "); got != want {
 		t.Errorf("argv =\n%s\nwant\n%s", got, want)
 	}
@@ -57,21 +58,6 @@ func TestSize(t *testing.T) {
 	}
 	if _, _, err := NewTmux(rec.run).Size("nocolon"); err == nil {
 		t.Error("malformed handle accepted")
-	}
-}
-
-func TestGuardView(t *testing.T) {
-	rec := &recorder{}
-	if err := NewTmux(rec.run).GuardView("erbrus-view-12-a1b2c3d4"); err != nil {
-		t.Fatal(err)
-	}
-	want := "tmux set-hook -t erbrus-view-12-a1b2c3d4 session-window-changed run-shell 'tmux kill-session -t =erbrus-view-12-a1b2c3d4'"
-	if len(rec.calls) != 1 || rec.calls[0] != want {
-		t.Errorf("calls = %v", rec.calls)
-	}
-	rec = &recorder{fail: map[string]error{"tmux set-hook": errors.New("no such session")}}
-	if err := NewTmux(rec.run).GuardView("erbrus-view-12-a1b2c3d4"); err == nil {
-		t.Error("failure must surface")
 	}
 }
 

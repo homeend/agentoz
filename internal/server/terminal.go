@@ -91,13 +91,8 @@ func (s *Server) handleUITerminal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer term.Close()
-	// The view must never outlive its window (it would show the user's
-	// other windows). The hook is the instant guard; the size poll below,
-	// which errors once the window is gone, is the fallback.
-	if err := viewer.GuardView(view); err != nil {
-		c.Close(websocket.StatusInternalError, closeReason(err))
-		return
-	}
+	// The view owns only this window (see spawn.ViewCommand), so it ends
+	// by itself when the window dies; the size poll below is the fallback.
 
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()

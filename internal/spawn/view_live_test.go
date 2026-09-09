@@ -64,8 +64,10 @@ func TestViewClientLive(t *testing.T) {
 		t.Fatalf("view session %s survived the client", view)
 	}
 
-	// Guard: the viewed window dies while a second window exists in the
-	// session. The view must die too, not switch to the other window.
+	// The viewed window dies while a second window exists in its session.
+	// The view owns only the linked window, so it must die too, never
+	// show the other one. (h is the session's FIRST window, at base-index:
+	// the placeholder's index, the case the link must not collide with.)
 	if out, err := exec.Command("tmux", "new-window", "-d", "-t", sess, "cat").CombinedOutput(); err != nil {
 		t.Fatalf("new-window: %v %s", err, out)
 	}
@@ -77,8 +79,9 @@ func TestViewClientLive(t *testing.T) {
 	}
 	defer term2.Close()
 	time.Sleep(500 * time.Millisecond)
-	if err := tm.GuardView(view2); err != nil {
-		t.Fatal(err)
+	wins, _ := exec.Command("tmux", "list-windows", "-t", "="+view2, "-F", "#{window_name}").Output()
+	if got := strings.Fields(string(wins)); len(got) != 1 || got[0] == placeholderWindow {
+		t.Fatalf("view must own exactly the linked window, has %q", got)
 	}
 	if err := exec.Command("tmux", "kill-window", "-t", "="+string(h)).Run(); err != nil {
 		t.Fatal(err)
