@@ -93,6 +93,13 @@ a:hover { text-decoration: underline; }
 .composer .btn { border-radius: 6px; }
 .rail { background: #1d1f23; border-left: 1px solid #2c2f35; overflow-y: auto; padding: 12px; }
 .rail h3 { margin: 10px 0 6px; font-size: 11px; letter-spacing: 1px; color: #757a83; text-transform: uppercase; }
+/* Collapsible rail sections: the heading is the toggle, with its own arrow. */
+.railsec summary { list-style: none; cursor: pointer; user-select: none; }
+.railsec summary::-webkit-details-marker { display: none; }
+.railsec summary h3 { display: inline-block; }
+.railsec summary h3::before { content: '▸ '; }
+.railsec[open] summary h3::before { content: '▾ '; }
+.railsec summary:hover h3 { color: #a0a5ae; }
 .runcard { border: 1px solid #2c2f35; border-radius: 4px; padding: 6px 8px; margin-bottom: 6px; font-size: 13px; }
 .runcard .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #565b64; }
 /* dot = what the agent is doing, not whether the process is alive:

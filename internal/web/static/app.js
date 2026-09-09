@@ -66,6 +66,22 @@ setInterval(function () {
   }, true);
 })();
 
+// Collapsible rail sections (<details data-rail="…">). The open state is
+// remembered per section in localStorage; the template's own `open`
+// attribute is the default for a first visit (agents open, presets closed).
+(function () {
+  document.querySelectorAll('details[data-rail]').forEach(function (d) {
+    var key = 'erbrus.rail.' + d.dataset.rail;
+    try {
+      var saved = localStorage.getItem(key);
+      if (saved === '1') d.open = true; else if (saved === '0') d.open = false;
+    } catch (e) { /* storage blocked: keep the default */ }
+    d.addEventListener('toggle', function () {
+      try { localStorage.setItem(key, d.open ? '1' : '0'); } catch (e) { /* ignore */ }
+    });
+  });
+})();
+
 (function () {
   var messages = document.getElementById('messages');
   if (!messages) return; // not on a channel page

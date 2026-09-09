@@ -44,15 +44,19 @@
     </form>
   </section>
   <aside class="rail">
-    <h3>Agents in channel</h3>
+    <details class="railsec" data-rail="agents" open>
+    <summary><h3>Agents in channel</h3></summary>
     <div id="runs" data-channel="{{.Channel.ID}}">{{template "_runs.html" .}}</div>
     {{if .StoppedRuns}}<form method="post" action="/ui/channels/{{.Channel.ID}}/runs/delete-finished" class="inlineform" data-confirm="Remove all {{.StoppedRuns}} stopped run(s) from this channel's history? Their messages stay in the channel.">
       <button class="btn small" type="submit" title="remove every finished run from the history; running agents are untouched">Remove all stopped ({{.StoppedRuns}})</button>
     </form>{{end}}
-    <h3>Presets</h3>
+    </details>
+    <details class="railsec" data-rail="presets">
+    <summary><h3>Presets</h3></summary>
     {{range .Presets}}
     <div class="presetrow"><span>{{.}}</span><a class="btn" href="/ui/spawn?channel={{$.Channel.ID}}&amp;preset={{.}}">Spawn</a></div>
     {{end}}
+    </details>
     {{if .AttachCmds}}<h3>Attach</h3>{{range .AttachCmds}}<div class="mono">{{.}}</div>{{end}}{{end}}
     <h3>Channel</h3>
     <form method="post" action="/ui/channels/{{.Channel.ID}}/clear" data-confirm="Clear all messages in this channel?">
