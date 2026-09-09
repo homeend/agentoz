@@ -182,7 +182,8 @@ func (s *Server) forwardToAgentCore(msgID, runID int64) (chID int64, warning str
 	}
 	text := integrate.ForwardToAgent(s.erbrusBin, src.ChannelID, projName, chanName,
 		branch, worktree, src.AuthorName, src.CreatedAt.Format("2006-01-02 15:04:05"), src.Body, paths)
-	return run.ChannelID, s.sendToRun(run, text), 0, ""
+	warning, _ = s.sendToRun(run, text)
+	return run.ChannelID, warning, 0, ""
 }
 
 // renderForwardError re-renders the forward dialog at 422 with errMsg.

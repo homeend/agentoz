@@ -34,6 +34,10 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 	if r.StatusCode != http.StatusFound || !strings.Contains(loc, "queued") || !strings.Contains(loc, "dialog") {
 		t.Fatalf("expected a queued notice, got %d %s", r.StatusCode, loc)
 	}
+	// ?queued=<agent> lets the page retire the notice on the delivery note.
+	if !strings.Contains(loc, "&queued="+run.AgentName) {
+		t.Fatalf("redirect should name the queued agent, got %s", loc)
+	}
 	time.Sleep(50 * time.Millisecond)
 	if got := waitSent(fs, 30*time.Millisecond); len(got) != 0 {
 		t.Fatalf("pasted into the dialog: %v", got)

@@ -80,6 +80,9 @@ type channelPage struct {
 	// configured session when no run names one.
 	AttachCmds []string
 	Warning    string // ?warning= from a redirect (e.g. failed agent delivery)
+	// Queued: ?queued=<agent> — the warning is a "message queued" notice
+	// for that agent; the page retires it when the delivery note arrives.
+	Queued string
 	// Workdir: where agents spawned from this channel land (same rule as
 	// spawnRunCore's default: worktree path, else repo path).
 	// PathMissing: that directory does not exist right now.
@@ -277,6 +280,7 @@ func (s *Server) handleUIChannel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data.Warning = r.URL.Query().Get("warning")
+	data.Queued = r.URL.Query().Get("queued")
 	s.render(w, "channel", data)
 }
 
@@ -370,13 +374,17 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 	}
 	s.hub.Publish("message", s.messageJSON(saved))
 
-	warning := ""
+	warning, queued := "", false
 	if msg.TargetLabel != "" {
-		warning = s.sendToRun(run, msg.Body+integrate.ChatReplySuffix(s.erbrusBin))
+		warning, queued = s.sendToRun(run, msg.Body+integrate.ChatReplySuffix(s.erbrusBin))
 	}
 	target := fmt.Sprintf("/ui/channels/%d", chID)
 	if warning != "" {
 		target += "?warning=" + url.QueryEscape(warning)
+		if queued {
+			// The page swaps the banner for the delivery note of this agent.
+			target += "&queued=" + url.QueryEscape(run.AgentName)
+		}
 	}
 	http.Redirect(w, r, target, http.StatusFound)
 }
@@ -385,19 +393,21 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 // success) instead of an error — the caller has already recorded the message.
 // An agent that cannot take text right now (still starting, or showing a
 // dialog the human must answer) gets it queued: deliverWhenReady types it
-// once the input box is back and notes the outcome in the channel.
-func (s *Server) sendToRun(run store.AgentRun, text string) string {
+// once the input box is back and notes the outcome in the channel. queued
+// is true for that case, so the page can retire the notice when the
+// "<agent>: queued message delivered / NOT delivered" note arrives.
+func (s *Server) sendToRun(run store.AgentRun, text string) (warning string, queued bool) {
 	if s.spawner == nil || run.TmuxTarget == "" {
-		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName)
+		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName), false
 	}
 	if why := s.mustQueue(run); why != "" {
 		go s.deliverWhenReady(run, text, chatDelivery)
-		return fmt.Sprintf("%s %s — message queued, delivered once its input box is ready", run.AgentName, why)
+		return fmt.Sprintf("%s %s — message queued, delivered once its input box is ready", run.AgentName, why), true
 	}
 	if err := s.deliver(run, text); err != nil {
-		return fmt.Sprintf("delivery to %s failed: %s — posted to channel only", run.AgentName, err)
+		return fmt.Sprintf("delivery to %s failed: %s — posted to channel only", run.AgentName, err), false
 	}
-	return ""
+	return "", false
 }
 
 func (s *Server) handleUIStopRun(w http.ResponseWriter, r *http.Request) {

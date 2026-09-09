@@ -171,9 +171,27 @@ setInterval(function () {
       notify(d.agent_name + ' looks stalled', 'no terminal output for 2+ minutes in ' + ch, '/ui/runs/' + d.id + '/screen', 'screen:' + (d.tmux_target || d.id));
     }
   }
+  // The redirect after a composer post carries the warning banner in the
+  // URL; drop it so a reload does not resurrect a stale notice. A "message
+  // queued" notice (data-queued=<agent>) turns into that agent's delivery
+  // note when it arrives, and goes away on its own once delivered.
+  var banner = document.getElementById('warning');
+  if (banner && window.history && history.replaceState) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ignore */ }
+  }
   function onMessageEvent(d) {
     if (d.kind === 'report') {
       notify('report from ' + (d.author_name || 'agent'), 'in ' + channelName(d.channel_id) + ': ' + String(d.body || '').slice(0, 120), '/ui/channels/' + d.channel_id, 'erbrus-report-' + d.id);
+    }
+    if (banner && banner.dataset.queued && d.kind === 'system' && String(d.channel_id) === channelID) {
+      var body = String(d.body || '');
+      if (body.indexOf(banner.dataset.queued + ': queued message') === 0) {
+        banner.textContent = body;
+        delete banner.dataset.queued;
+        if (body.indexOf('NOT delivered') < 0) {
+          setTimeout(function () { if (banner.parentNode) banner.parentNode.removeChild(banner); banner = null; }, 6000);
+        }
+      }
     }
   }
 

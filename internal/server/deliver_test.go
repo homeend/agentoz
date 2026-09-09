@@ -51,7 +51,7 @@ func TestDeliverUsesProviderRulesForSubmitted(t *testing.T) {
 	testSrv.setRules("antigravity", &rules)
 
 	run := store.AgentRun{Provider: "antigravity", TmuxTarget: "erbrus:2", AgentName: "antigravity", Status: "running"}
-	if w := testSrv.sendToRun(run, "please refactor the parser"); w != "" {
+	if w, _ := testSrv.sendToRun(run, "please refactor the parser"); w != "" {
 		t.Fatalf("warning: %s", w)
 	}
 	if len(fs.sent) != 1 || !strings.HasPrefix(fs.sent[0], "erbrus:2|please refactor") {
@@ -65,7 +65,7 @@ func TestDeliverUsesProviderRulesForSubmitted(t *testing.T) {
 	plain := &fakeSpawner{}
 	plain.setScreen("erbrus:2", spawn.Screen{Raw: agyIdleWithText})
 	testSrv.SetRuntime(plain, "/abs/erbrus", ts.URL)
-	if w := testSrv.sendToRun(run, "hi"); w != "" || len(plain.sent) != 1 {
+	if w, _ := testSrv.sendToRun(run, "hi"); w != "" || len(plain.sent) != 1 {
 		t.Fatalf("plain send: %q %v", w, plain.sent)
 	}
 }
