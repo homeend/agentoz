@@ -144,6 +144,19 @@ codex — working `Working \(\d+`, `(?i)esc to interrupt`; waiting
 `^›[^\n]*\n[^\n]*· /` (input line above the model/cwd status line);
 question `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `^\s*[›>] \d+\.`.
 
+junie — command `junie --brave --model {model} {args}` with `prompt:
+paste`: a task given on the command line runs ONCE and the process
+exits, and `--prompt` is swallowed by the trust dialog, so erbrus pastes
+the prompt into interactive mode. working `^[⠋-⠿] [^\n]*esc to stop`
+(spinner lines: "Thinking...", "Sending 1 prompt", "Running …"); waiting
+`^>[^\n]*\n~ ` (the "> Type your prompt..." box right above the "~ <dir>"
+status bar); question `Trust this project`, `needs your trust decision`.
+
+Watch for this one-shot trap with any CLI: if the spawned run ends
+seconds after start with "finished · exit 0" and a report, the command
+ran a single task instead of an interactive session. Look for a flag
+that starts interactive mode with a prompt, or use `prompt: paste`.
+
 kimi (registry default, working rule unverified) — command
 `kimi --yolo --model {model} {args}`, `prompt: paste`; working
 `^[🌑🌒🌓🌔🌕🌖🌗🌘] `, `Retrying \(\d+/\d+\)`; waiting `^│ >[^\n]*\n╰`;

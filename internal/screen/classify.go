@@ -210,7 +210,7 @@ func DialogOptions(raw string, lines []string) []Option {
 }
 
 var (
-	cursorRe = regexp.MustCompile(`^(\s*)([>❯›●◉▸▶])(\s+)(\S.*)$`)
+	cursorRe = regexp.MustCompile(`^(\s*)([>❯›●◉▸▶→])(\s+)(\S.*)$`)
 	// hintRe: the navigation help under a cursor list ("↑/↓ Navigate ·
 	// enter Confirm", "↑↓ navigate · Enter select · Esc exit"), never a choice.
 	hintRe = regexp.MustCompile(`[↑↓]|(?i)\bnavigate\b|\bconfirm\b|\besc\b`)

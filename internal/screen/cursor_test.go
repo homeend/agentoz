@@ -30,6 +30,17 @@ func TestCursorOptionsReadsAgyDialog(t *testing.T) {
 	if len(got) != 2 || got[0].Label != "Yes, I trust this folder" || got[0].Current || !got[1].Current {
 		t.Fatalf("moved = %+v", got)
 	}
+	// Junie's trust dialog: → cursor, deeper indentation, long labels.
+	junie := "    Junie needs your trust decision\n" +
+		"    Project: /tmp/x/juniewd\n" +
+		"\n" + // the blank line is what separates the text from the choices
+		"  → Trust this project\n" +
+		"    Trust all projects in /tmp/x\n" +
+		"    Keep untrusted\n"
+	got = CursorOptions(junie)
+	if len(got) != 3 || got[0].Label != "Trust this project" || !got[0].Current || got[2].Label != "Keep untrusted" {
+		t.Fatalf("junie = %+v", got)
+	}
 	// Kimi-style marker and hint.
 	kimi := "Trust this folder?\n❯ Yes\n  No\n  ↑↓ navigate · Enter select · Esc exit\n"
 	if got = CursorOptions(kimi); len(got) != 2 || got[0].Label != "Yes" || got[1].Label != "No" {

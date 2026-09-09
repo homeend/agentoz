@@ -50,8 +50,19 @@ func Builtins() []Agent {
 				ScreenWaiting:  []string{`^│ >[^\n]*\n╰`},
 				ScreenQuestion: []string{`Trust this folder\?`, `Enter select`, `Esc exit`},
 			}, Note: "prompt by paste"},
+		// Junie 26.9.7: a task on the command line runs ONCE and exits
+		// (seen live 2026-09-09: the agent did the preamble and quit), and
+		// --prompt is swallowed by the trust dialog, so the prompt is
+		// pasted into interactive mode. --brave auto-approves. Rules from
+		// live captures: spinner lines end in "esc to stop"; the idle box
+		// "> Type your prompt..." sits right above the "~ <dir>" status bar.
 		{ID: "junie", Label: "Junie", Binary: "junie", Home: "~/.junie", Skill: "~/.junie/skills/erbrus/SKILL.md",
-			Provider: config.Provider{Command: `junie {args} "{prompt}"`}},
+			Provider: config.Provider{
+				Command: `junie --brave --model {model} {args}`, Prompt: "paste",
+				ScreenWorking:  []string{`^[⠋-⠿] [^\n]*esc to stop`},
+				ScreenWaiting:  []string{`^>[^\n]*\n~ `},
+				ScreenQuestion: []string{`Trust this project`, `needs your trust decision`},
+			}, Note: "prompt by paste"},
 		// Antigravity CLI (agy 1.1.4): -i runs an initial prompt
 		// interactively; skills live under ~/.gemini/config/skills; detect
 		// its own home, not plain ~/.gemini (gemini-cli creates that too).
