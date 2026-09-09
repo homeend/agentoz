@@ -14,7 +14,11 @@ import (
 // Paste delivery pacing. Package vars so tests can shorten them.
 var (
 	pastePoll     = 500 * time.Millisecond
-	pasteDeadline = 60 * time.Second // extended while a dialog is up
+	// pasteDeadline: how long a screen may stay unclassified before the
+	// prompt is given up (a dialog extends it). Junie on a slow start (update
+	// extraction, auth, logo) took over a minute to show its box — seen live
+	// 2026-09-09 as "no input box within 1m, screen state unknown".
+	pasteDeadline = 5 * time.Minute
 	pasteMax      = 30 * time.Minute // hard cap, dialog or not
 	pasteSettle   = 2 * time.Second  // no rules: paste once the screen sat still this long
 )
