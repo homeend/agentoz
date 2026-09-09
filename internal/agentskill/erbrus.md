@@ -51,6 +51,13 @@ and already knows them.
   --agents <id>` creates it (plus its preset) with the built-in template
   and screen rules; for any other CLI, write both yourself (step 2
   below). Then refine the screen rules (steps 3–6).
+- Configure the CLI through its own flags in the `command` template.
+  Write a file into the human's home directory only when the CLI has no
+  flag for the setting, and then into the CLI's default config location,
+  never a custom file whose absolute path then has to live in the
+  command. Do not duplicate a setting that is already in effect (a flag
+  plus a config file plus a second config file for the same switch).
+  Name every file you created or changed in your report.
 - Done means: provider entry, preset, and all three screen-rule lists
   saved and tested. Report anything you could not verify.
 - Screens come only from a run that erbrus itself started. The one way
@@ -169,6 +176,15 @@ works, so the spinner glyph alone must decide); waiting
 status bar); question `Trust this project`, `needs your trust decision`,
 `Allow running this command\?`, `Or reject with a reason`, `space to
 select`, `Or type your own answer`.
+Brave mode: `--brave` (interactive only, which is what paste mode uses);
+`{"brave": true}` in `~/.junie/config.json` switches it on for every
+session, so no extra config file or `--config-location` is needed. Brave
+does NOT cover shell commands: those go through `~/.junie/allowlist.json`
+(`defaultBehavior: ask`), so the first `erbrus msg send` raises the
+"Allow running this command?" dialog. A human answers "Always allow
+("erbrus msg send *")" once on the run's keypad, which stores an
+`executables` rule, or adds `{"prefix": "erbrus", "action": "allow"}`
+under `rules.executables` in that file beforehand.
 
 ### How the keypad reads a dialog's choices
 
