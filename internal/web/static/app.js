@@ -23,6 +23,49 @@ setInterval(function () {
 // erbrus UI script: SSE-driven refresh for the channel view.
 // Contract: on "message"/"run" events whose channel_id matches the open
 // channel, refetch the corresponding partial and swap innerHTML.
+// In-page confirmation dialog for forms carrying data-confirm, on EVERY
+// page (the project card's × for an empty archived channel lives outside
+// the channel page — it once submitted with no dialog because this sat in
+// the channel-only block). Delegated on document (capture) so it survives
+// the innerHTML swaps of #messages and #runs. A confirmed form re-submits
+// with a one-shot flag.
+(function () {
+  var overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = '<div class="modal"><div class="modal-msg"></div>' +
+    '<div class="modal-foot"><button type="button" class="btn" data-act="cancel">Cancel</button>' +
+    '<button type="button" class="btn danger" data-act="ok">Delete</button></div></div>';
+  document.body.appendChild(overlay);
+  var modalMsg = overlay.querySelector('.modal-msg');
+  var pendingForm = null;
+
+  function closeModal() { overlay.classList.remove('open'); pendingForm = null; }
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay || e.target.dataset.act === 'cancel') closeModal();
+    if (e.target.dataset.act === 'ok' && pendingForm) {
+      var f = pendingForm;
+      closeModal();
+      f.dataset.confirmed = '1';
+      if (f.requestSubmit) f.requestSubmit(); else f.submit();
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
+  });
+
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f.dataset || !f.dataset.confirm) return;
+    if (f.dataset.confirmed === '1') { delete f.dataset.confirmed; return; }
+    e.preventDefault();
+    // Batch delete with nothing selected: no dialog, no request — nothing.
+    if (f.id === 'batchdel' && !document.querySelector('.selbox:checked')) return;
+    pendingForm = f;
+    modalMsg.textContent = f.dataset.confirm;
+    overlay.classList.add('open');
+  }, true);
+})();
+
 (function () {
   var messages = document.getElementById('messages');
   if (!messages) return; // not on a channel page
@@ -124,44 +167,6 @@ setInterval(function () {
       document.querySelectorAll('.selbox').forEach(function (cb) { cb.checked = false; });
     });
   }
-
-  // In-page confirmation dialog for forms carrying data-confirm. Delegated
-  // on document (capture) so it survives the innerHTML swaps of #messages
-  // and #runs. A confirmed form re-submits with a one-shot flag.
-  var overlay = document.createElement('div');
-  overlay.className = 'modal-overlay';
-  overlay.innerHTML = '<div class="modal"><div class="modal-msg"></div>' +
-    '<div class="modal-foot"><button type="button" class="btn" data-act="cancel">Cancel</button>' +
-    '<button type="button" class="btn danger" data-act="ok">Delete</button></div></div>';
-  document.body.appendChild(overlay);
-  var modalMsg = overlay.querySelector('.modal-msg');
-  var pendingForm = null;
-
-  function closeModal() { overlay.classList.remove('open'); pendingForm = null; }
-  overlay.addEventListener('click', function (e) {
-    if (e.target === overlay || e.target.dataset.act === 'cancel') closeModal();
-    if (e.target.dataset.act === 'ok' && pendingForm) {
-      var f = pendingForm;
-      closeModal();
-      f.dataset.confirmed = '1';
-      if (f.requestSubmit) f.requestSubmit(); else f.submit();
-    }
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && overlay.classList.contains('open')) closeModal();
-  });
-
-  document.addEventListener('submit', function (e) {
-    var f = e.target;
-    if (!f.dataset || !f.dataset.confirm) return;
-    if (f.dataset.confirmed === '1') { delete f.dataset.confirmed; return; }
-    e.preventDefault();
-    // Batch delete with nothing selected: no dialog, no request — nothing.
-    if (f.id === 'batchdel' && !document.querySelector('.selbox:checked')) return;
-    pendingForm = f;
-    modalMsg.textContent = f.dataset.confirm;
-    overlay.classList.add('open');
-  }, true);
 
   messages.scrollTop = messages.scrollHeight;
 
