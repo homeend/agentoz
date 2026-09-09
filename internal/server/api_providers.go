@@ -62,7 +62,7 @@ func (s *Server) handleAPIRunScreen(w http.ResponseWriter, r *http.Request) {
 		out.Lines = []string{}
 	}
 	if st == screen.Question {
-		out.Options = screen.Options(tail)
+		out.Options = screen.DialogOptions(sc.Raw, tail)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

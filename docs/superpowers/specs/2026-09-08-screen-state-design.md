@@ -216,3 +216,35 @@ provider names use the generic row.
   input box), and one real question dialog (Claude Code's trust-folder
   prompt, matched by "Esc to cancel"). The keypad has not yet answered a
   real dialog.
+
+## Amendment 2026-09-09: cursor-style dialogs get one-click answers
+
+Antigravity (and Kimi) dialogs are not numbered; they are a column of
+choices with a cursor marker on the current one:
+
+```
+> Yes, I trust this folder
+  No, exit
+  ↑/↓ Navigate · enter Confirm
+```
+
+`screen.Options` only reads `1.`/`2.` lines, so the keypad fell back to
+arrows and the user had to press ↓ and Enter by hand.
+
+- `screen.CursorOptions(raw)` reads the *untrimmed* screen: the last line
+  matching `^\s*[>❯›●◉▸▶]\s+\S` fixes the text column; the contiguous
+  lines above and below whose text starts in that column are the other
+  choices. Navigation hints (`↑ ↓`, navigate, confirm, esc) never count,
+  the right-aligned model line falls out by indentation, a marker line
+  with no siblings is an input prompt, not a dialog. Options carry
+  `Key: pick:<i>`, `Pick: true`, and `Current` on the cursor's line.
+  `screen.DialogOptions(raw, lines)` prefers numbered options and falls
+  back to cursor ones; all three producers (frame, watcher, screen API)
+  use it.
+- The keypad renders a pick option as one button with the choice's text
+  (`› ` marks where the cursor is now). `POST …/keys` with `key=pick:<i>`
+  recaptures the screen at press time, finds the cursor, presses Down or
+  Up the needed number of times 60 ms apart, then Enter. If the screen no
+  longer shows a cursor dialog nothing is pressed and the redirect
+  carries a warning. `pick:` accepts 0–8 only; everything else in the
+  allow-list is unchanged.

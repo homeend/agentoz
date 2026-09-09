@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"erbrus/internal/screen"
@@ -81,7 +82,7 @@ func (s *Server) observe(run store.AgentRun, sc spawn.Screen, now time.Time) {
 	switch st {
 	case screen.Question:
 		next.Thumb = template.HTML(screen.ToHTML(sc.Raw))
-		next.Options = screen.Options(lines)
+		next.Options = screen.DialogOptions(sc.Raw, lines)
 	case screen.Unknown:
 		// mid-redraw: keep whatever we had
 	default:
@@ -174,9 +175,13 @@ func (rs runState) badge(now time.Time) (label, class string, timed bool) {
 // the chat composer's job.
 var keypadKeys = []string{"Up", "Down", "Enter", "Escape"}
 
-// allowedKey: a single digit (dialog option) or one of keypadKeys.
+// allowedKey: a single digit (numbered option), "pick:<i>" (cursor-style
+// option i, walked with the arrows then Enter), or one of keypadKeys.
 func allowedKey(k string) bool {
 	if len(k) == 1 && k[0] >= '1' && k[0] <= '9' {
+		return true
+	}
+	if _, ok := pickIndex(k); ok {
 		return true
 	}
 	for _, a := range keypadKeys {
@@ -185,6 +190,48 @@ func allowedKey(k string) bool {
 		}
 	}
 	return false
+}
+
+func pickIndex(k string) (int, bool) {
+	rest, ok := strings.CutPrefix(k, "pick:")
+	if !ok || len(rest) != 1 || rest[0] < '0' || rest[0] > '8' {
+		return 0, false
+	}
+	return int(rest[0] - '0'), true
+}
+
+// keyGap paces the arrow presses of a pick so a TUI sees them one by one.
+var keyGap = 60 * time.Millisecond
+
+// pressPick answers a cursor-style dialog: recapture (the dialog may have
+// moved since the button was drawn), find the cursor, walk it to option
+// idx with Up/Down, confirm with Enter. An error means nothing was pressed.
+func (s *Server) pressPick(h spawn.Handle, idx int) error {
+	sc, err := s.spawner.Capture(h)
+	if err != nil {
+		return err
+	}
+	opts := screen.CursorOptions(sc.Raw)
+	cur := -1
+	for i, o := range opts {
+		if o.Current {
+			cur = i
+		}
+	}
+	if cur < 0 || idx >= len(opts) {
+		return fmt.Errorf("the dialog changed; pick again")
+	}
+	step, n := "Down", idx-cur
+	if n < 0 {
+		step, n = "Up", -n
+	}
+	for i := 0; i < n; i++ {
+		if err := s.spawner.SendKeys(h, step); err != nil {
+			return err
+		}
+		time.Sleep(keyGap)
+	}
+	return s.spawner.SendKeys(h, "Enter")
 }
 
 // handleUIRunKeys presses one allow-listed key in the run's window, then
@@ -214,7 +261,13 @@ func (s *Server) handleUIRunKeys(w http.ResponseWriter, r *http.Request) {
 	if r.FormValue("back") == "screen" {
 		target = fmt.Sprintf("/ui/runs/%d/screen", run.ID)
 	}
-	if err := s.spawner.SendKeys(spawn.Handle(run.TmuxTarget), key); err != nil {
+	h := spawn.Handle(run.TmuxTarget)
+	if idx, ok := pickIndex(key); ok {
+		err = s.pressPick(h, idx)
+	} else {
+		err = s.spawner.SendKeys(h, key)
+	}
+	if err != nil {
 		http.Redirect(w, r, target+"?warning="+url.QueryEscape(err.Error()), http.StatusFound)
 		return
 	}

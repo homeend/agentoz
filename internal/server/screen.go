@@ -50,7 +50,7 @@ func frameOf(sc spawn.Screen, err error, rules screen.Rules) (screenFrame, strin
 		State: string(st), Step: int(screen.StepDuration(lines).Seconds()),
 	}
 	if st == screen.Question {
-		f.Options = screen.Options(lines)
+		f.Options = screen.DialogOptions(sc.Raw, lines)
 	}
 	return f, hex.EncodeToString(sum[:])
 }

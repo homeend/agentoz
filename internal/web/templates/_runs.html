@@ -9,7 +9,7 @@
   {{if .Thumb}}<a class="thumb" href="/ui/runs/{{.ID}}/screen" target="screen:{{.TmuxTarget}}" title="the agent is showing a dialog — click to open the live screen with the keypad"><pre>{{.Thumb}}</pre></a>{{end}}
   <form class="keypad" method="post" action="/ui/runs/{{.ID}}/keys" title="answer the dialog: pick an option by number, move with the arrows, Enter confirms, Esc cancels">
     <input type="hidden" name="channel" value="{{$.Channel.ID}}">
-    {{range .Options}}<button class="btn small opt" name="key" value="{{.Key}}" title="{{.Key}} — {{.Label}}">{{.Key}} · {{.Label}}</button>{{end}}{{if not .Options}}<button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button>{{end}}<button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button>
+    {{range .Options}}{{if .Pick}}<button class="btn small opt pick" name="key" value="{{.Key}}" title="select this and confirm">{{if .Current}}› {{end}}{{.Label}}</button>{{else}}<button class="btn small opt" name="key" value="{{.Key}}" title="{{.Key}} — {{.Label}}">{{.Key}} · {{.Label}}</button>{{end}}{{end}}{{if not .Options}}<button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button>{{end}}<button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button>
   </form>
   {{end}}
   {{if .TmuxTarget}}<a class="btn small" href="/ui/runs/{{.ID}}/screen" target="screen:{{.TmuxTarget}}" title="opens (or focuses) the tab for tmux {{.TmuxTarget}}">Screen</a>{{end}}

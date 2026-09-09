@@ -342,16 +342,20 @@ setInterval(function () {
   var keypad = document.getElementById('keypad');
   var keypadKeys = document.getElementById('keypad-keys');
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
-  function btn(key, label, cls) {
+  function btn(key, label, cls, title) {
     return '<button class="btn small' + (cls ? ' ' + cls : '') + '" name="key" value="' + esc(key) + '"' +
-      (label !== key ? ' title="' + esc(key + ' — ' + label) + '"' : '') + '>' + esc(label) + '</button>';
+      (title ? ' title="' + esc(title) + '"' : (label !== key ? ' title="' + esc(key + ' — ' + label) + '"' : '')) + '>' + esc(label) + '</button>';
   }
-  // Rebuild the answer buttons from the dialog's own numbered options;
-  // arrows only when the dialog has none we could read.
+  // Rebuild the answer buttons from the dialog's own options: numbered
+  // ones press the digit, cursor-style ones ("pick") are walked to and
+  // confirmed by the server; arrows only when the dialog has none we could read.
   function renderKeys(options) {
     if (!keypadKeys) return;
     var html = '';
-    (options || []).forEach(function (o) { html += btn(o.key, o.key + ' · ' + o.label, 'opt'); });
+    (options || []).forEach(function (o) {
+      if (o.pick) html += btn(o.key, (o.current ? '› ' : '') + o.label, 'opt pick', 'select this and confirm');
+      else html += btn(o.key, o.key + ' · ' + o.label, 'opt');
+    });
     if (!options || !options.length) html += btn('Up', '↑') + btn('Down', '↓');
     html += btn('Enter', 'Enter', 'primary') + btn('Escape', 'Esc');
     keypadKeys.innerHTML = html;

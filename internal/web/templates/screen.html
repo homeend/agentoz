@@ -24,7 +24,7 @@
   <form class="keypad" id="keypad" method="post" action="/ui/runs/{{.Run.ID}}/keys" title="answer the dialog: option numbers, arrows, Enter, Esc"{{if ne .Frame.State "question"}} hidden{{end}}>
     <input type="hidden" name="back" value="screen">
     <span class="muted small">answer:</span>
-    <span id="keypad-keys">{{range .Frame.Options}}<button class="btn small opt" name="key" value="{{.Key}}" title="{{.Key}} — {{.Label}}">{{.Key}} · {{.Label}}</button>{{end}}{{if not .Frame.Options}}<button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button>{{end}}<button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button></span>
+    <span id="keypad-keys">{{range .Frame.Options}}{{if .Pick}}<button class="btn small opt pick" name="key" value="{{.Key}}" title="select this and confirm">{{if .Current}}› {{end}}{{.Label}}</button>{{else}}<button class="btn small opt" name="key" value="{{.Key}}" title="{{.Key}} — {{.Label}}">{{.Key}} · {{.Label}}</button>{{end}}{{end}}{{if not .Frame.Options}}<button class="btn small" name="key" value="Up">↑</button><button class="btn small" name="key" value="Down">↓</button>{{end}}<button class="btn small primary" name="key" value="Enter">Enter</button><button class="btn small" name="key" value="Escape">Esc</button></span>
     {{if not .Terminal}}<span class="muted small">— to type text, use the channel composer</span>{{end}}
   </form>
   {{end}}

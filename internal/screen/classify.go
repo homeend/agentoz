@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // State is what the bottom of an agent's screen says it is doing.
@@ -188,10 +189,101 @@ func MatchKind(r Rules, line string) string {
 	return ""
 }
 
-// Option is one numbered choice of a dialog ("› 1. Try new model").
+// Option is one choice of a dialog: numbered ("› 1. Try new model", Key
+// is the digit to press) or cursor-style ("> Yes, I trust this folder" /
+// "  No, exit", Key is "pick:<i>" and the server walks the cursor there).
 type Option struct {
-	Key   string `json:"key"` // the digit to press
-	Label string `json:"label"`
+	Key     string `json:"key"`
+	Label   string `json:"label"`
+	Pick    bool   `json:"pick,omitempty"`    // cursor-style: select by moving, then Enter
+	Current bool   `json:"current,omitempty"` // the cursor is on this one now
+}
+
+// DialogOptions: numbered options when the dialog has them, else the
+// cursor-style ones read from the untrimmed screen (indentation matters
+// there). lines are the trimmed tail used for classification.
+func DialogOptions(raw string, lines []string) []Option {
+	if o := Options(lines); len(o) > 0 {
+		return o
+	}
+	return CursorOptions(raw)
+}
+
+var (
+	cursorRe = regexp.MustCompile(`^(\s*)([>❯›●◉▸▶])(\s+)(\S.*)$`)
+	// hintRe: the navigation help under a cursor list ("↑/↓ Navigate ·
+	// enter Confirm", "↑↓ navigate · Enter select · Esc exit"), never a choice.
+	hintRe = regexp.MustCompile(`[↑↓]|(?i)\bnavigate\b|\bconfirm\b|\besc\b`)
+)
+
+// CursorOptions reads a dialog whose choices are a column of lines with a
+// cursor marker on the current one (Antigravity, Kimi). The cursor line
+// fixes the text column; the contiguous lines above and below whose text
+// starts in that column are the other choices. A lone marker line (an
+// input prompt) is not a dialog. At most 9 choices, labels cut at 48 runes.
+func CursorOptions(raw string) []Option {
+	lines := strings.Split(Strip(raw), "\n")
+	cur, col := -1, 0
+	var curLabel string
+	for i := len(lines) - 1; i >= 0; i-- {
+		m := cursorRe.FindStringSubmatch(strings.TrimRight(lines[i], " \t"))
+		if m == nil || hintRe.MatchString(m[4]) {
+			continue
+		}
+		cur = i
+		col = utf8.RuneCountInString(m[1]) + 1 + utf8.RuneCountInString(m[3])
+		curLabel = strings.TrimSpace(m[4])
+		break
+	}
+	if cur < 0 {
+		return nil
+	}
+	sibling := func(l string) (string, bool) {
+		l = strings.TrimRight(l, " \t")
+		n := 0
+		for _, r := range l {
+			if r != ' ' && r != '\t' {
+				break
+			}
+			n++
+		}
+		if n != col || n == utf8.RuneCountInString(l) {
+			return "", false
+		}
+		text := strings.TrimSpace(l)
+		if hintRe.MatchString(text) || cursorRe.MatchString(text) {
+			return "", false
+		}
+		return text, true
+	}
+	start, end := cur, cur
+	for start > 0 {
+		if _, ok := sibling(lines[start-1]); !ok {
+			break
+		}
+		start--
+	}
+	for end+1 < len(lines) {
+		if _, ok := sibling(lines[end+1]); !ok {
+			break
+		}
+		end++
+	}
+	if end-start < 1 {
+		return nil
+	}
+	var out []Option
+	for i := start; i <= end && len(out) < 9; i++ {
+		label := curLabel
+		if i != cur {
+			label, _ = sibling(lines[i])
+		}
+		if n := []rune(label); len(n) > 48 {
+			label = string(n[:47]) + "…"
+		}
+		out = append(out, Option{Key: fmt.Sprintf("pick:%d", len(out)), Label: label, Pick: true, Current: i == cur})
+	}
+	return out
 }
 
 var optionRe = regexp.MustCompile(`^[❯›>]?\s*(\d)[.)]\s+(.+)$`)
