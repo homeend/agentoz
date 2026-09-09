@@ -147,8 +147,10 @@ question `\(y/n\)`, `\[Y/n\]`, `Press Enter`, `^\s*[›>] \d+\.`.
 junie — command `junie --brave --model {model} {args}` with `prompt:
 paste`: a task given on the command line runs ONCE and the process
 exits, and `--prompt` is swallowed by the trust dialog, so erbrus pastes
-the prompt into interactive mode. working `^[⠋-⠿] [^\n]*esc to stop`
-(spinner lines: "Thinking...", "Sending 1 prompt", "Running …"); waiting
+the prompt into interactive mode. working `^[⠋-⠿] ` (any spinner line:
+"Thinking... esc to stop", "Sending 1 prompt", "Running <cmd>" — the last has
+no "esc to stop" suffix, and the input box stays on screen while junie
+works, so the spinner glyph alone must decide); waiting
 `^>[^\n]*\n~ ` (the "> Type your prompt..." box right above the "~ <dir>"
 status bar); question `Trust this project`, `needs your trust decision`,
 `Allow running this command\?`, `Or reject with a reason`, `space to

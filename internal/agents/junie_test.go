@@ -18,6 +18,19 @@ var junieScreens = []struct {
 		"Tip: Paste images into your prompt to share visual context\n" +
 		">   Type your prompt...\n" +
 		"~ juniewd  ⚑ Brave auto ctrl + b  ⌘ Gemini 3.7 Flash JetBrains AI  ◐ Medium effort\n"},
+	// Running a command: the spinner line has no "esc to stop" suffix, and the
+	// input box stays visible underneath — the waiting rule must not win.
+	{screen.Working, "> Run git log --oneline -3 and then run git status, then tell me the results in one line\n" +
+		"Now I'm checking the recent commit history and current repository status to understand the latest changes and the working\n" +
+		"state before making any updates.\n" +
+		"⠼ Running git log --oneline -3 && git status\n" +
+		"│ 2451a9b chore: test.sh (Linux/WSL/macOS) and test.cmd (Windows) run the suite; -cross type-checks the other OS\n" +
+		"│ ...\n" +
+		"│ On branch main\n" +
+		"│ nothing to commit, working tree clean\n" +
+		"Tip: '/new' clears context — saves tokens and speeds up responses\n" +
+		">   Type your prompt...\n" +
+		"~ erbrus  ⚑ Brave on ctrl + b  ⌘ Gemini 3.7 Flash JetBrains AI  ◐ Medium effort  1% context used  0.01 credits spent\n"},
 	{screen.Waiting, "• Executed slow word-by-word sequence counting from \"one\" to \"thirty\" in terminal output.\n" +
 		"• Successfully transmitted completion report message via erbrus CLI.\n" +
 		">   Type your prompt...\n" +

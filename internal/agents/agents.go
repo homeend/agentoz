@@ -59,7 +59,10 @@ func Builtins() []Agent {
 		{ID: "junie", Label: "Junie", Binary: "junie", Home: "~/.junie", Skill: "~/.junie/skills/erbrus/SKILL.md",
 			Provider: config.Provider{
 				Command: `junie --brave --model {model} {args}`, Prompt: "paste",
-				ScreenWorking: []string{`^[⠋-⠿] [^\n]*esc to stop`},
+				// Any spinner line. "Running <cmd>" carries no "esc to stop" suffix,
+				// and the input box stays visible while junie works, so the glyph
+				// alone must decide (checked before the waiting rule).
+				ScreenWorking: []string{`^[⠋-⠿] `},
 				ScreenWaiting: []string{`^>[^\n]*\n~ `},
 				// Dialogs: trust, command permission ("Allow running this
 				// command?" … "Or reject with a reason"), ask-user radio lists
