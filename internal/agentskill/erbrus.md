@@ -150,7 +150,29 @@ exits, and `--prompt` is swallowed by the trust dialog, so erbrus pastes
 the prompt into interactive mode. working `^[⠋-⠿] [^\n]*esc to stop`
 (spinner lines: "Thinking...", "Sending 1 prompt", "Running …"); waiting
 `^>[^\n]*\n~ ` (the "> Type your prompt..." box right above the "~ <dir>"
-status bar); question `Trust this project`, `needs your trust decision`.
+status bar); question `Trust this project`, `needs your trust decision`,
+`Allow running this command\?`, `Or reject with a reason`, `space to
+select`, `Or type your own answer`.
+
+### How the keypad reads a dialog's choices
+
+Once a screen is a *question*, erbrus reads the choices itself; they are
+not configured per provider. Three layouts are understood:
+
+- numbered lines: `❯ 1. Yes` / `2. No` — the button presses the digit;
+- a cursor list: a marker (`> ❯ › → ● ▶`) on the current line and the
+  other choices in the same text column right above/below it — the
+  button moves the cursor there and presses Enter;
+- a radio list: `→ ○ Ice cream (recommended)` / `○ Sweet rolls`, with
+  description lines indented deeper between them — same as above, the
+  glyph is stripped from the label.
+
+Question lines ("…?"), navigation hints (`↑/↓`, `space to select`,
+`esc …`) and the free-text prompt (`> Or type your own answer…`) are
+never offered as choices. If your CLI's dialog is a different layout the
+keypad shows only ↑ ↓ Enter Esc; then `erbrus screen capture --run <id>
+--lines 30` while the dialog is up, and put the exact lines in your
+report so the layout can be added.
 
 Watch for this one-shot trap with any CLI: if the spawned run ends
 seconds after start with "finished · exit 0" and a report, the command

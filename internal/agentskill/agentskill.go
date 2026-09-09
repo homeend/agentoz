@@ -15,7 +15,7 @@ var body string
 
 // Version is bumped whenever erbrus.md changes; installed copies carry it
 // so `erbrus agents setup` can tell new / outdated / up to date apart.
-const Version = 5
+const Version = 6
 
 const (
 	Name        = "erbrus"

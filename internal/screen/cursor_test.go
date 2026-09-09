@@ -41,6 +41,35 @@ func TestCursorOptionsReadsAgyDialog(t *testing.T) {
 	if len(got) != 3 || got[0].Label != "Trust this project" || !got[0].Current || got[2].Label != "Keep untrusted" {
 		t.Fatalf("junie = %+v", got)
 	}
+	// Junie's permission prompt: the question line shares the indent, the
+	// input line below sits one column left.
+	perm := "     Allow running this command?\n" +
+		"     Allow once\n" +
+		"   → Always allow (\"erbrus msg send *\")\n" +
+		"     Deny\n" +
+		"   >  Or reject with a reason\n"
+	got = CursorOptions(perm)
+	if len(got) != 3 || got[0].Label != "Allow once" || !got[1].Current || got[2].Label != "Deny" {
+		t.Fatalf("permission = %+v", got)
+	}
+	// Junie's ask-user radio list: descriptions between the choices are
+	// skipped, the radio glyph is stripped, the "Or type…" line ends it.
+	radio := "     Which dessert would you prefer?\n" +
+		"   → ○ Fresh fruits (recommended)\n" +
+		"       Maximizes net well-being by providing natural sweetness.\n" +
+		"     ○ Ice cream\n" +
+		"       Delivers an immediate surge of hedonic pleasure.\n" +
+		"     ○ Sweet rolls\n" +
+		"       Offers substantial comfort.\n" +
+		"     >  Or type your own answer…\n" +
+		"     ───────────\n" +
+		"     Chat about this\n" +
+		"     space to select\n" +
+		"     esc to cancel\n"
+	got = CursorOptions(radio)
+	if len(got) != 3 || got[0].Label != "Fresh fruits (recommended)" || !got[0].Current || got[1].Label != "Ice cream" || got[2].Label != "Sweet rolls" {
+		t.Fatalf("radio = %+v", got)
+	}
 	// Kimi-style marker and hint.
 	kimi := "Trust this folder?\n❯ Yes\n  No\n  ↑↓ navigate · Enter select · Esc exit\n"
 	if got = CursorOptions(kimi); len(got) != 2 || got[0].Label != "Yes" || got[1].Label != "No" {

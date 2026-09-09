@@ -59,9 +59,12 @@ func Builtins() []Agent {
 		{ID: "junie", Label: "Junie", Binary: "junie", Home: "~/.junie", Skill: "~/.junie/skills/erbrus/SKILL.md",
 			Provider: config.Provider{
 				Command: `junie --brave --model {model} {args}`, Prompt: "paste",
-				ScreenWorking:  []string{`^[⠋-⠿] [^\n]*esc to stop`},
-				ScreenWaiting:  []string{`^>[^\n]*\n~ `},
-				ScreenQuestion: []string{`Trust this project`, `needs your trust decision`},
+				ScreenWorking: []string{`^[⠋-⠿] [^\n]*esc to stop`},
+				ScreenWaiting: []string{`^>[^\n]*\n~ `},
+				// Dialogs: trust, command permission ("Allow running this
+				// command?" … "Or reject with a reason"), ask-user radio lists
+				// ("space to select", "Or type your own answer…").
+				ScreenQuestion: []string{`Trust this project`, `needs your trust decision`, `Allow running this command\?`, `Or reject with a reason`, `space to select`, `Or type your own answer`},
 			}, Note: "prompt by paste"},
 		// Antigravity CLI (agy 1.1.4): -i runs an initial prompt
 		// interactively; skills live under ~/.gemini/config/skills; detect

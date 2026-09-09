@@ -282,3 +282,21 @@ a dialog or a CLI that has not drawn yet cannot.
   directory): message at +3 s → queued notice while agy was still signing
   in → trust dialog answered from the keypad → "queued message delivered"
   → the agent reported the requested word.
+
+## Amendment 2026-09-09: junie's dialogs (permission, ask-user radio)
+
+Junie's ask-user tool and its command-permission prompt were not
+classified (no question rule matched) and, once they were, the option
+parser read them wrong: the question line shares the choices' indent,
+the free-text prompt under them (`> Or type your own answer…`) looks like
+a cursor line, and radio lists interleave deeper-indented descriptions.
+
+- Junie question rules now also match `Allow running this command\?`,
+  `Or reject with a reason`, `space to select`, `Or type your own answer`.
+- `CursorOptions` (moved to `internal/screen/cursor.go`) tries cursor
+  candidates bottom-up and keeps the first with siblings, so the input
+  prompt is skipped; lines ending in `?` or `:` never count; a radio
+  list (text starts with `○ ● ◉ ◯ □ ■ ☐ ☑`) collects the glyph lines and
+  skips deeper-indented descriptions; `space to select` is a hint.
+- The skill (v6) documents the three layouts and what to report when a
+  CLI's dialog is none of them; choices are never per-provider config.
