@@ -9,8 +9,12 @@ import (
 	"strings"
 	"testing"
 
+	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
+
+// codexBox is codex's idle input box (the test agents are codex runs).
+const codexBox = "› Ask Codex to do anything\ngpt-5 high · /w\n"
 
 func noRedirect() *http.Client {
 	return &http.Client{CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}
@@ -55,6 +59,7 @@ func TestComposerMemoDefault(t *testing.T) {
 func TestComposerSendToAgent(t *testing.T) {
 	ts, st, root := newTestServer(t)
 	fs := &fakeSpawner{}
+	fs.setScreen("s:5", spawn.Screen{Raw: codexBox}) // idle input box: typed at once
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 	ch1, _ := twoChannels(t, ts.URL, root)
 	run := runningAgent(t, st, ch1, "claude")
@@ -152,6 +157,7 @@ func TestChannelPageComposerTargets(t *testing.T) {
 func TestForwardToAgentDeliversContext(t *testing.T) {
 	ts, st, root := newTestServer(t)
 	fs := &fakeSpawner{}
+	fs.setScreen("s:5", spawn.Screen{Raw: codexBox}) // idle input box: typed at once
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 	ch1, ch2 := twoChannels(t, ts.URL, root)
 	target := runningAgent(t, st, ch2, "codex")

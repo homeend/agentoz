@@ -376,9 +376,16 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 
 // sendToRun types text into a run's terminal; returns a warning string ("" on
 // success) instead of an error — the caller has already recorded the message.
+// An agent that cannot take text right now (still starting, or showing a
+// dialog the human must answer) gets it queued: deliverWhenReady types it
+// once the input box is back and notes the outcome in the channel.
 func (s *Server) sendToRun(run store.AgentRun, text string) string {
 	if s.spawner == nil || run.TmuxTarget == "" {
 		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName)
+	}
+	if why := s.mustQueue(run); why != "" {
+		go s.deliverWhenReady(run, text, chatDelivery)
+		return fmt.Sprintf("%s %s — message queued, delivered once its input box is ready", run.AgentName, why)
 	}
 	if err := s.deliver(run, text); err != nil {
 		return fmt.Sprintf("delivery to %s failed: %s — posted to channel only", run.AgentName, err)

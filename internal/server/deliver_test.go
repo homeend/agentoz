@@ -42,6 +42,7 @@ func TestDeliverUsesProviderRulesForSubmitted(t *testing.T) {
 	ts, _, _ := newTestServer(t)
 	_ = ts
 	fs := &checkedFake{fakeSpawner: &fakeSpawner{}, screens: []string{agyWorkingWithText, agyIdleWithText}}
+	fs.setScreen("erbrus:2", spawn.Screen{Raw: agyIdleWithText}) // idle: deliver now, not queued
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 	rules, err := screen.Compile([]string{`^─{8,}\n>[^\n]*\n─{8,}\nesc to cancel`}, []string{`^─{8,}\n>[^\n]*\n─{8,}\n\? for shortcuts`}, nil)
 	if err != nil {
@@ -62,6 +63,7 @@ func TestDeliverUsesProviderRulesForSubmitted(t *testing.T) {
 
 	// A spawner without SendChecked still gets plain Send.
 	plain := &fakeSpawner{}
+	plain.setScreen("erbrus:2", spawn.Screen{Raw: agyIdleWithText})
 	testSrv.SetRuntime(plain, "/abs/erbrus", ts.URL)
 	if w := testSrv.sendToRun(run, "hi"); w != "" || len(plain.sent) != 1 {
 		t.Fatalf("plain send: %q %v", w, plain.sent)
