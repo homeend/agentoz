@@ -54,6 +54,9 @@ type channelView struct {
 	// PathMissing: Workdir is not a directory on disk right now. tmux
 	// would start an agent in $HOME instead — a re-sync archives it.
 	PathMissing bool
+	// Empty: an archived channel with no messages at all — nothing to
+	// keep, so the project card offers to delete it in place.
+	Empty bool
 }
 
 type projectCard struct {
@@ -103,6 +106,11 @@ func (s *Server) projectsPageData(errMsg string) (projectsPage, error) {
 				ActiveRuns: active[c.ID], Workdir: firstNonEmpty(c.WorktreePath, p.RepoPath)}
 			v.PathMissing = !dirExists(v.Workdir)
 			if c.Archived {
+				n, err := s.st.MessageCount(c.ID)
+				if err != nil {
+					return projectsPage{}, err
+				}
+				v.Empty = n == 0
 				archived = append(archived, v)
 				continue
 			}

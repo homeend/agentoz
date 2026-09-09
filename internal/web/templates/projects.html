@@ -29,7 +29,7 @@
         <li><a href="/ui/channels/{{.ID}}" title="{{.Workdir}}"># {{.Name}}{{if .PathMissing}}<span class="pathwarn" title="directory missing: {{.Workdir}}">!</span>{{end}}{{if .ActiveRuns}}<span class="agentdot" title="{{.ActiveRuns}} agent(s) running"></span>{{end}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}">{{.Unread}}</span>{{end}}</a></li>
         {{end}}
         {{range .Archived}}
-        <li><a class="chan archived" href="/ui/channels/{{.ID}}" title="archived — worktree missing: {{.Workdir}}"># {{.Name}} <span class="muted">(archived)</span></a></li>
+        <li><a class="chan archived" href="/ui/channels/{{.ID}}" title="archived — worktree missing: {{.Workdir}}"># {{.Name}} <span class="muted">(archived)</span></a>{{if .Empty}} <form method="post" action="/ui/channels/{{.ID}}/delete" class="inlineform" data-confirm="Delete the empty archived channel #{{.Name}}?"><button class="btn danger small" type="submit" title="this archived channel has no messages — delete it">×</button></form>{{end}}</li>
         {{end}}
       </ul>
       <div class="cardfoot">
