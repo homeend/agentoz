@@ -114,7 +114,7 @@ func (s *Server) handleUIForwardPost(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var chID int64
-	warning := ""
+	warning, queued := "", ""
 	if target[0] == 'c' {
 		chID = id
 		if _, status, errMsg := s.forwardCore(msgID, chID); status != 0 {
@@ -124,7 +124,7 @@ func (s *Server) handleUIForwardPost(w http.ResponseWriter, r *http.Request) {
 	} else {
 		var status int
 		var errMsg string
-		chID, warning, status, errMsg = s.forwardToAgentCore(msgID, id)
+		chID, warning, queued, status, errMsg = s.forwardToAgentCore(msgID, id)
 		if status != 0 {
 			s.renderForwardError(w, msgID, errMsg)
 			return
@@ -133,6 +133,9 @@ func (s *Server) handleUIForwardPost(w http.ResponseWriter, r *http.Request) {
 	dest := fmt.Sprintf("/ui/channels/%d", chID)
 	if warning != "" {
 		dest += "?warning=" + url.QueryEscape(warning)
+		if queued != "" {
+			dest += "&queued=" + url.QueryEscape(queued)
+		}
 	}
 	http.Redirect(w, r, dest, http.StatusFound)
 }
@@ -141,29 +144,30 @@ func (s *Server) handleUIForwardPost(w http.ResponseWriter, r *http.Request) {
 // the agent's channel via forwardCore (provenance, SSE), then the full
 // context block — origin coordinates, body, artifact paths, reply routing
 // back to the origin channel — is typed into the agent's terminal.
-// Delivery failure is a warning; the copy is already posted.
-func (s *Server) forwardToAgentCore(msgID, runID int64) (chID int64, warning string, status int, errMsg string) {
+// Delivery failure is a warning; the copy is already posted. queued names
+// the agent when the text was queued instead of typed (see sendToRun).
+func (s *Server) forwardToAgentCore(msgID, runID int64) (chID int64, warning, queued string, status int, errMsg string) {
 	run, ok, err := s.st.RunByID(runID)
 	if err != nil {
-		return 0, "", http.StatusInternalServerError, err.Error()
+		return 0, "", "", http.StatusInternalServerError, err.Error()
 	}
 	if !ok {
-		return 0, "", http.StatusNotFound, "agent run not found"
+		return 0, "", "", http.StatusNotFound, "agent run not found"
 	}
 	if run.Status != "starting" && run.Status != "running" {
-		return 0, "", http.StatusUnprocessableEntity, "agent already finished"
+		return 0, "", "", http.StatusUnprocessableEntity, "agent already finished"
 	}
 
 	src, ok, err := s.st.MessageByID(msgID)
 	if err != nil {
-		return 0, "", http.StatusInternalServerError, err.Error()
+		return 0, "", "", http.StatusInternalServerError, err.Error()
 	}
 	if !ok {
-		return 0, "", http.StatusNotFound, "message not found"
+		return 0, "", "", http.StatusNotFound, "message not found"
 	}
 
 	if _, status, errMsg := s.forwardCore(msgID, run.ChannelID); status != 0 {
-		return 0, "", status, errMsg
+		return 0, "", "", status, errMsg
 	}
 
 	// Origin coordinates for the context block; lookups degrade to empty
@@ -182,8 +186,11 @@ func (s *Server) forwardToAgentCore(msgID, runID int64) (chID int64, warning str
 	}
 	text := integrate.ForwardToAgent(s.erbrusBin, src.ChannelID, projName, chanName,
 		branch, worktree, src.AuthorName, src.CreatedAt.Format("2006-01-02 15:04:05"), src.Body, paths)
-	warning, _ = s.sendToRun(run, text)
-	return run.ChannelID, warning, 0, ""
+	warning, q := s.sendToRun(run, text)
+	if q {
+		queued = run.AgentName
+	}
+	return run.ChannelID, warning, queued, 0, ""
 }
 
 // renderForwardError re-renders the forward dialog at 422 with errMsg.
