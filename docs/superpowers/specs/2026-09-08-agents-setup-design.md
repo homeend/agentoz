@@ -447,3 +447,21 @@ no preset, so the spawn form still had nothing to offer. Two additions:
 Verified live on the throwaway instance: appending a provider and a
 preset to config.yaml by hand showed up in `provider show` and `preset
 show` within 4 s, and `preset set` wrote back into the same file.
+
+## Amendment 2026-09-09: junie is interactive-by-paste
+
+The registry's `junie {args} "{prompt}"` ran junie 26.9.7 in
+non-interactive mode: it did the preamble as its task, posted a report,
+and exited ("finished · exit 0" 30 s after spawn). `--prompt=<text>`
+starts interactive mode with the prompt submitted, but the trust dialog
+of a new directory swallowed it. Registry now: `junie --brave --model
+{model} {args}` with `prompt: paste`, rules from live captures — working
+`^[⠋-⠿] [^\n]*esc to stop` ("Thinking...", "Sending 1 prompt",
+"Running …"), waiting `^>[^\n]*\n~ ` (the input box, whose placeholder
+rotates, right above the `~ <dir>` status bar), question `Trust this
+project`, `needs your trust decision`. Junie's dialog cursor is `→`, now
+a cursor marker. Verified end to end on the throwaway: `agents setup
+--agents junie` → spawn in a fresh directory → trust dialog offered as
+three pick buttons → pick:0 → "prompt delivered" → task done → idle.
+The skill (v5) gets the junie example and a note on the one-shot trap.
+The user's live junie provider was updated with `provider set`.
