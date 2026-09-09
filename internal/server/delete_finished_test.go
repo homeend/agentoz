@@ -30,6 +30,13 @@ func TestRemoveAllStoppedRuns(t *testing.T) {
 		t.Fatalf("button missing or wrong count:\n%s", body)
 	}
 
+	// The live-refreshed panel carries the button too, so it shows up the
+	// moment a run stops while the page is open.
+	resp, _ = http.Get(fmt.Sprintf("%s/ui/channels/%d/runs-panel", ts.URL, ch1))
+	if body := readAll(t, resp); !strings.Contains(body, form) {
+		t.Fatalf("runs panel without the button:\n%s", body)
+	}
+
 	r, err := noRedirect().Post(fmt.Sprintf("%s/ui/channels/%d/runs/delete-finished", ts.URL, ch1), "application/x-www-form-urlencoded", nil)
 	if err != nil {
 		t.Fatal(err)

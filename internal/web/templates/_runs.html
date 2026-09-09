@@ -26,4 +26,8 @@
   {{end}}
 </div>
 {{end}}
+{{/* Inside the live-refreshed panel so it appears the moment a run stops. */}}
+{{if .StoppedRuns}}<form method="post" action="/ui/channels/{{.Channel.ID}}/runs/delete-finished" class="inlineform" data-confirm="Remove all {{.StoppedRuns}} stopped run(s) from this channel's history? Their messages stay in the channel.">
+  <button class="btn small" type="submit" title="remove every finished run from the history; running agents are untouched">Remove all stopped ({{.StoppedRuns}})</button>
+</form>{{end}}
 {{end}}

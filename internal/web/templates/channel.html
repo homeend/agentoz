@@ -47,9 +47,6 @@
     <details class="railsec" data-rail="agents" open>
     <summary><h3>Agents in channel</h3></summary>
     <div id="runs" data-channel="{{.Channel.ID}}">{{template "_runs.html" .}}</div>
-    {{if .StoppedRuns}}<form method="post" action="/ui/channels/{{.Channel.ID}}/runs/delete-finished" class="inlineform" data-confirm="Remove all {{.StoppedRuns}} stopped run(s) from this channel's history? Their messages stay in the channel.">
-      <button class="btn small" type="submit" title="remove every finished run from the history; running agents are untouched">Remove all stopped ({{.StoppedRuns}})</button>
-    </form>{{end}}
     </details>
     <details class="railsec" data-rail="presets">
     <summary><h3>Presets</h3></summary>
