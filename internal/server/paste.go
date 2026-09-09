@@ -83,7 +83,7 @@ func (s *Server) deliverPrompt(run store.AgentRun, prompt string) {
 			}
 		}
 		if ready {
-			if err := s.spawner.Send(h, prompt); err != nil {
+			if err := s.deliver(run, prompt); err != nil {
 				fail(err.Error())
 				return
 			}

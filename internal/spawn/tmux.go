@@ -77,6 +77,17 @@ var (
 // After each Enter it checks whether the text is still sitting in the
 // input box and presses again if so; an error means it never went through.
 func (t *Tmux) Send(h Handle, text string) error {
+	return t.SendChecked(h, text, nil)
+}
+
+// SendChecked is Send with the caller's own idea of "submitted": after
+// each Enter the captured screen goes to submitted first, and a true
+// answer ends the delivery before the input-box heuristic runs. The
+// server passes the provider's screen rules this way: Antigravity keeps
+// the sent text in its box while it works, which the heuristic reads as
+// "still pending" and reports a failed delivery for a message the agent
+// is already working on (seen live 2026-09-09).
+func (t *Tmux) SendChecked(h Handle, text string, submitted func(screen string) bool) error {
 	if _, err := t.run("tmux", "set-buffer", "--", text); err != nil {
 		return fmt.Errorf("send to %s: %w", h, err)
 	}
@@ -90,8 +101,14 @@ func (t *Tmux) Send(h Handle, text string) error {
 		}
 		time.Sleep(sendVerifyDelay)
 		out, err := t.run("tmux", "capture-pane", "-p", "-t", exact(string(h)))
-		if err != nil || !pendingInInputBox(string(out), text) {
-			return nil // submitted, or we cannot tell: do not spam Enter
+		if err != nil {
+			return nil // cannot tell: do not spam Enter
+		}
+		if submitted != nil && submitted(string(out)) {
+			return nil
+		}
+		if !pendingInInputBox(string(out), text) {
+			return nil
 		}
 	}
 	return fmt.Errorf("message to %s was pasted but the agent did not submit it after %d Enter presses — press Enter in its terminal", h, sendEnterTries)

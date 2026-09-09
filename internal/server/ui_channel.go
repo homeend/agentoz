@@ -15,7 +15,6 @@ import (
 	"erbrus/internal/integrate"
 	"erbrus/internal/preset"
 	"erbrus/internal/screen"
-	"erbrus/internal/spawn"
 	"erbrus/internal/store"
 )
 
@@ -381,7 +380,7 @@ func (s *Server) sendToRun(run store.AgentRun, text string) string {
 	if s.spawner == nil || run.TmuxTarget == "" {
 		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName)
 	}
-	if err := s.spawner.Send(spawn.Handle(run.TmuxTarget), text); err != nil {
+	if err := s.deliver(run, text); err != nil {
 		return fmt.Sprintf("delivery to %s failed: %s — posted to channel only", run.AgentName, err)
 	}
 	return ""
