@@ -85,6 +85,16 @@ for working; "the prompt glyph directly under a rule line" for waiting;
 the dialog chrome (`Esc to cancel`, `❯ 1.`) for question. Scrollback text
 must not be able to fake a state.
 
+Working has several faces and the list must cover ALL of them: thinking,
+sending the prompt, streaming an answer, and running a tool or shell
+command. They often differ — junie's "⠼ Thinking... esc to stop" becomes
+"⠼ Running git status" with no suffix while a command runs. Match what
+every face shares (the spinner glyph at the start of a line), not a
+phrase that only one of them carries. This matters doubly when the CLI
+keeps its input box on screen while busy: the waiting rule then matches
+the whole time, and only an exhaustive working list stops the agent
+from showing idle mid-task.
+
 ### The workflow
 
 1. Read the CLI's `--help`. Find: the flag for the model, the flag or
@@ -108,8 +118,10 @@ must not be able to fake a state.
 3. Start the CLI as an erbrus run, from inside any git repository (erbrus
    registers it as a project when needed):
    ```
-   erbrus start <name> --prompt 'Count from one to forty in words, one word per line, then stop.'
+   erbrus start <name> --prompt 'Run the shell command `git status`, then count from one to forty in words, one word per line, then stop.'
    ```
+   The command makes the CLI show its "running a tool" screen; the
+   counting keeps it busy long enough to capture the plain busy screen.
    The output says `spawned <name> (run <id>)`. If you ARE already an
    erbrus run (`ERBRUS_RUN_ID` set), use that id instead of starting one.
 4. Look at the screens, several times over the next minute:
@@ -119,9 +131,11 @@ must not be able to fake a state.
    Right after the start the CLI may show a trust or permission dialog
    (a *question* screen; leave it, that is the sample you want, then tell
    the human it needs answering or stop the run and start it in a
-   directory the CLI already trusts). While it counts you see the busy
-   screen (*working*: spinner, elapsed time). When it has finished you
-   see the empty input box (*waiting*). Keep one capture of each.
+   directory the CLI already trusts). While it runs `git status` you see
+   the tool-running screen, and while it counts the plain busy screen
+   (both *working*: spinner, elapsed time — note what they share and where
+   they differ). When it has finished you see the empty input box
+   (*waiting*). Keep one capture of each, including both working faces.
 5. Write the three lists and test them without saving:
    ```
    erbrus screen test --provider <name> --run <id> --working '<re>' --waiting '<re>' --question '<re>'
