@@ -257,14 +257,18 @@ user had to resend. Probed: Antigravity and Claude Code both queue text
 typed while they are busy, so a *working* agent can take chat at once;
 a dialog or a CLI that has not drawn yet cannot.
 
-- `sendToRun` captures once before typing. Ready (waiting or working):
-  typed now, as before. Otherwise the message is queued and the composer
-  redirect says so ("… is showing a dialog (answer it on its card) /
-  is still starting — message queued, delivered once its input box is
-  ready"). Queue when: the screen is a question; or the run is younger
-  than 30 s and the screen is blank or unclassified. An unclassified
-  screen on an older run (a provider without rules) is typed into as
-  before — queuing every message there would only add noise.
+- `sendToRun` captures once before typing. Ready (waiting, or working on
+  a run older than 30 s): typed now, as before. Otherwise the message is
+  queued and the composer redirect says so ("… is showing a dialog
+  (answer it on its card) / is still starting — message queued,
+  delivered once its input box is ready"). Queue when: the screen is a
+  question; or the run is younger than 30 s and not at its input box.
+  Within those 30 s "working" is not trusted: Antigravity's sign-in
+  spinner ("⣾ Signing in...") matched its working rule, the first
+  version of this queue released after 2 s and the message was lost
+  again (second live report, same morning). An unclassified screen on an
+  older run (a provider without rules) is typed into as before —
+  queuing every message there would only add noise.
 - The queue is `deliverWhenReady`, the prompt-by-paste loop generalised:
   polls every 500 ms, a dialog extends the 60 s deadline, delivery notes
   "queued message delivered" / "queued message NOT delivered (…)" in the

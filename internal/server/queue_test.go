@@ -78,7 +78,26 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 		t.Fatalf("queued early message not delivered: %v", sent)
 	}
 
-	// A busy agent takes text at once (it queues typed input itself).
+	// A busy agent past its boot takes text at once (it queues typed input
+	// itself); within the boot grace "working" may be the sign-in spinner.
+	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n" + box, Activity: time.Now()})
+	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/messages", ts.URL, ch1),
+		url.Values{"body": {"too early"}, "target": {fmt.Sprintf("r%d", run.ID)}})
+	r.Body.Close()
+	if loc := r.Header.Get("Location"); !strings.Contains(loc, "starting") {
+		t.Fatalf("working during boot must queue: %s", loc)
+	}
+	fs.setScreen("s:5", spawn.Screen{Raw: "ok\n" + box, Activity: time.Now()})
+	deadline = time.Now().Add(2 * time.Second)
+	for len(waitSent(fs, 10*time.Millisecond)) < 3 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if sent := waitSent(fs, 10*time.Millisecond); len(sent) != 3 || !strings.HasPrefix(sent[2], "s:5|too early") {
+		t.Fatalf("queued boot-time message not delivered: %v", sent)
+	}
+	oldGrace := bootGrace
+	bootGrace = 0 // the run is "old" now
+	defer func() { bootGrace = oldGrace }()
 	fs.setScreen("s:5", spawn.Screen{Raw: "✻ Cogitating… (27s · x)\n" + box, Activity: time.Now()})
 	r, _ = noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/messages", ts.URL, ch1),
 		url.Values{"body": {"and this"}, "target": {fmt.Sprintf("r%d", run.ID)}})
@@ -86,7 +105,7 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 	if loc := r.Header.Get("Location"); strings.Contains(loc, "warning") {
 		t.Fatalf("busy agent should get the text directly: %s", loc)
 	}
-	if sent := waitSent(fs, 500*time.Millisecond); len(sent) != 3 || !strings.HasPrefix(sent[2], "s:5|and this") {
+	if sent := waitSent(fs, 500*time.Millisecond); len(sent) != 4 || !strings.HasPrefix(sent[3], "s:5|and this") {
 		t.Fatalf("sent = %v", sent)
 	}
 }

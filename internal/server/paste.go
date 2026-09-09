@@ -52,14 +52,21 @@ func (s *Server) deliverPrompt(run store.AgentRun, prompt string) {
 	s.deliverWhenReady(run, prompt, promptDelivery)
 }
 
-// readyFor: can text be typed into a screen in state st right now?
-func (d delivery) readyFor(st screen.State) bool {
-	return st == screen.Waiting || (d.acceptWorking && st == screen.Working)
-}
-
-// bootGrace: a run younger than this whose screen is not yet classified
-// is still starting (banner, trust check); text typed now can be lost.
+// bootGrace: a run younger than this is still starting — banner, sign-in
+// spinner, trust check, then the preamble as its first turn. Text typed
+// then can be lost, and a "working" match means the sign-in spinner as
+// easily as real work (seen live 2026-09-09: "⣾ Signing in..." matched
+// Antigravity's working rule, the queue released, the message vanished).
+// Until the grace is over only the input box counts as ready.
 var bootGrace = 30 * time.Second
+
+// readyFor: can text be typed into run, whose screen is in state st?
+func (d delivery) readyFor(run store.AgentRun, st screen.State) bool {
+	if st == screen.Waiting {
+		return true
+	}
+	return d.acceptWorking && st == screen.Working && time.Since(run.CreatedAt) >= bootGrace
+}
 
 // mustQueue says why a chat message cannot be typed into run right now
 // ("" when it can): a dialog is up, or the agent is still starting. A
@@ -82,11 +89,11 @@ func (s *Server) mustQueue(run store.AgentRun) string {
 	}
 	st := screen.Classify(s.rulesFor(run.Provider), screen.Tail(screen.Strip(sc.Raw), 15))
 	switch {
-	case chatDelivery.readyFor(st):
+	case chatDelivery.readyFor(run, st):
 		return ""
 	case st == screen.Question:
 		return "is showing a dialog (answer it on its card)"
-	case st == screen.Unknown && young:
+	case young:
 		return "is still starting"
 	}
 	return ""
@@ -134,7 +141,7 @@ func (s *Server) deliverWhenReady(run store.AgentRun, text string, d delivery) {
 		lines := screen.Tail(screen.Strip(sc.Raw), 15)
 		st := screen.Classify(rules, lines)
 		now := time.Now()
-		ready := d.readyFor(st)
+		ready := d.readyFor(run, st)
 		switch {
 		case st == screen.Question:
 			deadline = now.Add(wait)
