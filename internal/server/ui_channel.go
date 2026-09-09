@@ -71,7 +71,10 @@ type channelPage struct {
 	Sidebar  []projectCard
 	Messages []msgView
 	Runs     []runView
-	Presets  []string // merged preset names for THIS project, sorted
+	// StoppedRuns counts every finished run of the channel (the rail shows
+	// only the newest few); the "remove all stopped" button needs the total.
+	StoppedRuns int
+	Presets     []string // merged preset names for THIS project, sorted
 	// AttachCmds: one "tmux attach -t <session>" per session actually
 	// holding this channel's listed runs; falls back to the project's
 	// configured session when no run names one.
@@ -203,13 +206,16 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			runViews = append(runViews, toView(r))
 		}
 	}
-	finished := 0
-	for i := len(runs) - 1; i >= 0 && finished < recentFinished; i-- {
+	finished, stopped := 0, 0
+	for i := len(runs) - 1; i >= 0; i-- {
 		if runs[i].Status == "starting" || runs[i].Status == "running" {
 			continue
 		}
-		runViews = append(runViews, toView(runs[i]))
-		finished++
+		stopped++
+		if finished < recentFinished {
+			runViews = append(runViews, toView(runs[i]))
+			finished++
+		}
 	}
 
 	repoCfg, _, _ := config.LoadRepo(project.RepoPath)
@@ -251,6 +257,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		Sidebar:     sidebar.Projects,
 		Messages:    msgViews,
 		Runs:        runViews,
+		StoppedRuns: stopped,
 		Presets:     presets,
 		AttachCmds:  attachCmds,
 	}, 0, ""

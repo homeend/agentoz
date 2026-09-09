@@ -97,18 +97,52 @@ func (s *Server) handleUIDeleteRun(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusUnprocessableEntity, "agent still running — stop it first")
 		return
 	}
-	if err := s.st.DeleteRun(id); err != nil {
+	if err := s.removeRun(id); err != nil {
 		httpError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", run.ChannelID), http.StatusFound)
+}
+
+// removeRun deletes a finished run's row, its directory, and the runtime
+// state keyed by its id (a page may still watch it; ids used to be reused).
+func (s *Server) removeRun(id int64) error {
+	if err := s.st.DeleteRun(id); err != nil {
+		return err
+	}
 	_ = os.RemoveAll(filepath.Join(s.dataDir, "runs", fmt.Sprint(id)))
-	// Per-run runtime state must not outlive the row: SQLite may give the
-	// id to the next run (seen live 2026-09-09).
 	s.screens.Forget(id)
 	s.stateMu.Lock()
 	delete(s.states, id)
 	s.stateMu.Unlock()
-	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d", run.ChannelID), http.StatusFound)
+	return nil
+}
+
+// handleUIDeleteFinishedRuns: the rail's "Remove all stopped" — every
+// finished run of the channel goes; running ones stay.
+func (s *Server) handleUIDeleteFinishedRuns(w http.ResponseWriter, r *http.Request) {
+	chID := chiInt64(r, "id")
+	if _, ok, err := s.st.ChannelByID(chID); err != nil || !ok {
+		httpError(w, http.StatusNotFound, "channel not found")
+		return
+	}
+	runs, err := s.st.RunsByChannel(chID)
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	n := 0
+	for _, run := range runs {
+		if run.Status == "starting" || run.Status == "running" {
+			continue
+		}
+		if err := s.removeRun(run.ID); err != nil {
+			httpError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		n++
+	}
+	http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d?warning=%s", chID, url.QueryEscape(fmt.Sprintf("removed %d stopped run(s) from history", n))), http.StatusFound)
 }
 
 // handleUIDeleteMessage removes one chat entry (and its artifact files).

@@ -182,6 +182,7 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/ui/runs/{id}/stop", s.handleUIStopRun)
 	r.Post("/ui/runs/{id}/keys", s.handleUIRunKeys)
 	r.Post("/ui/runs/{id}/delete", s.handleUIDeleteRun)
+	r.Post("/ui/channels/{id}/runs/delete-finished", s.handleUIDeleteFinishedRuns)
 	r.Post("/ui/messages/{id}/delete", s.handleUIDeleteMessage)
 	r.Post("/ui/channels/{id}/clear", s.handleUIClearChannel)
 	r.Post("/ui/channels/{id}/messages/delete-batch", s.handleUIDeleteBatch)
