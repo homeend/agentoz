@@ -32,6 +32,7 @@ const globalScaffoldYAML = `# erbrus global settings. Everything is optional; bu
 # terminal: tmux                        # default spawner
 # session_pattern: "erbrus-{project}"
 # wt_bin: wt                            # path to wt binary; auto-detected on PATH
+# gg_bin: gg                            # path to gg (gigagit) binary for worktree creation from the sidebar
 #
 # providers:
 #   claude-code:

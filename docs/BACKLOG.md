@@ -41,7 +41,9 @@ only the to-do list. Remove items as they land.
 - Worktree removal from the channel page (`gg worktree remove`, with the
   same shell-terminal fallback as creation).
 - `erbrus agents list` could show the provider type; today only
-  `provider show` prints it.
+  `provider show` prints it. The skill's provider-key table does not
+  mention `type` either (agents configure agents, never tools); adding
+  a row means a skill version bump, so it waits for the next skill edit.
 - A "+" for the shell alone (open a terminal in any channel's directory
   without going through a failed worktree creation).
 

@@ -175,6 +175,8 @@ func TestWorktreeValidation(t *testing.T) {
 		{"mode": {"new"}, "name": {"has space"}, "base": {"main"}},
 		{"mode": {"new"}, "name": {"x"}, "base": {""}},
 		{"mode": {"existing"}, "branch": {""}},
+		{"mode": {"existing"}, "branch": {"--help"}}, // would reach gg as a flag
+		{"mode": {"new"}, "name": {"-x"}, "base": {"main"}},
 		{"mode": {"weird"}},
 	} {
 		r, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/projects/%d/worktree", ts.URL, pid), f)

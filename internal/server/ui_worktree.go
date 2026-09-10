@@ -142,6 +142,10 @@ func (s *Server) handleUIWorktreePost(w http.ResponseWriter, r *http.Request) {
 			fail("pick a branch")
 			return
 		}
+		if !branchNameRe.MatchString(branch) || strings.Contains(branch, "..") {
+			fail("that is not a branch name") // "--help" must never reach gg as a flag
+			return
+		}
 		created, err = gg.AddForBranch(gg.Runner(s.run), bin, p.RepoPath, branch)
 	default:
 		fail("mode must be new or existing")
