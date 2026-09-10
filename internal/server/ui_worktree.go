@@ -172,21 +172,3 @@ func (s *Server) handleUIWorktreePost(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Redirect(w, r, "/ui/projects?warning="+url.QueryEscape(note), http.StatusFound)
 }
-
-// handleUIProjectShell opens a shell in the main repository: a run of the
-// built-in "shell" tool provider in the project's main channel, then the
-// web terminal for it.
-func (s *Server) handleUIProjectShell(w http.ResponseWriter, r *http.Request) {
-	p, mainID, status, errMsg := s.projectAndMain(chiInt64(r, "id"))
-	if status != 0 {
-		httpError(w, status, errMsg)
-		return
-	}
-	payload, status, errMsg := s.spawnRunCore(runRequest{ChannelID: mainID, Preset: "shell", Workdir: p.RepoPath})
-	if status != 0 {
-		http.Redirect(w, r, fmt.Sprintf("/ui/channels/%d?warning=%s", mainID, url.QueryEscape("shell: "+errMsg)), http.StatusFound)
-		return
-	}
-	rj, _ := payload.(runJSON)
-	http.Redirect(w, r, fmt.Sprintf("/ui/runs/%d/terminal", rj.ID), http.StatusFound)
-}

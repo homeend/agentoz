@@ -92,13 +92,13 @@ func TestWorktreeFormListsBranches(t *testing.T) {
 
 func TestWorktreeFormWhenGgMissing(t *testing.T) {
 	ts, _, root := newTestServer(t)
-	pid, _ := projectID(t, ts.URL, root)
+	pid, mainCh := projectID(t, ts.URL, root)
 	ggScript(t, root, map[string]reply{"branch ls": {err: execNotFound()}})
 	body := getBody(t, fmt.Sprintf("%s/ui/projects/%d/worktree", ts.URL, pid))
 	if !strings.Contains(body, `gg not found (gg_bin = &#34;gg&#34;)`) || strings.Contains(body, `name="mode"`) {
 		t.Fatalf("expected the error without the form:\n%s", body)
 	}
-	if !strings.Contains(body, fmt.Sprintf(`action="/ui/projects/%d/shell"`, pid)) {
+	if !strings.Contains(body, fmt.Sprintf(`action="/ui/channels/%d/tools/shell"`, mainCh)) {
 		t.Fatal("terminal button missing")
 	}
 }
@@ -141,7 +141,7 @@ func TestWorktreeCreateNewBranchRedirectsToChannel(t *testing.T) {
 
 func TestWorktreeCreateExistingBranchUsesBranchFlag(t *testing.T) {
 	ts, _, root := newTestServer(t)
-	pid, _ := projectID(t, ts.URL, root)
+	pid, mainCh := projectID(t, ts.URL, root)
 	calls := ggScript(t, root, map[string]reply{
 		"worktree add --branch feat/x": {out: "error: create worktree: no local branch \"feat/x\"\n", err: errors.New("exit status 1")},
 		"branch ls":                    {out: "* main\n"},
@@ -159,7 +159,7 @@ func TestWorktreeCreateExistingBranchUsesBranchFlag(t *testing.T) {
 	if (*calls)[0] != "worktree add --branch feat/x" {
 		t.Fatalf("calls = %v", *calls)
 	}
-	for _, want := range []string{`no local branch &#34;feat/x&#34;`, fmt.Sprintf(`action="/ui/projects/%d/shell"`, pid), `name="mode" value="existing" checked`} {
+	for _, want := range []string{`no local branch &#34;feat/x&#34;`, fmt.Sprintf(`action="/ui/channels/%d/tools/shell"`, mainCh), `name="mode" value="existing" checked`} {
 		if !strings.Contains(body, want) {
 			t.Errorf("failure page missing %q", want)
 		}
@@ -195,22 +195,31 @@ func TestWorktreeValidation(t *testing.T) {
 	}
 }
 
-func TestShellButtonSpawnsShellInMainChannel(t *testing.T) {
+func TestWorktreePageTerminalButtonIsTheShellTool(t *testing.T) {
 	ts, st, root := newTestServer(t)
-	withShell(t)
+	withTools(t, nil)
 	fs := &fakeSpawner{handle: "s:7"}
 	testSrv.SetRuntime(fs, "/abs/erbrus", ts.URL)
 	pid, mainCh := projectID(t, ts.URL, root)
-	r, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/projects/%d/shell", ts.URL, pid), nil)
+	ggScript(t, root, map[string]reply{"branch ls": {err: execNotFound()}})
+	body := getBody(t, fmt.Sprintf("%s/ui/projects/%d/worktree", ts.URL, pid))
+	want := fmt.Sprintf(`action="/ui/channels/%d/tools/shell"`, mainCh)
+	if !strings.Contains(body, want) {
+		t.Fatalf("terminal button missing %q", want)
+	}
+	r, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/tools/shell", ts.URL, mainCh), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	r.Body.Close()
 	runs, _ := st.RunsByChannel(mainCh)
-	if len(runs) != 1 || runs[0].Provider != "shell" || runs[0].Workdir != root {
+	if len(runs) != 1 || runs[0].Provider != "tool:shell" || runs[0].Workdir != root {
 		t.Fatalf("runs = %+v", runs)
 	}
 	if loc := r.Header.Get("Location"); loc != fmt.Sprintf("/ui/runs/%d/terminal", runs[0].ID) {
 		t.Fatalf("redirect = %s", loc)
+	}
+	if cmd := readCmdSh(t, testSrv.dataDir, runs[0].ID); !strings.Contains(cmd, "exec ${SHELL:-bash}") {
+		t.Fatalf("cmd.sh = %q", cmd)
 	}
 }

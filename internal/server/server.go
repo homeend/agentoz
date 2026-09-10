@@ -172,7 +172,6 @@ func (s *Server) Handler() http.Handler {
 	r.Post("/ui/projects/{id}/sync", s.handleUISync)
 	r.Get("/ui/projects/{id}/worktree", s.handleUIWorktree)
 	r.Post("/ui/projects/{id}/worktree", s.handleUIWorktreePost)
-	r.Post("/ui/projects/{id}/shell", s.handleUIProjectShell)
 	r.Post("/ui/channels/{id}/tools/{name}", s.handleUIChannelTool)
 	r.Get("/ui/projects/{id}/delete", s.handleUIDeleteConfirm)
 	r.Post("/ui/projects/{id}/delete", s.handleUIDeleteProject)

@@ -11,7 +11,7 @@
     <div class="muted small mono">{{.Project.RepoPath}}</div>
     {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
     {{if or .Error .ListError}}
-    <form method="post" action="/ui/projects/{{.Project.ID}}/shell" class="inlineform">
+    <form method="post" action="/ui/channels/{{.MainID}}/tools/shell" class="inlineform" target="tool:shell:{{.MainID}}">
       <button class="btn" type="submit" title="opens a shell in the main repository in the web terminal">Open a terminal in {{.Project.RepoPath}}</button>
     </form>
     {{end}}
