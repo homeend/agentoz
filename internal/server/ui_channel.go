@@ -379,7 +379,7 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 
 	warning, queued := "", false
 	if msg.TargetLabel != "" {
-		warning, queued = s.sendToRun(run, msg.Body+integrate.ChatReplySuffix(s.erbrusBin))
+		warning, queued = s.sendToRun(run, integrate.ChatEnvelope(s.erbrusBin, msg.Body))
 	}
 	target := fmt.Sprintf("/ui/channels/%d", chID)
 	if warning != "" {

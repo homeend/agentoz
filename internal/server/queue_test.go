@@ -46,7 +46,7 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 	// The dialog is answered; the input box is back: delivered, with a note.
 	fs.setScreen("s:5", spawn.Screen{Raw: "done\n" + box, Activity: time.Now()})
 	sent := waitSent(fs, 2*time.Second)
-	if len(sent) != 1 || !strings.HasPrefix(sent[0], "s:5|do the thing") {
+	if len(sent) != 1 || !strings.Contains(sent[0], "do the thing") {
 		t.Fatalf("not delivered after the dialog: %v", sent)
 	}
 	deadline := time.Now().Add(2 * time.Second)
@@ -78,7 +78,7 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 	for len(waitSent(fs, 10*time.Millisecond)) < 2 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if sent := waitSent(fs, 10*time.Millisecond); len(sent) != 2 || !strings.HasPrefix(sent[1], "s:5|early bird") {
+	if sent := waitSent(fs, 10*time.Millisecond); len(sent) != 2 || !strings.Contains(sent[1], "early bird") {
 		t.Fatalf("queued early message not delivered: %v", sent)
 	}
 
@@ -96,7 +96,7 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 	for len(waitSent(fs, 10*time.Millisecond)) < 3 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
-	if sent := waitSent(fs, 10*time.Millisecond); len(sent) != 3 || !strings.HasPrefix(sent[2], "s:5|too early") {
+	if sent := waitSent(fs, 10*time.Millisecond); len(sent) != 3 || !strings.Contains(sent[2], "too early") {
 		t.Fatalf("queued boot-time message not delivered: %v", sent)
 	}
 	oldGrace := bootGrace
@@ -109,7 +109,7 @@ func TestComposerQueuesUntilInputBox(t *testing.T) {
 	if loc := r.Header.Get("Location"); strings.Contains(loc, "warning") {
 		t.Fatalf("busy agent should get the text directly: %s", loc)
 	}
-	if sent := waitSent(fs, 500*time.Millisecond); len(sent) != 4 || !strings.HasPrefix(sent[3], "s:5|and this") {
+	if sent := waitSent(fs, 500*time.Millisecond); len(sent) != 4 || !strings.Contains(sent[3], "and this") {
 		t.Fatalf("sent = %v", sent)
 	}
 }

@@ -73,7 +73,7 @@ func TestComposerSendToAgent(t *testing.T) {
 	if resp.StatusCode != http.StatusFound {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
-	if len(fs.sent) != 1 || !strings.HasPrefix(fs.sent[0], "s:5|fix the login bug") {
+	if len(fs.sent) != 1 || !strings.Contains(fs.sent[0], "fix the login bug") {
 		t.Fatalf("sent = %q", fs.sent)
 	}
 	// Chat-delivered text carries reply routing — the agent can't otherwise

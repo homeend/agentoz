@@ -196,13 +196,20 @@ func TestForwardToAgent(t *testing.T) {
 	}
 }
 
-func TestChatReplySuffix(t *testing.T) {
-	got := ChatReplySuffix("/abs/erbrus")
+// The framing goes BEFORE the body: a note appended after a command-like
+// message ("pwd") was run as part of one shell command by Claude Code
+// (seen live 2026-09-10), so the message must be the unmistakable payload
+// and the note must read as a note.
+func TestChatEnvelopeFramesBodyLast(t *testing.T) {
+	got := ChatEnvelope("/abs/erbrus", "pwd")
 	if !strings.Contains(got, `/abs/erbrus msg send --report`) {
 		t.Fatalf("missing reply command: %s", got)
 	}
-	if !strings.HasPrefix(got, "\n\n(") {
-		t.Fatalf("suffix must be separated from the message body: %q", got[:8])
+	if !strings.HasPrefix(got, "[erbrus chat:") || !strings.HasSuffix(got, "]\npwd") {
+		t.Fatalf("body must come last on its own line after the bracketed note: %q", got)
+	}
+	if strings.Count(got, "\n") != 1 {
+		t.Fatalf("the note must be one line so it cannot be mistaken for commands: %q", got)
 	}
 }
 
