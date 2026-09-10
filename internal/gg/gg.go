@@ -72,6 +72,12 @@ func Message(bin string, out []byte, err error) string {
 	if errors.Is(err, exec.ErrNotFound) {
 		return fmt.Sprintf("gg not found (gg_bin = %q): install gg or set gg_bin in config.yaml", bin)
 	}
+	// A runner that captures stdout only (wt.ExecRunner uses cmd.Output)
+	// leaves gg's "error: …" line in the exit error's Stderr.
+	var ee *exec.ExitError
+	if errors.As(err, &ee) && len(ee.Stderr) > 0 {
+		out = append(append([]byte{}, out...), ee.Stderr...)
+	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
 		if l := strings.TrimSpace(lines[i]); strings.HasPrefix(l, "error: ") {

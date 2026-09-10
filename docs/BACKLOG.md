@@ -14,6 +14,11 @@ only the to-do list. Remove items as they land.
 - Kimi's real *working* screen. Its API was down when the rule was
   written; only the retry spinner has ever matched.
 - Antigravity's `--model` with display-style names (spaces, parentheses).
+- The sidebar "+" (worktree creation) on the user's real server with the
+  real gg: both modes, a failure, the shell terminal. Verified 2026-09-10
+  on the throwaway instance only.
+- `gg_bin` on a machine where `gg` is only a shell function: the server
+  needs the binary itself on PATH (the function wraps `command gg`).
 
 ## Ideas agreed but not built
 
@@ -23,14 +28,22 @@ only the to-do list. Remove items as they land.
   config. `agents setup` would then only install the skill.
 - Pre-seed junie's "Always allow ("erbrus msg send *")" the way codex
   (execpolicy rules) and Claude Code (settings allow) get theirs, so it
-  never asks. Where junie persists that choice is not yet known
-  (`~/.junie` holds no JSON with it).
+  never asks. Junie persists it in `~/.junie/allowlist.json` under
+  `rules.executables` as `{"prefix": "erbrus msg send", "action": "allow"}`
+  (seen 2026-09-09; `defaultBehavior: ask` governs everything else, brave
+  mode does not cover shell commands).
 - Tests for the browser JavaScript (terminal, keypad, confirmation
   dialog, collapsible rail). The missing confirmation on the projects
   page was a JS-only bug the Go suite cannot see.
 - `agents setup --update` could also refresh provider entries that still
   equal an older registry template (junie's one-shot command had to be
   fixed by hand with `provider set`).
+- Worktree removal from the channel page (`gg worktree remove`, with the
+  same shell-terminal fallback as creation).
+- `erbrus agents list` could show the provider type; today only
+  `provider show` prints it.
+- A "+" for the shell alone (open a terminal in any channel's directory
+  without going through a failed worktree creation).
 
 ## Parked earlier
 

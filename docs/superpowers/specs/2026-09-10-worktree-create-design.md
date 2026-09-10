@@ -153,3 +153,27 @@ route can be used from anywhere later (not wired elsewhere now).
 - Config: `type` validation, `gg_bin` reload.
 - Live: one pass on the throwaway instance (ERBRUS_URL=http://127.0.0.1:7499)
   with the real gg on a scratch repo: both modes, one failure, the terminal.
+
+## Amendments (implementation, 2026-09-10)
+
+- **`shell` is a built-in default, not a registry entry.** `config.Defaults()`
+  carries `providers.shell` (`type: tool`, command `${SHELL:-bash}`) and
+  `presets.shell`; `LoadGlobal` re-adds both when a config file lacks them,
+  and a user entry of the same name wins. `agents setup` and agent detection
+  are not involved (a shell has no binary to detect and no skill to
+  install). `erbrus agents list` shows no type column; `erbrus provider
+  show` prints `type:` instead. Trap seen live: a hand-written
+  `providers.shell` without `type: tool` (an older experiment) is an
+  agent provider by that rule — it spawns, but with a preamble, a state
+  badge and a composer entry. `erbrus provider set shell --type tool`
+  fixes such a config.
+- **Channel naming.** The spec said "named after the worktree directory";
+  `syncChannels` names channels by the branch's short name
+  (`wt.ShortBranch`), falling back to the directory basename. That existing
+  rule stays; the form's help text says so.
+- **Tool run state.** No fixed `tool` state is stored; the watcher skips
+  tool runs entirely (`isToolRun`), and the card renders a `shell` badge
+  from `runView.Tool`.
+- **Provider type everywhere.** `type` is a `config.Provider` field, in the
+  provider JSON (GET/PUT `/api/providers/{name}`), in `config.SetProvider`'s
+  patch, and as `erbrus provider set --type agent|tool`.

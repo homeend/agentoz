@@ -109,4 +109,10 @@ func TestMessage(t *testing.T) {
 	if m := Message("gg", nil, errors.New("signal: killed")); m != "signal: killed" {
 		t.Fatal(m)
 	}
+	// cmd.Output() runners (the server's wt runner) keep stderr in the
+	// ExitError; gg's error line lives there. Seen live 2026-09-10.
+	ee := &exec.ExitError{Stderr: []byte("error: create worktree: branch x is already checked out in worktree /w/x\n")}
+	if m := Message("gg", nil, ee); m != "create worktree: branch x is already checked out in worktree /w/x" {
+		t.Fatal(m)
+	}
 }
