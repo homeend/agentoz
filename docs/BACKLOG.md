@@ -28,8 +28,10 @@ only the to-do list. Remove items as they land.
   (seen 2026-09-09; `defaultBehavior: ask` governs everything else, brave
   mode does not cover shell commands).
 - Tests for the browser JavaScript (terminal, keypad, confirmation
-  dialog, collapsible rail). The missing confirmation on the projects
-  page was a JS-only bug the Go suite cannot see.
+  dialog, collapsible rail, queued-message banner, worktree form). The
+  Go suite never runs the page script: the projects-page confirmation
+  dialog was missing for a day (fixed 2026-09-09) while every test
+  passed. A headless-browser or DOM-shim setup would catch that class.
 - `agents setup --update` could also refresh provider entries that still
   equal an older registry template (junie's one-shot command had to be
   fixed by hand with `provider set`).
