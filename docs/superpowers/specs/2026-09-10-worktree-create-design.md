@@ -177,3 +177,9 @@ route can be used from anywhere later (not wired elsewhere now).
 - **Provider type everywhere.** `type` is a `config.Provider` field, in the
   provider JSON (GET/PUT `/api/providers/{name}`), in `config.SetProvider`'s
   patch, and as `erbrus provider set --type agent|tool`.
+- **Superseded by the tools round (2026-09-10,
+  `2026-09-10-tools-design.md`):** the built-in `shell` provider and
+  preset are gone, replaced by `tools.shell`; the terminal button on the
+  worktree page posts to `/ui/channels/{main}/tools/shell`, and
+  `/ui/projects/{id}/shell` no longer exists. `Provider.Type` stays for
+  user-defined tool providers.

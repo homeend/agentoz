@@ -125,5 +125,25 @@ one row per tool, sorted by name, name + "Open" button.
   tool and lands on a terminal page.
 - Live on the throwaway (ERBRUS_URL set): `gg` opens in tmux in a
   worktree channel's directory (capture shows the gg TUI); a GUI tool
-  defined as `sh -c 'echo {dir} > {dir}/opened.txt'` writes the marker;
-  a tool with a missing binary shows the banner.
+  defined as `touch {dir}/opened.txt` writes the marker; a tool with a
+  missing binary shows the banner.
+
+## Amendments (implementation, 2026-09-10)
+
+- **GUI tools run without a shell.** The spec said `sh -c` / `cmd /C`.
+  With a shell in between, a missing editor binary is not a start error
+  (the shell starts fine and fails inside), so the one failure that
+  matters would never be reported. The rendered command is split into
+  argv (`tools.Split`: whitespace, single quotes literal, double quotes
+  with `\"` and `\\`) and executed directly; a missing binary reports
+  "executable file not found". Consequence: no `$VAR`, redirects or
+  pipes in GUI tool commands — quote arguments with spaces instead.
+  Terminal tools are unaffected (cmd.sh is a shell script).
+- **Foreground + tool** (`erbrus start --fg` shape) is refused with 400;
+  tools are tmux-only.
+- **Tool runs reset model/args too**, not only prompt/workdir/name, so a
+  stray API request cannot append arguments to a tool command.
+- `ExecLauncher()` is exported for `serve`; the badge on a tool run's
+  card now reads "tool" (was "shell").
+- The optional `erbrus tool list` CLI was not built (YAGNI); the
+  settings page's scaffold comment documents the section instead.

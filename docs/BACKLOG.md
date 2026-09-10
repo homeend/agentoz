@@ -14,6 +14,10 @@ only the to-do list. Remove items as they land.
 - Kimi's real *working* screen. Its API was down when the rule was
   written; only the retry spinner has ever matched.
 - Antigravity's `--model` with display-style names (spaces, parentheses).
+- The Tools rail with a real editor on the user's machine (`idea64.exe`
+  / `subl.exe` through `{windir}`), and `{windir}` for a directory
+  outside `/mnt` (the `\\wsl.localhost\<distro>\…` form). Verified
+  2026-09-10 on the throwaway with a script tool and gg only.
 
 ## Ideas agreed but not built
 
@@ -41,8 +45,9 @@ only the to-do list. Remove items as they land.
   `provider show` prints it. The skill's provider-key table does not
   mention `type` either (agents configure agents, never tools); adding
   a row means a skill version bump, so it waits for the next skill edit.
-- A "+" for the shell alone (open a terminal in any channel's directory
-  without going through a failed worktree creation).
+- Per-repo `tools:` in the repo config (today tools are global only).
+- Reporting a GUI tool that starts and then exits at once (a short
+  post-start wait); today only a start failure is shown, by design.
 
 ## Parked earlier
 
