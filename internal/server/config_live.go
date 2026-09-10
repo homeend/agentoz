@@ -10,7 +10,7 @@ import (
 	"erbrus/internal/screen"
 )
 
-// Runtime config access. Providers, presets, wt_bin and gg_bin change while the
+// Runtime config access. Providers, presets, tools, wt_bin and gg_bin change while the
 // server runs (PUT handlers, the settings page, config.yaml reload), so
 // readers take copies under rulesMu and never touch s.cfg's maps directly.
 // Port, data_dir, terminal and the session names are read once at start.
@@ -70,6 +70,23 @@ func (s *Server) ggBin() string {
 	return s.cfg.GgBin
 }
 
+func (s *Server) toolsSnapshot() map[string]config.Tool {
+	s.rulesMu.RLock()
+	defer s.rulesMu.RUnlock()
+	out := make(map[string]config.Tool, len(s.cfg.Tools))
+	for k, v := range s.cfg.Tools {
+		out[k] = v
+	}
+	return out
+}
+
+func (s *Server) toolCfg(name string) (config.Tool, bool) {
+	s.rulesMu.RLock()
+	defer s.rulesMu.RUnlock()
+	t, ok := s.cfg.Tools[name]
+	return t, ok
+}
+
 // compileOverrides builds the screen-rule override map the way New does:
 // only providers with at least one list, invalid regexes fall back to
 // built-ins with a note on stderr.
@@ -90,7 +107,7 @@ func compileOverrides(providers map[string]config.Provider) map[string]screen.Ru
 }
 
 // ReloadConfig re-reads config.yaml and swaps in its providers, presets
-// wt_bin and gg_bin, recompiling the screen-rule overrides. It reports whether
+// tools, wt_bin and gg_bin, recompiling the screen-rule overrides. It reports whether
 // anything changed; a file that does not parse leaves the running config
 // untouched. Keys read only at start (port, data_dir, terminal, session
 // names) are reported in restart, never applied.
@@ -116,10 +133,12 @@ func (s *Server) ReloadConfig() (changed bool, restart []string, err error) {
 			restart = append(restart, kv.key)
 		}
 	}
-	if reflect.DeepEqual(cur.Providers, next.Providers) && reflect.DeepEqual(cur.Presets, next.Presets) && cur.WtBin == next.WtBin && cur.GgBin == next.GgBin {
+	if reflect.DeepEqual(cur.Providers, next.Providers) && reflect.DeepEqual(cur.Presets, next.Presets) &&
+		reflect.DeepEqual(cur.Tools, next.Tools) && cur.WtBin == next.WtBin && cur.GgBin == next.GgBin {
 		return false, restart, nil
 	}
-	s.cfg.Providers, s.cfg.Presets, s.cfg.WtBin, s.cfg.GgBin = next.Providers, next.Presets, next.WtBin, next.GgBin
+	s.cfg.Providers, s.cfg.Presets, s.cfg.Tools = next.Providers, next.Presets, next.Tools
+	s.cfg.WtBin, s.cfg.GgBin = next.WtBin, next.GgBin
 	s.rules = compileOverrides(next.Providers)
 	return true, restart, nil
 }

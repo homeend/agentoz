@@ -34,6 +34,12 @@ const globalScaffoldYAML = `# erbrus global settings. Everything is optional; bu
 # wt_bin: wt                            # path to wt binary; auto-detected on PATH
 # gg_bin: gg                            # path to gg (gigagit) binary for worktree creation from the sidebar
 #
+# tools:                                # opened from the channel page, in that channel's directory
+#   idea: {command: 'idea64.exe {windir}'}          # GUI: started detached; {windir} = Windows form of the path
+#   subl: {command: 'subl.exe {windir}'}
+#   shell: {command: '${SHELL:-bash}', terminal: true}   # built-in; terminal: opens in the web terminal
+#   gg:    {command: '{gg_bin}', terminal: true}         # built-in
+#
 # providers:
 #   claude-code:
 #     command: 'claude --model {model} {args} "{prompt}"'

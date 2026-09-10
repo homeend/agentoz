@@ -16,13 +16,13 @@ import (
 	"erbrus/internal/store"
 )
 
-// withShell adds the built-in shell provider/preset to the test server
-// (newTestServer replaces cfg.Providers wholesale).
+// withShell adds a user-defined provider of type "tool" plus its preset
+// (there is no built-in shell provider; the built-in shell is tools.shell).
 func withShell(t *testing.T) {
 	t.Helper()
 	testSrv.rulesMu.Lock()
-	testSrv.cfg.Providers["shell"] = config.ShellProvider()
-	testSrv.cfg.Presets["shell"] = config.ShellPreset()
+	testSrv.cfg.Providers["shell"] = config.Provider{Type: "tool", Command: "${SHELL:-bash}"}
+	testSrv.cfg.Presets["shell"] = config.Preset{Provider: "shell"}
 	testSrv.rulesMu.Unlock()
 }
 

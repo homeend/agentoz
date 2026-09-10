@@ -72,19 +72,31 @@ var ProviderTypes = []string{"agent", "tool"}
 // rather than a coding agent.
 func (p Provider) IsTool() bool { return p.Type == "tool" }
 
-// ShellProvider is the built-in "shell" tool provider: the user's login
-// shell, expanded by cmd.sh at exec time so the tmux server's SHELL wins.
-func ShellProvider() Provider { return Provider{Type: "tool", Command: "${SHELL:-bash}"} }
-
-// ShellPreset is the preset that spawns ShellProvider under its own name.
-func ShellPreset() Preset { return Preset{Provider: "shell"} }
-
 type Preset struct {
 	Provider string `yaml:"provider"`
 	Model    string `yaml:"model"`
 	Prompt   string `yaml:"prompt"`
 	Args     string `yaml:"args"`
 	Name     string `yaml:"name"`
+}
+
+// Tool is a program the human opens in a channel's directory from the
+// channel page: a terminal program (shell, gg — needs a TTY, runs in
+// tmux and opens in the web terminal) or a GUI program (an editor,
+// launched detached). Command is shell text with {dir}, {windir},
+// {gg_bin} placeholders (see internal/tools).
+type Tool struct {
+	Command  string `yaml:"command"`
+	Terminal bool   `yaml:"terminal"`
+}
+
+// BuiltinTools are merged into every config; a user entry of the same
+// name wins.
+func BuiltinTools() map[string]Tool {
+	return map[string]Tool{
+		"shell": {Command: "${SHELL:-bash}", Terminal: true},
+		"gg":    {Command: "{gg_bin}", Terminal: true},
+	}
 }
 
 type Global struct {
@@ -100,6 +112,7 @@ type Global struct {
 	GgBin     string              `yaml:"gg_bin"`
 	Providers map[string]Provider `yaml:"providers"`
 	Presets   map[string]Preset   `yaml:"presets"`
+	Tools     map[string]Tool     `yaml:"tools"`
 }
 
 type Repo struct {
@@ -117,8 +130,9 @@ func Defaults() Global {
 		Session:        "erbrus",
 		WtBin:          "wt",
 		GgBin:          "gg",
-		Providers:      map[string]Provider{"shell": ShellProvider()},
-		Presets:        map[string]Preset{"shell": ShellPreset()},
+		Providers:      map[string]Provider{},
+		Presets:        map[string]Preset{},
+		Tools:          BuiltinTools(),
 	}
 }
 
@@ -150,13 +164,15 @@ func LoadGlobal(path string) (Global, error) {
 	if g.Presets == nil {
 		g.Presets = map[string]Preset{}
 	}
-	// Built-ins survive a file that lists its own providers/presets; a
-	// user entry of the same name wins.
-	if _, ok := g.Providers["shell"]; !ok {
-		g.Providers["shell"] = ShellProvider()
+	// Built-in tools survive a file that lists its own; a user entry of
+	// the same name wins.
+	if g.Tools == nil {
+		g.Tools = map[string]Tool{}
 	}
-	if _, ok := g.Presets["shell"]; !ok {
-		g.Presets["shell"] = ShellPreset()
+	for name, t := range BuiltinTools() {
+		if _, ok := g.Tools[name]; !ok {
+			g.Tools[name] = t
+		}
 	}
 	if g.GgBin == "" {
 		g.GgBin = "gg"

@@ -36,6 +36,9 @@ presets:
   a:
     provider: agy
     model: m1
+tools:
+  idea:
+    command: idea64.exe {windir}
 `), 0o644)
 	changed, restart, err := testSrv.ReloadConfig()
 	if err != nil || !changed {
@@ -57,9 +60,15 @@ presets:
 	if got := testSrv.ggBin(); got != "/x/gg" {
 		t.Fatalf("gg_bin not swapped: %q", got)
 	}
-	// The built-in shell provider survives a reload of a file without it.
-	if p, ok := testSrv.providerCfg("shell"); !ok || !p.IsTool() {
-		t.Fatalf("shell provider lost on reload: %+v %v", p, ok)
+	if tl, ok := testSrv.toolCfg("idea"); !ok || tl.Command != "idea64.exe {windir}" {
+		t.Fatalf("tools not swapped: %+v %v", tl, ok)
+	}
+	// Built-in tools survive a reload of a file that lists its own.
+	if _, ok := testSrv.toolCfg("shell"); !ok {
+		t.Fatal("built-in shell tool lost on reload")
+	}
+	if _, ok := testSrv.providerCfg("shell"); ok {
+		t.Fatal("no built-in shell provider any more")
 	}
 	r := getPath(t, ts.URL+"/api/providers/agy")
 	if r.StatusCode != http.StatusOK {
