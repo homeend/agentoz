@@ -1,8 +1,9 @@
 # Backlog
 
-What is open after round 5 (worktree creation), as of 2026-09-10. Design and
-verification history lives in `docs/superpowers/specs/*`; this file is
-only the to-do list. Remove items as they land.
+What is open after round 7 (platform driver: tmux on Linux, WezTerm on
+Windows), as of 2026-09-10. Design and verification history lives in
+`docs/superpowers/specs/*`; this file is only the to-do list. Remove
+items as they land.
 
 ## Verification still owed
 
@@ -18,6 +19,11 @@ only the to-do list. Remove items as they land.
   / `subl.exe` through `{windir}`), and `{windir}` for a directory
   outside `/mnt` (the `\\wsl.localhost\<distro>\…` form). Verified
   2026-09-10 on the throwaway with a script tool and gg only.
+- The Windows live check for the platform driver — this session cannot
+  run Windows programs, so it must run on the user's Windows box: spawn
+  claude-code through WezTerm, a chat round trip, the Tools rail's
+  `shell` tool opening a WezTerm window, and `wezterm cli kill-pane`
+  while a run is live marking it failed via Reconcile within 10s.
 
 ## Ideas agreed but not built
 
@@ -48,6 +54,30 @@ only the to-do list. Remove items as they land.
 - Per-repo `tools:` in the repo config (today tools are global only).
 - Reporting a GUI tool that starts and then exits at once (a short
   post-start wait); today only a start failure is shown, by design.
+- Keep the last screen after an agent exits under WezTerm: `exit_behavior
+  = "Hold"` in the mux config plus a dead-pane heuristic (the pane
+  otherwise closes with the program, so `erbrus wrap`'s reported exit
+  code is right but the final screen is gone).
+- A browser terminal on Windows (a ConPTY host inside erbrus; WezTerm's
+  headless mux has no pty-attach today).
+- User-facing "tmux" wording on the wezterm path: `screen.go`'s "no tmux
+  window for this run", `terminal.go`'s "run has no live tmux window",
+  `ui_tools.go`'s "terminal tools need tmux", and the channel.html
+  tool-row title all still say tmux even when the driver is wezterm.
+- `shellToolOverride` is not idempotent across driver switches (only
+  matters for tests that swap drivers on one `Server` mid-run).
+- The `s.driver` read in `ReloadConfig` (under `rulesMu`) racing the
+  unlocked write in `SetDriver` (a data race if the two ever run
+  concurrently in practice; today they don't).
+- `wrap`'s `os.Setenv` of env-file keys leaks into the process — fine
+  for the short-lived real `wrap` binary, but leaves state visible to
+  the cli test binary if a later test reads the same env var without
+  setting it itself.
+- A malformed `cmd.json` or env file makes `wrap` exit 127 without
+  reporting the exit to the server.
+- Small test-coverage gaps: `NewDriver`'s default wezterm bin, `cli()`'s
+  stderr-unwrap path, and test globals not restored after being
+  zeroed for wezterm's settle/verify timing.
 
 ## Parked earlier
 

@@ -252,3 +252,70 @@ design leans this way.)
 - A browser terminal on Windows (would need a ConPTY host inside erbrus;
   the "erbrus hosts the ptys itself" option from the chat).
 - Zellij.
+
+## Amendments (implementation, 2026-09-10)
+
+- **`*driver` forwards `SendChecked` to the underlying spawner.** The
+  server's `checkedSender` type assertion (`deliver.go`) looks for
+  `SendChecked` on the dynamic type behind `s.spawner`; once `SetDriver`
+  makes that dynamic type always `*spawn.driver`, embedding `Spawner` as
+  an interface field only promotes the interface's own methods, not the
+  wrapped concrete spawner's extras. Without a forwarding method on
+  `*driver`, both tmux and wezterm silently fell back to plain `Send`,
+  losing each provider's own "submitted" screen rule (agy keeping text
+  in its input box while working, for one). Purely additive on
+  `internal/spawn/driver.go`, not on the `Driver` interface itself (so
+  test fakes need not implement it).
+- **`Server.drv()` returns `spawn.DriverFor(nil)` when no driver is
+  set.** Collapses every scattered `if s.driver != nil { … } else { … }`
+  across `server.go`/`runs.go`/`screen.go`/`terminal.go`/`ui_tools.go`
+  into one accessor, and removes the last `"tmux"`/`sh` string literals
+  duplicated outside `internal/spawn`. `DriverFor(nil)`'s host methods
+  never touch the nil `Spawner`; `Viewer()`/`OpenTerminal()` type-assert
+  it and get `ok=false`, not a panic — so the fg-only test configuration
+  never names `sh`/tmux itself, it just gets the posix defaults for
+  free.
+- **`agent_runs.spawner` CHECK constraint now includes `'wezterm'`.**
+  `store.CreateRun` rejected `Spawner: "wezterm"` with a 500 under the
+  original `CHECK (spawner IN ('tmux','fg'))`. Existing on-disk
+  databases keep the old constraint baked into `sqlite_master` (SQLite
+  can't `ALTER` a CHECK in place), so `store.migrateSpawnerCheck` rebuilds
+  `agent_runs` via copy/drop/rename when its stored DDL doesn't mention
+  `wezterm` — the replacement DDL is sliced out of the embedded
+  `schema.sql` itself, never re-typed, so the rebuilt table's columns
+  can't drift from the schema. A no-op on every fresh database.
+- **The built-in `shell` tool's command is replaced by `driver.ShellTool()`
+  on `SetDriver` and on every reload, only when the config's entry
+  still equals the built-in.** So a wezterm/Windows run gets `powershell`
+  without the user having to say so, but a user-defined `shell` tool is
+  never clobbered. Applied to the freshly loaded tools *before* the
+  reload's `reflect.DeepEqual` "did anything change" comparison, not
+  after swapping — applying it after would leave `s.cfg.Tools` forever
+  out of sync with every subsequent `next.Tools` on a non-posix driver,
+  so an unchanged config file would report `changed=true` on every
+  single reload.
+- **Terminal tools: `driverOpensTerminals()` is checked first.** Argv is
+  only split and rendered on the launch path (`driver.OpenTerminal`);
+  the tmux path goes straight to `spawnRunCore` exactly as before, so a
+  bad tool command still fails inside the tmux pane, not at this
+  handler — the tmux path's error behaviour is unchanged.
+- **`Defaults().Terminal` is empty**, not `"tmux"`; the platform default
+  is applied once, by `spawn.NewDriver`, so the zero value never lies
+  about what a Windows build actually picks. `wezterm_bin` added next
+  to `gg_bin`, defaulting to `wezterm` on PATH.
+- **The mock-key fix in the wezterm spawn test.** The brief's verbatim
+  `TestWeztermSpawnUsesAttachSessionAsWorkspaceAndReportsStderr` scripted
+  its recorder under the key `"wezterm cli spawn"`, but `cli()` invokes
+  the *configured* binary as `name` (required so a non-PATH
+  `wezterm.exe` install actually gets called) — with a custom bin path
+  the recorded call never has that prefix. Fixed by keying the mock to
+  the full configured path (`` `C:\Users\homee\bin\WezTerm\wezterm.exe cli spawn` ``);
+  no assertion in the test changed.
+- Known gaps carried to `docs/BACKLOG.md`: the Windows live check (this
+  session cannot run Windows programs); keeping the last screen after
+  exit; a browser terminal on Windows; user-facing "tmux" wording on
+  the wezterm path; `shellToolOverride` non-idempotence across driver
+  switches; the `s.driver` read in `ReloadConfig` racing the unlocked
+  write in `SetDriver`; `wrap`'s `os.Setenv` leaking env-file
+  keys into the process; a malformed `cmd.json`/env file exiting 127
+  without reporting the exit; small test-coverage gaps.
