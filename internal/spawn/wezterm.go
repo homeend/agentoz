@@ -59,7 +59,15 @@ func (w *Wezterm) Spawn(spec RunSpec) (Handle, error) {
 		return "", fmt.Errorf("wezterm spawn: unexpected output %q", out)
 	}
 	h := Handle(id + "@" + spec.WindowName)
-	w.cli("", "set-tab-title", "--pane-id", id, spec.WindowName) // cosmetic
+	// The title is half of the run's identity: Alive/Capture require
+	// tab_title == title, so a pane whose title never got set reads as
+	// gone — Reconcile marks the run failed while the agent keeps
+	// running orphaned. Best-effort kill the orphan pane and surface the
+	// error instead of pretending this was cosmetic.
+	if _, err := w.cli("", "set-tab-title", "--pane-id", id, spec.WindowName); err != nil {
+		w.cli("", "kill-pane", "--pane-id", id) // best effort
+		return "", fmt.Errorf("wezterm set-tab-title: %w", err)
+	}
 	return h, nil
 }
 
@@ -138,6 +146,10 @@ func (w *Wezterm) SendChecked(h Handle, text string, submitted func(string) bool
 // keyBytes maps the keypad's tmux key names to what a terminal sends.
 var keyBytes = map[string]string{"Enter": "\r", "Escape": "\x1b", "Up": "\x1b[A", "Down": "\x1b[B", "Tab": "\t"}
 
+// SendKeys checks the id+title pair before typing: after a mux-server
+// restart pane ids restart at 0, so a stale run row could otherwise send
+// keystrokes into an unrelated pane. (Send already goes through Capture
+// in the server, so it gets this check for free.)
 func (w *Wezterm) SendKeys(h Handle, key string) error {
 	b, ok := keyBytes[key]
 	if !ok {
@@ -146,6 +158,11 @@ func (w *Wezterm) SendKeys(h Handle, key string) error {
 		}
 		b = key
 	}
+	if _, found, err := w.pane(h); err != nil {
+		return err
+	} else if !found {
+		return fmt.Errorf("send key %q to %s: pane gone", key, h)
+	}
 	id, _ := splitHandle(h)
 	if _, err := w.cli(b, "send-text", "--no-paste", "--pane-id", id); err != nil {
 		return fmt.Errorf("send key %q to %s: %w", key, h, err)
@@ -153,7 +170,13 @@ func (w *Wezterm) SendKeys(h Handle, key string) error {
 	return nil
 }
 
+// Stop checks the id+title pair before killing: see SendKeys.
 func (w *Wezterm) Stop(h Handle) error {
+	if _, found, err := w.pane(h); err != nil {
+		return err
+	} else if !found {
+		return fmt.Errorf("stop %s: pane gone", h)
+	}
 	id, _ := splitHandle(h)
 	if _, err := w.cli("", "kill-pane", "--pane-id", id); err != nil {
 		return fmt.Errorf("kill %s: %w", h, err)

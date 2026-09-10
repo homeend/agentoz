@@ -74,6 +74,27 @@ func TestWindowsHost(t *testing.T) {
 	}
 }
 
+func TestAttachCommand(t *testing.T) {
+	td, err := NewDriver("tmux", "", "linux", (&recorder{}).run, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := td.AttachCommand("erbrus-webshop"); got != "tmux attach -t erbrus-webshop" {
+		t.Errorf("tmux AttachCommand = %q", got)
+	}
+	wd, err := NewDriver("wezterm", "mywezterm", "windows", nil, (&wrec{}).run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := wd.AttachCommand("erbrus-webshop"); got != "mywezterm connect unix --workspace erbrus-webshop" {
+		t.Errorf("wezterm AttachCommand = %q", got)
+	}
+	// DriverFor keeps tmux semantics for any other spawner (test fakes).
+	if got := DriverFor(NewTmux((&recorder{}).run)).AttachCommand("s"); got != "tmux attach -t s" {
+		t.Errorf("DriverFor AttachCommand = %q", got)
+	}
+}
+
 func TestDriverForWrapsAFakeSpawner(t *testing.T) {
 	rec := &recorder{}
 	d := DriverFor(NewTmux(rec.run))

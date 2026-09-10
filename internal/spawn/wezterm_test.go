@@ -67,6 +67,31 @@ func TestWeztermSpawnNewWindowThenTitle(t *testing.T) {
 	}
 }
 
+// TestWeztermSpawnKillsPaneAndErrorsWhenSetTabTitleFails: the title is
+// half the run's identity (Alive/Capture match id+title), so a pane
+// whose title never got set would read as "gone" forever. Spawn must
+// not treat this as cosmetic: it kills the orphaned pane and reports
+// the failure.
+func TestWeztermSpawnKillsPaneAndErrorsWhenSetTabTitleFails(t *testing.T) {
+	r := &wrec{
+		out:  map[string]string{"wezterm cli spawn": "7\n"},
+		fail: map[string]error{"wezterm cli set-tab-title": errors.New("exit status 1")},
+	}
+	w := NewWezterm(r.run, "wezterm")
+	h, err := w.Spawn(wspec())
+	if err == nil || !strings.Contains(err.Error(), "set-tab-title") {
+		t.Fatalf("h = %q, err = %v; want a set-tab-title error", h, err)
+	}
+	want := []string{
+		`|wezterm cli spawn --new-window --workspace erbrus-webshop --cwd T:\code\webshop -- T:\erbrus\bin\erbrus.exe wrap T:\data\runs\7\cmd.json`,
+		`|wezterm cli set-tab-title --pane-id 7 webshop/claude`,
+		`|wezterm cli kill-pane --pane-id 7`,
+	}
+	if !reflect.DeepEqual(r.calls, want) {
+		t.Fatalf("calls = %q", r.calls)
+	}
+}
+
 func TestWeztermSpawnUsesAttachSessionAsWorkspaceAndReportsStderr(t *testing.T) {
 	r := &wrec{out: map[string]string{`C:\Users\homee\bin\WezTerm\wezterm.exe cli spawn`: "3\n"}}
 	w := NewWezterm(r.run, `C:\Users\homee\bin\WezTerm\wezterm.exe`)
@@ -155,27 +180,41 @@ func TestWeztermSendRetriesWhileTextSitsInInputBox(t *testing.T) {
 }
 
 func TestWeztermSendKeys(t *testing.T) {
-	r := &wrec{}
+	r := &wrec{out: map[string]string{"wezterm cli list": listJSON}}
 	w := NewWezterm(r.run, "wezterm")
 	for key, want := range map[string]string{"Enter": "\r", "Escape": "\x1b", "Up": "\x1b[A", "Down": "\x1b[B", "Tab": "\t", "3": "3"} {
 		r.calls = nil
-		if err := w.SendKeys("7@x", key); err != nil {
+		if err := w.SendKeys("7@webshop/claude", key); err != nil {
 			t.Fatal(err)
 		}
-		if r.calls[0] != want+"|wezterm cli send-text --no-paste --pane-id 7" {
-			t.Errorf("%s → %q", key, r.calls[0])
+		last := r.calls[len(r.calls)-1]
+		if last != want+"|wezterm cli send-text --no-paste --pane-id 7" {
+			t.Errorf("%s → %q", key, last)
 		}
 	}
-	if err := w.SendKeys("7@x", "C-c"); err == nil || !strings.Contains(err.Error(), "not supported") {
+	if err := w.SendKeys("7@webshop/claude", "C-c"); err == nil || !strings.Contains(err.Error(), "not supported") {
 		t.Errorf("err = %v", err)
+	}
+	// Stale pair (mux server restarted, pane ids reused): must not type
+	// into an unrelated pane.
+	if err := w.SendKeys("9@gone", "Enter"); err == nil || !strings.Contains(err.Error(), "pane gone") {
+		t.Errorf("stale pair err = %v", err)
 	}
 }
 
 func TestWeztermStopAndOpenTerminal(t *testing.T) {
-	r := &wrec{}
+	r := &wrec{out: map[string]string{"wezterm cli list": listJSON}}
 	w := NewWezterm(r.run, "wezterm")
-	if err := w.Stop("7@x"); err != nil || r.calls[0] != "|wezterm cli kill-pane --pane-id 7" {
-		t.Fatalf("stop: %v %q", err, r.calls)
+	if err := w.Stop("7@webshop/claude"); err != nil {
+		t.Fatalf("stop: %v", err)
+	}
+	if last := r.calls[len(r.calls)-1]; last != "|wezterm cli kill-pane --pane-id 7" {
+		t.Fatalf("stop calls = %q", r.calls)
+	}
+	// Stale pair (mux server restarted, pane ids reused): must not kill
+	// an unrelated pane.
+	if err := w.Stop("7@other"); err == nil || !strings.Contains(err.Error(), "pane gone") {
+		t.Errorf("stale pair err = %v", err)
 	}
 	launch, ok := w.OpenTerminal(`T:\code\webshop`, []string{"powershell"})
 	if !ok || !reflect.DeepEqual(launch, []string{"wezterm", "start", "--cwd", `T:\code\webshop`, "--", "powershell"}) {

@@ -119,7 +119,10 @@ func claudeHook(runDir, erbrusBin string) (string, error) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return "", err
 	}
-	return "--settings " + path, nil
+	// Quoted: on Windows the path (under <home>\.local\share\erbrus\runs\
+	// <id>\) can contain a space, and tools.Split (like sh) splits on
+	// unquoted whitespace — an unquoted path becomes two argv entries.
+	return "--settings " + provider.ShellQuote(path), nil
 }
 
 func codexHook(runDir, erbrusBin string) (string, error) {

@@ -135,8 +135,8 @@ func compileOverrides(providers map[string]config.Provider) map[string]screen.Ru
 // ReloadConfig re-reads config.yaml and swaps in its providers, presets
 // tools, wt_bin and gg_bin, recompiling the screen-rule overrides. It reports whether
 // anything changed; a file that does not parse leaves the running config
-// untouched. Keys read only at start (port, data_dir, terminal, session
-// names) are reported in restart, never applied.
+// untouched. Keys read only at start (port, data_dir, terminal,
+// wezterm_bin, session names) are reported in restart, never applied.
 func (s *Server) ReloadConfig() (changed bool, restart []string, err error) {
 	if s.configPath == "" {
 		return false, nil, nil
@@ -153,6 +153,7 @@ func (s *Server) ReloadConfig() (changed bool, restart []string, err error) {
 		old, new any
 	}{
 		{"port", cur.Port, next.Port}, {"data_dir", cur.DataDir, next.DataDir}, {"terminal", cur.Terminal, next.Terminal},
+		{"wezterm_bin", cur.WeztermBin, next.WeztermBin},
 		{"session_pattern", cur.SessionPattern, next.SessionPattern}, {"session", cur.Session, next.Session},
 	} {
 		if kv.old != kv.new {

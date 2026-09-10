@@ -80,9 +80,10 @@ type channelPage struct {
 	// Tools: config tools, sorted by name; empty for an archived channel
 	// (its directory is gone).
 	Tools []toolView
-	// AttachCmds: one "tmux attach -t <session>" per session actually
-	// holding this channel's listed runs; falls back to the project's
-	// configured session when no run names one.
+	// AttachCmds: one driver-specific attach command (tmux attach -t
+	// <session>, or wezterm's cli connect) per session actually holding
+	// this channel's listed runs; falls back to the project's configured
+	// session when no run names one.
 	AttachCmds []string
 	Warning    string // ?warning= from a redirect (e.g. failed agent delivery)
 	// Queued: ?queued=<agent> — the warning is a "message queued" notice
@@ -247,7 +248,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			continue
 		}
 		seen[sess] = true
-		attachCmds = append(attachCmds, "tmux attach -t "+sess)
+		attachCmds = append(attachCmds, s.drv().AttachCommand(sess))
 	}
 	if len(attachCmds) == 0 {
 		session := repoCfg.Session
@@ -258,7 +259,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			session = repoCfg.AttachSession
 		}
 		if session != "" {
-			attachCmds = []string{"tmux attach -t " + session}
+			attachCmds = []string{s.drv().AttachCommand(session)}
 		}
 	}
 

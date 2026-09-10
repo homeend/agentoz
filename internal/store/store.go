@@ -100,12 +100,27 @@ func migrateSpawnerCheck(db *sql.DB) error {
 
 	// PRAGMA foreign_keys cannot be changed inside a transaction; restore
 	// it once the rebuild (which briefly drops the referenced table) is
-	// done, success or not.
+	// done, success or not. The ON pragma runs explicitly (not deferred)
+	// so its own error is not swallowed: it is returned, wrapped, only
+	// when the rebuild itself succeeded — a genuine rebuild failure must
+	// not be masked by a pragma error that happens after it.
 	if _, err := db.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
 		return err
 	}
-	defer db.Exec(`PRAGMA foreign_keys = ON`)
+	rebuildErr := rebuildAgentRuns(db, newDDL)
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		if rebuildErr != nil {
+			return rebuildErr
+		}
+		return fmt.Errorf("restore foreign_keys: %w", err)
+	}
+	return rebuildErr
+}
 
+// rebuildAgentRuns creates agent_runs_new from newDDL, copies every row
+// over, and swaps it in for agent_runs — one transaction, so a failure
+// midway leaves the original table untouched.
+func rebuildAgentRuns(db *sql.DB, newDDL string) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -128,7 +143,11 @@ func migrateSpawnerCheck(db *sql.DB) error {
 
 // agentRunsDDL extracts the agent_runs CREATE TABLE statement out of the
 // embedded schema.sql, so the migration's rebuilt table can never drift
-// from schema.sql's column list and constraints.
+// from schema.sql's column list and constraints. The slice ends at the
+// first ");" found after the CREATE TABLE line, so no column definition
+// or constraint inside agent_runs' body may ever end a line with ");" —
+// doing so would truncate the DDL there instead of at the table's real
+// closing paren.
 func agentRunsDDL() (string, error) {
 	const marker = "CREATE TABLE IF NOT EXISTS agent_runs ("
 	i := strings.Index(schema, marker)

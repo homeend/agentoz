@@ -38,6 +38,11 @@ type Driver interface {
 	// tool run (tmux window + browser terminal); ok=true → launch argv
 	// detached (a visible WezTerm window).
 	OpenTerminal(dir string, argv []string) (launch []string, ok bool)
+	// AttachCommand is the shell command a human types to attach to
+	// session from outside erbrus: tmux attach for *Tmux (and any other
+	// spawner, including test fakes — DriverFor keeps tmux semantics),
+	// `wezterm cli connect` for *Wezterm.
+	AttachCommand(session string) string
 }
 
 // StdinRunner is CmdRunner with stdin, for `wezterm cli send-text`.
@@ -126,6 +131,16 @@ func (d *driver) OpenTerminal(dir string, argv []string) ([]string, bool) {
 		return w.OpenTerminal(dir, argv)
 	}
 	return nil, false
+}
+
+// AttachCommand: *Wezterm connects to the mux server's named workspace;
+// everything else (*Tmux, and test fakes via DriverFor) keeps tmux
+// semantics.
+func (d *driver) AttachCommand(session string) string {
+	if w, ok := d.Spawner.(*Wezterm); ok {
+		return w.bin + " connect unix --workspace " + session
+	}
+	return "tmux attach -t " + session
 }
 
 // posixHost: sh runs cmd.sh; the prompt may sit on the command line.

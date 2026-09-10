@@ -12,6 +12,7 @@ import (
 	"erbrus/internal/config"
 	"erbrus/internal/screen"
 	"erbrus/internal/spawn"
+	"erbrus/internal/store"
 )
 
 // withProvider sets one provider on the test server (pattern of
@@ -61,6 +62,9 @@ func (d *fakeDriver) OpenTerminal(dir string, argv []string) ([]string, bool) {
 	}
 	return append([]string{"wezterm", "start", "--cwd", dir, "--"}, argv...), true
 }
+func (d *fakeDriver) AttachCommand(session string) string {
+	return "wezterm connect unix --workspace " + session
+}
 
 func TestSpawnThroughDriverWritesArgvFileEnvFileAndPastes(t *testing.T) {
 	ts, st, root := newTestServer(t)
@@ -109,15 +113,55 @@ func TestReconcileAndWatcherCoverNonTmuxRuns(t *testing.T) {
 	ch1, _ := twoChannels(t, ts.URL, root)
 	withProvider(t, "claude-code", config.Provider{Command: "claude"})
 	postJSON(t, ts.URL+"/api/runs", map[string]any{"channel_id": ch1, "provider": "claude-code", "prompt": "x"})
+	runs, _ := st.RunsByChannel(ch1)
+	runID := runs[0].ID
+	// Non-blank so WatchScreens has something to classify, in case a
+	// future change starts skipping empty captures.
+	fs.setScreen(fs.handle, spawn.Screen{Raw: "working...\n"})
 	if err := testSrv.WatchScreens(); err != nil {
 		t.Fatal(err)
+	}
+	// The watcher must have observed this run — the per-run state map
+	// (guarded by stateMu) should carry an entry for it.
+	if _, ok := testSrv.stateOf(runID); !ok {
+		t.Errorf("watcher never recorded state for the wezterm run %d", runID)
 	}
 	if err := testSrv.Reconcile(); err != nil {
 		t.Fatal(err)
 	}
-	runs, _ := st.RunsByChannel(ch1)
+	runs, _ = st.RunsByChannel(ch1)
 	if runs[0].Status != "failed" {
 		t.Errorf("a wezterm run whose pane is gone must be failed by Reconcile, got %q", runs[0].Status)
+	}
+}
+
+// TestAttachPanelUsesDriverCommandUnderWezterm: a wezterm handle has no
+// "session:index" shape, so the Attach panel's loop over run sessions
+// yields nothing and it falls back to the project's configured session —
+// that fallback must still print the driver's own attach command, not a
+// hardcoded tmux one (ui_channel.go's AttachCmds).
+func TestAttachPanelUsesDriverCommandUnderWezterm(t *testing.T) {
+	ts, st, root := newTestServer(t)
+	fs := &fakeSpawner{handle: "7@root/claude", alive: map[spawn.Handle]bool{"7@root/claude": true}}
+	testSrv.SetDriver(&fakeDriver{fakeSpawner: fs, name: "wezterm"}, "/abs/erbrus", ts.URL)
+	ch1, _ := twoChannels(t, ts.URL, root)
+	if _, err := st.CreateRun(store.AgentRun{ChannelID: ch1, Provider: "codex",
+		AgentName: "g", Workdir: "/w", Status: "running", Spawner: "wezterm",
+		TmuxTarget: "7@root/claude"}); err != nil {
+		t.Fatal(err)
+	}
+
+	resp, err := http.Get(fmt.Sprintf("%s/ui/channels/%d", ts.URL, ch1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	html := readBody(t, resp)
+	if !strings.Contains(html, "wezterm connect unix --workspace ") {
+		t.Fatalf("attach panel missing the driver's wezterm attach command:\n%s", html)
+	}
+	if strings.Contains(html, "tmux attach") {
+		t.Fatalf("attach panel must not fall back to tmux under a wezterm driver:\n%s", html)
 	}
 }
 

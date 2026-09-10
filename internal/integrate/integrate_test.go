@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"erbrus/internal/provider"
 )
 
 func TestPreamble(t *testing.T) {
@@ -54,8 +56,12 @@ func TestProviderHookClaude(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings := filepath.Join(dir, "claude-settings.json")
-	if args != "--settings "+settings {
-		t.Errorf("args = %q", args)
+	// Quoted: on Windows the run directory can contain a space, and
+	// tools.Split (like sh) would otherwise split it into two argv
+	// entries — see the wezterm-spawner-design spec.
+	want := "--settings " + provider.ShellQuote(settings)
+	if args != want {
+		t.Errorf("args = %q, want %q", args, want)
 	}
 	data, err := os.ReadFile(settings)
 	if err != nil {
