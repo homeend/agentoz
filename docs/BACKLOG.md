@@ -14,8 +14,6 @@ only the to-do list. Remove items as they land.
 - Kimi's real *working* screen. Its API was down when the rule was
   written; only the retry spinner has ever matched.
 - Antigravity's `--model` with display-style names (spaces, parentheses).
-- `gg_bin` on a machine where `gg` is only a shell function: the server
-  needs the binary itself on PATH (the function wraps `command gg`).
 
 ## Ideas agreed but not built
 
