@@ -88,26 +88,49 @@ func (t *Tmux) Send(h Handle, text string) error {
 // "still pending" and reports a failed delivery for a message the agent
 // is already working on (seen live 2026-09-09).
 func (t *Tmux) SendChecked(h Handle, text string, submitted func(screen string) bool) error {
-	if _, err := t.run("tmux", "set-buffer", "--", text); err != nil {
-		return fmt.Errorf("send to %s: %w", h, err)
+	paste := func() error {
+		if _, err := t.run("tmux", "set-buffer", "--", text); err != nil {
+			return fmt.Errorf("send to %s: %w", h, err)
+		}
+		if _, err := t.run("tmux", "paste-buffer", "-dp", "-t", exact(string(h))); err != nil {
+			return fmt.Errorf("send to %s: %w", h, err)
+		}
+		return nil
 	}
-	if _, err := t.run("tmux", "paste-buffer", "-dp", "-t", exact(string(h))); err != nil {
-		return fmt.Errorf("send to %s: %w", h, err)
-	}
-	time.Sleep(sendSettle)
-	for i := 0; i < sendEnterTries; i++ {
+	enter := func() error {
 		if _, err := t.run("tmux", "send-keys", "-t", exact(string(h)), "Enter"); err != nil {
 			return fmt.Errorf("send Enter to %s: %w", h, err)
 		}
-		time.Sleep(sendVerifyDelay)
+		return nil
+	}
+	capture := func() (string, error) {
 		out, err := t.run("tmux", "capture-pane", "-p", "-t", exact(string(h)))
+		return string(out), err
+	}
+	return sendChecked(string(h), text, submitted, paste, enter, capture)
+}
+
+// sendChecked is the delivery shared by every spawner: paste, settle,
+// Enter, then check the screen and press again while the text still sits
+// in the input box. A capture error ends the attempt without more Enters.
+func sendChecked(h, text string, submitted func(string) bool, paste, enter func() error, capture func() (string, error)) error {
+	if err := paste(); err != nil {
+		return err
+	}
+	time.Sleep(sendSettle)
+	for i := 0; i < sendEnterTries; i++ {
+		if err := enter(); err != nil {
+			return err
+		}
+		time.Sleep(sendVerifyDelay)
+		out, err := capture()
 		if err != nil {
 			return nil // cannot tell: do not spam Enter
 		}
-		if submitted != nil && submitted(string(out)) {
+		if submitted != nil && submitted(out) {
 			return nil
 		}
-		if !pendingInInputBox(string(out), text) {
+		if !pendingInInputBox(out, text) {
 			return nil
 		}
 	}

@@ -2,7 +2,6 @@ package spawn
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -67,7 +66,10 @@ func NewDriver(terminal, weztermBin, goos string, run CmdRunner, in StdinRunner)
 	case "tmux":
 		return &driver{Spawner: NewTmux(run), host: h, name: "tmux"}, nil
 	case "wezterm":
-		return nil, errors.New("wezterm: not built yet") // Task 2 replaces this line
+		if weztermBin == "" {
+			weztermBin = "wezterm"
+		}
+		return &driver{Spawner: NewWezterm(in, weztermBin), host: h, name: "wezterm"}, nil
 	}
 	return nil, fmt.Errorf("config terminal %q: want tmux or wezterm", terminal)
 }
@@ -141,18 +143,3 @@ func (windowsHost) WriteCommand(runDir, command string) (string, error) {
 func (windowsHost) PromptByPaste() bool        { return true }
 func (windowsHost) AgentBin(bin string) string { return strings.ReplaceAll(bin, `\`, "/") }
 func (windowsHost) ShellTool() string          { return "powershell" }
-
-// Wezterm is built in Task 2.
-type Wezterm struct{}
-
-func (w *Wezterm) Spawn(spec RunSpec) (Handle, error) {
-	return "", errors.New("wezterm: not built yet")
-}
-func (w *Wezterm) Stop(h Handle) error              { return errors.New("wezterm: not built yet") }
-func (w *Wezterm) Alive(h Handle) (bool, error)     { return false, errors.New("wezterm: not built yet") }
-func (w *Wezterm) Send(h Handle, text string) error { return errors.New("wezterm: not built yet") }
-func (w *Wezterm) Capture(h Handle) (Screen, error) {
-	return Screen{}, errors.New("wezterm: not built yet")
-}
-func (w *Wezterm) SendKeys(h Handle, key string) error                     { return errors.New("wezterm: not built yet") }
-func (w *Wezterm) OpenTerminal(dir string, argv []string) ([]string, bool) { return nil, false }
