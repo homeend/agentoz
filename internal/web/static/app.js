@@ -501,3 +501,26 @@ setInterval(function () {
   form.querySelectorAll('input[name="mode"]').forEach(function (r) { r.addEventListener('change', apply); });
   apply();
 })();
+
+// Settings page: textareas grow to their content, so the page scrolls
+// instead of the box. The CSS min-height keeps the config areas one common
+// size; the three rule boxes of a provider share the tallest one's height.
+(function () {
+  var areas = document.querySelectorAll('.settings textarea');
+  if (!areas.length) return;
+  function fit(t) {
+    t.style.height = 'auto';
+    t.style.height = (t.scrollHeight + 4) + 'px';
+  }
+  function fitAll() {
+    areas.forEach(fit);
+    document.querySelectorAll('.settings .rulegrid').forEach(function (g) {
+      var max = 0, boxes = g.querySelectorAll('textarea');
+      boxes.forEach(function (t) { max = Math.max(max, t.offsetHeight); });
+      boxes.forEach(function (t) { t.style.height = max + 'px'; });
+    });
+  }
+  areas.forEach(function (t) { t.addEventListener('input', fitAll); });
+  fitAll();
+  window.addEventListener('resize', fitAll);
+})();
