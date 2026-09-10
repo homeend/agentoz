@@ -1,6 +1,6 @@
 # Backlog
 
-What is open after round 4 (agents setup), as of 2026-09-09. Design and
+What is open after round 5 (worktree creation), as of 2026-09-10. Design and
 verification history lives in `docs/superpowers/specs/*`; this file is
 only the to-do list. Remove items as they land.
 
@@ -14,9 +14,6 @@ only the to-do list. Remove items as they land.
 - Kimi's real *working* screen. Its API was down when the rule was
   written; only the retry spinner has ever matched.
 - Antigravity's `--model` with display-style names (spaces, parentheses).
-- The sidebar "+" (worktree creation) on the user's real server with the
-  real gg: both modes, a failure, the shell terminal. Verified 2026-09-10
-  on the throwaway instance only.
 - `gg_bin` on a machine where `gg` is only a shell function: the server
   needs the binary itself on PATH (the function wraps `command gg`).
 
