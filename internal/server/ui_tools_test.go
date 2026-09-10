@@ -67,7 +67,13 @@ func TestTerminalToolSpawnsToolRunInChannelDir(t *testing.T) {
 	if len(runs) != 1 || runs[0].Provider != "tool:gg" || runs[0].AgentName != "gg" || runs[0].Workdir != root+"-wt-feat" || runs[0].Prompt != "" {
 		t.Fatalf("run = %+v", runs)
 	}
-	if loc := r.Header.Get("Location"); r.StatusCode != http.StatusFound || loc != fmt.Sprintf("/ui/runs/%d/terminal", runs[0].ID) {
+	// The redirect must land on the PAGE that hosts the terminal, not on
+	// the websocket endpoint (a browser GET there is a protocol error).
+	loc := r.Header.Get("Location")
+	if page, err := http.Get(ts.URL + loc); err != nil || page.StatusCode != http.StatusOK || !strings.Contains(page.Header.Get("Content-Type"), "text/html") {
+		t.Fatalf("GET %s must be an HTML page: %v %v", loc, page, err)
+	}
+	if r.StatusCode != http.StatusFound || loc != fmt.Sprintf("/ui/runs/%d/screen", runs[0].ID) {
 		t.Fatalf("redirect = %d %s", r.StatusCode, loc)
 	}
 	if fs.specs[0].Workdir != root+"-wt-feat" || fs.specs[0].WindowName != filepath.Base(root+"-wt-feat")+"/gg" {

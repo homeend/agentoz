@@ -73,7 +73,8 @@ one row per tool, sorted by name, name + "Open" button.
   for a provider of type `tool`). The watcher skips it; the card shows
   the `shell` badge (label text: "tool"); it is not a composer or forward
   target; `sendToRun` refuses it.
-- The response redirects to `/ui/runs/{run}/terminal`.
+- The response redirects to `/ui/runs/{run}/screen` (the page that hosts
+  the terminal; `/ui/runs/{run}/terminal` is the websocket endpoint itself).
 - Without a spawner (Windows build, or `serve` without tmux) the launch
   fails with "terminal tools need tmux (not available here)".
 - The worktree page's "Open a terminal in <repo>" button posts to

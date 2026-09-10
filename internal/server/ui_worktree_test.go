@@ -216,7 +216,7 @@ func TestWorktreePageTerminalButtonIsTheShellTool(t *testing.T) {
 	if len(runs) != 1 || runs[0].Provider != "tool:shell" || runs[0].Workdir != root {
 		t.Fatalf("runs = %+v", runs)
 	}
-	if loc := r.Header.Get("Location"); loc != fmt.Sprintf("/ui/runs/%d/terminal", runs[0].ID) {
+	if loc := r.Header.Get("Location"); loc != fmt.Sprintf("/ui/runs/%d/screen", runs[0].ID) {
 		t.Fatalf("redirect = %s", loc)
 	}
 	if cmd := readCmdSh(t, testSrv.dataDir, runs[0].ID); !strings.Contains(cmd, "exec ${SHELL:-bash}") {

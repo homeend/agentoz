@@ -74,7 +74,7 @@ func (s *Server) handleUIChannelTool(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rj, _ := payload.(runJSON)
-		http.Redirect(w, r, fmt.Sprintf("/ui/runs/%d/terminal", rj.ID), http.StatusFound)
+		http.Redirect(w, r, fmt.Sprintf("/ui/runs/%d/screen", rj.ID), http.StatusFound)
 		return
 	}
 	project, _, err := s.st.ProjectByID(channel.ProjectID)
