@@ -120,6 +120,7 @@ func (s *Server) handleAPIScreenTest(w http.ResponseWriter, r *http.Request) {
 type providerJSON struct {
 	Name           string   `json:"name"`
 	Command        string   `json:"command"`
+	Type           string   `json:"type"`
 	DefaultModel   string   `json:"default_model"`
 	Prompt         string   `json:"prompt"`
 	ScreenWorking  []string `json:"screen_working"`
@@ -142,7 +143,7 @@ func providerToJSON(name string, p config.Provider) providerJSON {
 		}
 		return l
 	}
-	return providerJSON{Name: name, Command: p.Command, DefaultModel: p.DefaultModel, Prompt: p.Prompt,
+	return providerJSON{Name: name, Command: p.Command, Type: p.Type, DefaultModel: p.DefaultModel, Prompt: p.Prompt,
 		ScreenWorking: nz(p.ScreenWorking), ScreenWaiting: nz(p.ScreenWaiting), ScreenQuestion: nz(p.ScreenQuestion), RulesSource: src}
 }
 
@@ -160,6 +161,7 @@ func (s *Server) handleAPIGetProvider(w http.ResponseWriter, r *http.Request) {
 
 type providerPatchJSON struct {
 	Command        *string   `json:"command"`
+	Type           *string   `json:"type"`
 	DefaultModel   *string   `json:"default_model"`
 	Prompt         *string   `json:"prompt"`
 	ScreenWorking  *[]string `json:"screen_working"`
@@ -180,11 +182,18 @@ func (s *Server) handleAPIPutProvider(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusUnprocessableEntity, `prompt must be "arg" or "paste"`)
 		return
 	}
+	if req.Type != nil && *req.Type != "" && *req.Type != "agent" && *req.Type != "tool" {
+		httpError(w, http.StatusUnprocessableEntity, `type must be "agent" or "tool"`)
+		return
+	}
 	s.rulesMu.RLock()
 	next := s.cfg.Providers[name] // zero value when new
 	s.rulesMu.RUnlock()
 	if req.Command != nil {
 		next.Command = *req.Command
+	}
+	if req.Type != nil {
+		next.Type = *req.Type
 	}
 	if req.DefaultModel != nil {
 		next.DefaultModel = *req.DefaultModel
@@ -220,7 +229,7 @@ func (s *Server) handleAPIPutProvider(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out, err := config.SetProvider(doc, name, config.ProviderPatch{
-		Command: req.Command, DefaultModel: req.DefaultModel, Prompt: req.Prompt,
+		Command: req.Command, DefaultModel: req.DefaultModel, Prompt: req.Prompt, Type: req.Type,
 		Working: req.ScreenWorking, Waiting: req.ScreenWaiting, Question: req.ScreenQuestion,
 	})
 	if err != nil {

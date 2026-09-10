@@ -112,6 +112,7 @@ func (c *Client) postJSON(path string, in, out any) error {
 type Provider struct {
 	Name           string   `json:"name"`
 	Command        string   `json:"command"`
+	Type           string   `json:"type"`
 	DefaultModel   string   `json:"default_model"`
 	Prompt         string   `json:"prompt"`
 	ScreenWorking  []string `json:"screen_working"`

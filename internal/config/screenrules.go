@@ -31,8 +31,8 @@ func SetProviderScreenRules(doc []byte, provider string, working, waiting, quest
 // ProviderPatch is a partial provider update: nil means keep, an empty
 // list or string clears the key.
 type ProviderPatch struct {
-	Command, DefaultModel, Prompt *string
-	Working, Waiting, Question    *[]string
+	Command, DefaultModel, Prompt, Type *string
+	Working, Waiting, Question          *[]string
 }
 
 func Str(s string) *string      { return &s }
@@ -63,7 +63,7 @@ func SetProvider(doc []byte, name string, p ProviderPatch) ([]byte, error) {
 	for _, kv := range []struct {
 		key string
 		val *string
-	}{{"command", p.Command}, {"default_model", p.DefaultModel}, {"prompt", p.Prompt}} {
+	}{{"command", p.Command}, {"default_model", p.DefaultModel}, {"prompt", p.Prompt}, {"type", p.Type}} {
 		if kv.val != nil {
 			setScalar(entry, kv.key, *kv.val)
 		}

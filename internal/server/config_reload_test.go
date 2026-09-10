@@ -25,6 +25,7 @@ func TestReloadConfigSwapsProvidersPresetsAndRules(t *testing.T) {
 	}
 
 	os.WriteFile(cfgPath, []byte(`port: 9999
+gg_bin: /x/gg
 providers:
   codex:
     command: codex
@@ -52,6 +53,13 @@ presets:
 	}
 	if r := testSrv.rulesFor("agy"); len(r.Working) != 1 {
 		t.Fatalf("rules not recompiled: %+v", r)
+	}
+	if got := testSrv.ggBin(); got != "/x/gg" {
+		t.Fatalf("gg_bin not swapped: %q", got)
+	}
+	// The built-in shell provider survives a reload of a file without it.
+	if p, ok := testSrv.providerCfg("shell"); !ok || !p.IsTool() {
+		t.Fatalf("shell provider lost on reload: %+v %v", p, ok)
 	}
 	r := getPath(t, ts.URL+"/api/providers/agy")
 	if r.StatusCode != http.StatusOK {

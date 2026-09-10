@@ -45,6 +45,7 @@ func runProvider(args []string, stdout, stderr io.Writer) int {
 		command := fs.String("command", "", "command template with {model} {args} {prompt}")
 		model := fs.String("default-model", "", "default model (empty: the CLI's own default)")
 		prompt := fs.String("prompt", "", "arg|paste")
+		ptype := fs.String("type", "", "agent|tool (tool: a terminal program for the human, no prompt)")
 		var working, waiting, question multiFlag
 		fs.Var(&working, "working", "screen_working pattern (repeatable)")
 		fs.Var(&waiting, "waiting", "screen_waiting pattern (repeatable)")
@@ -64,6 +65,9 @@ func runProvider(args []string, stdout, stderr io.Writer) int {
 		}
 		if visited["prompt"] {
 			patch["prompt"] = *prompt
+		}
+		if visited["type"] {
+			patch["type"] = *ptype
 		}
 		if *clear {
 			patch["screen_working"], patch["screen_waiting"], patch["screen_question"] = []string{}, []string{}, []string{}
@@ -97,6 +101,11 @@ func runProvider(args []string, stdout, stderr io.Writer) int {
 
 func printProvider(w io.Writer, p client.Provider) {
 	fmt.Fprintf(w, "command: %s\n", p.Command)
+	ptype := p.Type
+	if ptype == "" {
+		ptype = "agent"
+	}
+	fmt.Fprintf(w, "type: %s\n", ptype)
 	if p.DefaultModel != "" {
 		fmt.Fprintf(w, "default_model: %s\n", p.DefaultModel)
 	}

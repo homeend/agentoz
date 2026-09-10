@@ -46,7 +46,11 @@ func TranslateUserPath(p string) string {
 }
 
 type Provider struct {
-	Command      string `yaml:"command"`
+	Command string `yaml:"command"`
+	// Type is what the provider is: "agent" (default, a coding agent that
+	// takes a prompt and reports) or "tool" (a terminal program for the
+	// human — no preamble, no prompt, no screen classification).
+	Type         string `yaml:"type"`
 	DefaultModel string `yaml:"default_model"`
 	// Prompt is how the prompt reaches the CLI: "arg" (through {prompt}
 	// in Command, the default when the template has it) or "paste" (typed
@@ -60,6 +64,20 @@ type Provider struct {
 	ScreenWaiting  []string `yaml:"screen_waiting"`
 	ScreenQuestion []string `yaml:"screen_question"`
 }
+
+// ProviderTypes are the accepted values of Provider.Type ("" means agent).
+var ProviderTypes = []string{"agent", "tool"}
+
+// IsTool reports whether the provider is a human-facing terminal program
+// rather than a coding agent.
+func (p Provider) IsTool() bool { return p.Type == "tool" }
+
+// ShellProvider is the built-in "shell" tool provider: the user's login
+// shell, expanded by cmd.sh at exec time so the tmux server's SHELL wins.
+func ShellProvider() Provider { return Provider{Type: "tool", Command: "${SHELL:-bash}"} }
+
+// ShellPreset is the preset that spawns ShellProvider under its own name.
+func ShellPreset() Preset { return Preset{Provider: "shell"} }
 
 type Preset struct {
 	Provider string `yaml:"provider"`
@@ -76,8 +94,10 @@ type Global struct {
 	SessionPattern string `yaml:"session_pattern"`
 	// Session is the shared "global" tmux session agents can be spawned
 	// into instead of the per-project one.
-	Session   string              `yaml:"session"`
-	WtBin     string              `yaml:"wt_bin"`
+	Session string `yaml:"session"`
+	WtBin   string `yaml:"wt_bin"`
+	// GgBin is the gigagit binary erbrus runs for worktree creation.
+	GgBin     string              `yaml:"gg_bin"`
 	Providers map[string]Provider `yaml:"providers"`
 	Presets   map[string]Preset   `yaml:"presets"`
 }
@@ -96,8 +116,9 @@ func Defaults() Global {
 		SessionPattern: "erbrus-{project}",
 		Session:        "erbrus",
 		WtBin:          "wt",
-		Providers:      map[string]Provider{},
-		Presets:        map[string]Preset{},
+		GgBin:          "gg",
+		Providers:      map[string]Provider{"shell": ShellProvider()},
+		Presets:        map[string]Preset{"shell": ShellPreset()},
 	}
 }
 
@@ -128,6 +149,17 @@ func LoadGlobal(path string) (Global, error) {
 	}
 	if g.Presets == nil {
 		g.Presets = map[string]Preset{}
+	}
+	// Built-ins survive a file that lists its own providers/presets; a
+	// user entry of the same name wins.
+	if _, ok := g.Providers["shell"]; !ok {
+		g.Providers["shell"] = ShellProvider()
+	}
+	if _, ok := g.Presets["shell"]; !ok {
+		g.Presets["shell"] = ShellPreset()
+	}
+	if g.GgBin == "" {
+		g.GgBin = "gg"
 	}
 	if g.Session == "" {
 		g.Session = "erbrus"
