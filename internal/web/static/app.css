@@ -118,6 +118,7 @@ a:hover { text-decoration: underline; }
 .agentdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #4cb371; margin-left: 6px; vertical-align: 2px; }
 .badge.run { border-color: #3f7d58; color: #67c98a; background: #17251d; }
 .runcard form { display: inline; }
+.toolrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 3px 0; }
 .presetrow { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
 /* dialogs & settings */
 .dialog { max-width: 640px; margin: 24px auto; background: #1d1f23; border: 1px solid #2c2f35; border-radius: 6px; padding: 18px; }

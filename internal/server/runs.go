@@ -14,6 +14,7 @@ import (
 	"erbrus/internal/provider"
 	"erbrus/internal/spawn"
 	"erbrus/internal/store"
+	"erbrus/internal/tools"
 )
 
 type runRequest struct {
@@ -31,6 +32,10 @@ type runRequest struct {
 	SessionScope    string `json:"session_scope"`
 	Fg              bool   `json:"fg"`
 	OriginMessageID int64  `json:"origin_message_id"`
+	// Tool opens a terminal tool (config tools.<name>) instead of an
+	// agent: Provider, Preset, Prompt, Workdir and Name are ignored, the
+	// run is recorded as provider "tool:<name>" in the channel directory.
+	Tool string `json:"tool"`
 }
 
 type runJSON struct {
@@ -153,6 +158,29 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 	providers := s.providersSnapshot()
 	presets := preset.Merge(s.presetsSnapshot(), repoCfg.Presets)
+	// A tool run: the command comes from tools.<name>, rendered for the
+	// channel directory; everything provider-shaped is bypassed.
+	var toolCmd string
+	if req.Tool != "" {
+		if req.Fg {
+			return nil, http.StatusBadRequest, "tools cannot run in the foreground"
+		}
+		tl, ok := s.toolCfg(req.Tool)
+		if !ok {
+			return nil, http.StatusNotFound, fmt.Sprintf("unknown tool %q", req.Tool)
+		}
+		if !tl.Terminal {
+			return nil, http.StatusBadRequest, fmt.Sprintf("%s is not a terminal tool", req.Tool)
+		}
+		dir := firstNonEmpty(channel.WorktreePath, project.RepoPath)
+		rendered, err := tools.Render(req.Tool, tl.Command, s.toolVars(dir))
+		if err != nil {
+			return nil, http.StatusUnprocessableEntity, err.Error()
+		}
+		toolCmd = rendered
+		req.Provider, req.Preset, req.Prompt, req.Workdir, req.Name = "tool:"+req.Tool, "", "", "", req.Tool
+		req.Model, req.Args = "", ""
+	}
 	var presetCfg config.Preset
 	if req.Preset != "" && req.Provider == "" {
 		// `erbrus start <name>`: a name that is no preset but a provider
@@ -174,7 +202,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	if providerName == "" {
 		return nil, http.StatusBadRequest, "provider is required"
 	}
-	if _, ok := providers[providerName]; !ok {
+	if _, ok := providers[providerName]; !ok && toolCmd == "" {
 		return nil, http.StatusBadRequest, fmt.Sprintf("unknown provider %q", providerName)
 	}
 	model := firstNonEmpty(req.Model, presetCfg.Model)
@@ -183,7 +211,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	agentName := firstNonEmpty(req.Name, presetCfg.Name, req.Preset, providerName)
 	// A tool (provider type "tool", e.g. the built-in shell) is a terminal
 	// program for the human: no prompt, no preamble, no hook, no paste.
-	tool := providers[providerName].IsTool()
+	tool := toolCmd != "" || providers[providerName].IsTool()
 	if tool {
 		promptText = ""
 	}
@@ -287,9 +315,12 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	if paste {
 		cmdPrompt = ""
 	}
-	command, err := provider.Registry(providers).Render(providerName, model, fullArgs, cmdPrompt)
-	if err != nil {
-		return nil, http.StatusInternalServerError, err.Error()
+	command := toolCmd
+	if command == "" {
+		command, err = provider.Registry(providers).Render(providerName, model, fullArgs, cmdPrompt)
+		if err != nil {
+			return nil, http.StatusInternalServerError, err.Error()
+		}
 	}
 
 	// Step 8: write cmd.sh.

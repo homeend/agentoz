@@ -41,6 +41,7 @@ type Server struct {
 	states  map[int64]runState
 
 	spawner   spawn.Spawner
+	launcher  Launcher // GUI tools (nil: "no launcher configured")
 	erbrusBin string
 	baseURL   string
 
@@ -172,6 +173,7 @@ func (s *Server) Handler() http.Handler {
 	r.Get("/ui/projects/{id}/worktree", s.handleUIWorktree)
 	r.Post("/ui/projects/{id}/worktree", s.handleUIWorktreePost)
 	r.Post("/ui/projects/{id}/shell", s.handleUIProjectShell)
+	r.Post("/ui/channels/{id}/tools/{name}", s.handleUIChannelTool)
 	r.Get("/ui/projects/{id}/delete", s.handleUIDeleteConfirm)
 	r.Post("/ui/projects/{id}/delete", s.handleUIDeleteProject)
 	r.Get("/ui/channels/{id}", s.handleUIChannel)

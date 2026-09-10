@@ -77,6 +77,9 @@ type channelPage struct {
 	// only the newest few); the "remove all stopped" button needs the total.
 	StoppedRuns int
 	Presets     []string // merged preset names for THIS project, sorted
+	// Tools: config tools, sorted by name; empty for an archived channel
+	// (its directory is gone).
+	Tools []toolView
 	// AttachCmds: one "tmux attach -t <session>" per session actually
 	// holding this channel's listed runs; falls back to the project's
 	// configured session when no run names one.
@@ -231,6 +234,10 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		presets = append(presets, name)
 	}
 	sort.Strings(presets)
+	var toolViews []toolView
+	if !channel.Archived {
+		toolViews = s.toolViews()
+	}
 
 	var attachCmds []string
 	seen := map[string]bool{}
@@ -265,6 +272,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		Runs:        runViews,
 		StoppedRuns: stopped,
 		Presets:     presets,
+		Tools:       toolViews,
 		AttachCmds:  attachCmds,
 	}, 0, ""
 }
@@ -392,9 +400,12 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
-// isToolRun: the run's provider is a tool (shell), keyed on Provider.Type,
-// never on the provider name.
+// isToolRun: a tools.<name> run (provider "tool:<name>") or a run of a
+// provider of type "tool" — never keyed on a provider's name.
 func (s *Server) isToolRun(r store.AgentRun) bool {
+	if strings.HasPrefix(r.Provider, "tool:") {
+		return true
+	}
 	p, ok := s.providerCfg(r.Provider)
 	return ok && p.IsTool()
 }
