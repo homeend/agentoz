@@ -86,3 +86,43 @@ func TestWrapMissingArgs(t *testing.T) {
 		t.Fatalf("exit = %d, want 2", code)
 	}
 }
+
+func TestWrapLoadsEnvFileAndRunsArgvJSON(t *testing.T) {
+	var gotCode = -1
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/runs/42/exit" {
+			t.Errorf("exit reported for %s, want run 42 from the env file", r.URL.Path)
+		}
+		var body map[string]int
+		json.NewDecoder(r.Body).Decode(&body)
+		gotCode = body["code"]
+	}))
+	defer srv.Close()
+	wrapEnv(t, srv.URL)
+	dir := t.TempDir()
+	// The env file overrides the inherited ERBRUS_RUN_ID=7 with 42.
+	os.WriteFile(filepath.Join(dir, "env"), []byte("ERBRUS_RUN_ID=42\nFROM_FILE=yes\n"), 0o644)
+	// argv, no shell: an argument with a space stays one argument.
+	os.WriteFile(filepath.Join(dir, "cmd.json"), []byte(`["sh","-c","echo \"$FROM_FILE $1\"","x","a b"]`), 0o644)
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"wrap", filepath.Join(dir, "cmd.json")}, &out, &errOut); code != 0 {
+		t.Fatalf("exit = %d: %s", code, errOut.String())
+	}
+	if strings.TrimSpace(out.String()) != "yes a b" {
+		t.Errorf("stdout = %q", out.String())
+	}
+	if gotCode != 0 {
+		t.Errorf("reported code = %d", gotCode)
+	}
+}
+
+func TestWrapEnvFileAlsoAppliesToShellScripts(t *testing.T) {
+	wrapEnv(t, "http://127.0.0.1:1")
+	p := writeCmdFile(t, `echo "$FROM_FILE"`)
+	os.WriteFile(filepath.Join(filepath.Dir(p), "env"), []byte("FROM_FILE=sh-too\n"), 0o644)
+	var out, errOut bytes.Buffer
+	Run([]string{"wrap", p}, &out, &errOut)
+	if strings.TrimSpace(out.String()) != "sh-too" {
+		t.Errorf("stdout = %q", out.String())
+	}
+}
