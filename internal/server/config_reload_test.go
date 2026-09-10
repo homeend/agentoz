@@ -110,6 +110,34 @@ func TestConfigWatchPicksUpFileEdits(t *testing.T) {
 	t.Fatal("watch did not reload the edited file within 3s")
 }
 
+// TestReloadAppliesDriverShellToolUnlessUserDefinesShell: the built-in
+// shell tool's command comes from the driver's ShellTool() unless the
+// user's config defines its own "shell" tool, in which case the user wins.
+func TestReloadAppliesDriverShellToolUnlessUserDefinesShell(t *testing.T) {
+	ts, _, _ := newTestServer(t)
+	fs := &fakeSpawner{}
+	testSrv.SetDriver(&fakeDriver{fakeSpawner: fs, name: "wezterm"}, "/abs/erbrus", ts.URL)
+
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
+	os.WriteFile(cfgPath, []byte("providers:\n  codex:\n    command: codex\n"), 0o644)
+	testSrv.SetConfigPath(cfgPath)
+	if _, _, err := testSrv.ReloadConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if tl, ok := testSrv.toolCfg("shell"); !ok || tl.Command != "powershell" {
+		t.Fatalf("shell tool = %+v, %v; want driver's ShellTool() (powershell)", tl, ok)
+	}
+
+	// The user defines their own shell tool: it wins over the driver.
+	os.WriteFile(cfgPath, []byte("providers:\n  codex:\n    command: codex\ntools:\n  shell:\n    command: bash\n    terminal: true\n"), 0o644)
+	if _, _, err := testSrv.ReloadConfig(); err != nil {
+		t.Fatal(err)
+	}
+	if tl, ok := testSrv.toolCfg("shell"); !ok || tl.Command != "bash" {
+		t.Fatalf("shell tool = %+v, %v; want the user's bash", tl, ok)
+	}
+}
+
 func getPath(t *testing.T, url string) *http.Response {
 	t.Helper()
 	r, err := http.Get(url)

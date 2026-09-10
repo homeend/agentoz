@@ -94,6 +94,21 @@ type driver struct {
 
 func (d *driver) Name() string { return d.name }
 
+// SendChecked forwards to the wrapped spawner's own SendChecked (tmux,
+// WezTerm) when it has one, else falls back to plain Send. Without this
+// forwarding method, embedding Spawner as an interface field only
+// promotes the Spawner interface's own methods, so a checkedSender type
+// assertion on the driver would always miss the underlying spawner's
+// extra method — silently losing the provider's own "submitted" rules.
+func (d *driver) SendChecked(h Handle, text string, submitted func(string) bool) error {
+	if cs, ok := d.Spawner.(interface {
+		SendChecked(Handle, string, func(string) bool) error
+	}); ok {
+		return cs.SendChecked(h, text, submitted)
+	}
+	return d.Spawner.Send(h, text)
+}
+
 func (d *driver) Viewer() (Viewer, bool) {
 	v, ok := d.Spawner.(Viewer)
 	return v, ok

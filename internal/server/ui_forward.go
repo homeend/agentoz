@@ -187,7 +187,7 @@ func (s *Server) forwardToAgentCore(msgID, runID int64) (chID int64, warning, qu
 	for _, a := range arts {
 		paths = append(paths, a.Path)
 	}
-	text := integrate.ForwardToAgent(s.erbrusBin, src.ChannelID, projName, chanName,
+	text := integrate.ForwardToAgent(s.agentBin(), src.ChannelID, projName, chanName,
 		branch, worktree, src.AuthorName, src.CreatedAt.Format("2006-01-02 15:04:05"), src.Body, paths)
 	warning, q := s.sendToRun(run, text)
 	if q {

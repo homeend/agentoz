@@ -8,6 +8,7 @@ import (
 
 	"erbrus/internal/config"
 	"erbrus/internal/screen"
+	"erbrus/internal/spawn"
 )
 
 // Runtime config access. Providers, presets, tools, wt_bin and gg_bin change while the
@@ -87,6 +88,31 @@ func (s *Server) toolCfg(name string) (config.Tool, bool) {
 	return t, ok
 }
 
+// shellToolOverride replaces tools["shell"] with the driver's ShellTool()
+// when tools["shell"] is still exactly the untouched built-in default
+// (config.BuiltinTools()["shell"]) — that equality is the "the user did
+// not define their own shell tool" test. A user-defined shell tool (any
+// other command, or Terminal: false) is never touched.
+func shellToolOverride(tools map[string]config.Tool, d spawn.Driver) map[string]config.Tool {
+	if d == nil || tools == nil {
+		return tools
+	}
+	if tools["shell"] != config.BuiltinTools()["shell"] {
+		return tools
+	}
+	tools["shell"] = config.BuiltinToolsFor(d.ShellTool())["shell"]
+	return tools
+}
+
+// applyShellTool re-applies shellToolOverride to the running config —
+// called after SetDriver so a driver wired in after New() (the normal
+// case: New has no driver yet) still gets its shell tool.
+func (s *Server) applyShellTool() {
+	s.rulesMu.Lock()
+	defer s.rulesMu.Unlock()
+	s.cfg.Tools = shellToolOverride(s.cfg.Tools, s.driver)
+}
+
 // compileOverrides builds the screen-rule override map the way New does:
 // only providers with at least one list, invalid regexes fall back to
 // built-ins with a note on stderr.
@@ -133,6 +159,11 @@ func (s *Server) ReloadConfig() (changed bool, restart []string, err error) {
 			restart = append(restart, kv.key)
 		}
 	}
+	// Apply the driver's shell override to the freshly loaded tools before
+	// comparing: otherwise a driver whose ShellTool() differs from the
+	// posix default would make every reload of an unchanged file look
+	// "changed" forever, since s.cfg.Tools always carries the override.
+	next.Tools = shellToolOverride(next.Tools, s.driver)
 	if reflect.DeepEqual(cur.Providers, next.Providers) && reflect.DeepEqual(cur.Presets, next.Presets) &&
 		reflect.DeepEqual(cur.Tools, next.Tools) && cur.WtBin == next.WtBin && cur.GgBin == next.GgBin {
 		return false, restart, nil

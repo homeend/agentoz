@@ -40,6 +40,9 @@ type Server struct {
 	stateMu sync.Mutex
 	states  map[int64]runState
 
+	// driver is the platform driver (Task 4); spawner is the same object,
+	// kept for the call sites that only spawn/capture/send/stop.
+	driver    spawn.Driver
 	spawner   spawn.Spawner
 	launcher  Launcher // GUI tools (nil: "no launcher configured")
 	erbrusBin string
@@ -106,11 +109,35 @@ func (s *Server) setRules(provider string, r *screen.Rules) {
 	s.rules[provider] = *r
 }
 
-// SetRuntime wires the spawn runtime (spawner, erbrus binary path, and the
-// base URL agents call back to). Called by serve; nil-safe fields — a
-// Server without SetRuntime simply has no spawner (tmux spawns 503).
+// SetRuntime wires a bare spawner (tests): posix host, tmux name. Prefer
+// SetDriver in production code (serve wires the platform driver).
 func (s *Server) SetRuntime(sp spawn.Spawner, erbrusBin, baseURL string) {
-	s.spawner, s.erbrusBin, s.baseURL = sp, erbrusBin, baseURL
+	// A nil spawner stays nil: DriverFor would wrap it in a non-nil
+	// *driver and every `s.spawner == nil` guard would stop firing.
+	if sp == nil {
+		s.SetDriver(nil, erbrusBin, baseURL)
+		return
+	}
+	s.SetDriver(spawn.DriverFor(sp), erbrusBin, baseURL)
+}
+
+// SetDriver wires the platform driver (spawner + host seams), the erbrus
+// binary path, and the base URL agents call back to. Called by serve;
+// nil-safe fields — a Server without SetDriver simply has no spawner
+// (spawns 503).
+func (s *Server) SetDriver(d spawn.Driver, erbrusBin, baseURL string) {
+	s.driver, s.spawner, s.erbrusBin, s.baseURL = d, d, erbrusBin, baseURL
+	s.applyShellTool()
+}
+
+// agentBin is the erbrus path as agents should type it: the driver's
+// AgentBin (forward slashes on Windows, where Claude Code runs commands
+// through Git Bash), or the raw path when no driver is wired (tests).
+func (s *Server) agentBin() string {
+	if s.driver == nil {
+		return s.erbrusBin
+	}
+	return s.driver.AgentBin(s.erbrusBin)
 }
 
 // SetConfigPath wires the global config.yaml path (from cli's configPath())

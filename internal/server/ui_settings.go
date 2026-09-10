@@ -29,7 +29,8 @@ const repoScaffoldYAML = `# erbrus per-repo settings. Everything is optional; gl
 const globalScaffoldYAML = `# erbrus global settings. Everything is optional; built-in defaults fill gaps.
 # port: 7420
 # data_dir: ~/.local/share/erbrus      # optional override
-# terminal: tmux                        # default spawner
+# terminal: tmux                        # tmux (default on Linux) | wezterm (default on Windows)
+# wezterm_bin: wezterm                  # path to wezterm when it is not on PATH
 # session_pattern: "erbrus-{project}"
 # wt_bin: wt                            # path to wt binary; auto-detected on PATH
 # gg_bin: gg                            # path to gg (gigagit) binary for worktree creation from the sidebar

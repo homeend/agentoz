@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -60,12 +61,16 @@ func runServe(args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	// ln is already bound at this point; its address is the base URL.
-	tm := spawn.NewTmux(spawn.ExecCmdRunner)
-	srv.SetRuntime(tm, bin, "http://"+ln.Addr().String())
+	d, err := spawn.NewDriver(cfg.Terminal, cfg.WeztermBin, runtime.GOOS, spawn.ExecCmdRunner, spawn.ExecStdinRunner)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 1
+	}
+	srv.SetDriver(d, bin, "http://"+ln.Addr().String())
 	srv.SetLauncher(server.ExecLauncher())
 	// Browser-terminal view sessions die with their pty client; a server
 	// that crashed with terminals open leaves them behind. Sweep those.
-	if killed := tm.SweepViews(); len(killed) > 0 {
+	if killed := d.Sweep(); len(killed) > 0 {
 		fmt.Fprintln(stderr, "swept stale terminal views:", strings.Join(killed, " "))
 	}
 	if err := srv.Reconcile(); err != nil {

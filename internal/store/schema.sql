@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS agent_runs (
   workdir           TEXT NOT NULL,
   status            TEXT NOT NULL CHECK (status IN ('starting','running','done','failed','stopped')),
   exit_code         INTEGER,
-  spawner           TEXT NOT NULL CHECK (spawner IN ('tmux','fg')),
+  spawner           TEXT NOT NULL CHECK (spawner IN ('tmux','wezterm','fg')),
   tmux_target       TEXT NOT NULL DEFAULT '',
   token             TEXT NOT NULL UNIQUE,
   origin_message_id INTEGER REFERENCES messages(id),

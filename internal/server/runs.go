@@ -275,6 +275,9 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 
 	// Step 4: create the run row.
 	spawnerKind := "tmux"
+	if s.driver != nil {
+		spawnerKind = s.driver.Name()
+	}
 	if req.Fg {
 		spawnerKind = "fg"
 	}
@@ -295,9 +298,10 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 
 	// Step 6: provider hook + args (agents only).
+	agentBin := s.agentBin()
 	hookArgs := ""
 	if !tool {
-		hookArgs, _ = integrate.ProviderHook(providerName, runDir, s.erbrusBin)
+		hookArgs, _ = integrate.ProviderHook(providerName, runDir, agentBin)
 	}
 	fullArgs := joinNonEmpty(argsStr, hookArgs, " ")
 
@@ -305,11 +309,16 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	// preamble nor a prompt: its command renders bare.
 	fullPrompt, paste := "", false
 	if !tool {
-		preamble := integrate.Preamble(s.erbrusBin, agentName, channel.Name)
+		preamble := integrate.Preamble(agentBin, agentName, channel.Name)
 		fullPrompt = integrate.AssemblePrompt(preamble, promptText, handoffContext)
 		// Paste mode: the CLI starts without the prompt and deliverPrompt
-		// types it in once the input box is up (see paste.go).
+		// types it in once the input box is up (see paste.go), or the
+		// driver's platform seam requires it (Windows: cmd.exe shims read
+		// one line, PowerShell 5.1 mangles quotes).
 		paste = pasteMode(providers[providerName])
+		if s.driver != nil {
+			paste = paste || s.driver.PromptByPaste()
+		}
 	}
 	cmdPrompt := fullPrompt
 	if paste {
@@ -323,19 +332,30 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 		}
 	}
 
-	// Step 8: write cmd.sh.
-	cmdPath := filepath.Join(runDir, "cmd.sh")
-	cmdContent := fmt.Sprintf("#!/bin/sh\nexec %s\n", command)
-	if err := os.WriteFile(cmdPath, []byte(cmdContent), 0o755); err != nil {
+	// Step 8: write the command file — cmd.sh (exec …) on posix, cmd.json
+	// (argv, no shell) on Windows; the driver decides. No driver (tests
+	// that never call SetRuntime/SetDriver, fg-only): posix behavior.
+	var cmdPath string
+	if s.driver != nil {
+		cmdPath, err = s.driver.WriteCommand(runDir, command)
+	} else {
+		cmdPath = filepath.Join(runDir, "cmd.sh")
+		err = os.WriteFile(cmdPath, []byte(fmt.Sprintf("#!/bin/sh\nexec %s\n", command)), 0o755)
+	}
+	if err != nil {
 		return nil, http.StatusInternalServerError, err.Error()
 	}
 
-	// Step 9: env.
+	// Step 9: env, written both into the run spec (fg reads it from the
+	// JSON payload) and as a file `erbrus wrap` loads on every platform.
 	env := map[string]string{
 		"ERBRUS_URL":     s.baseURL,
 		"ERBRUS_TOKEN":   run.Token,
 		"ERBRUS_CHANNEL": fmt.Sprint(req.ChannelID),
 		"ERBRUS_RUN_ID":  fmt.Sprint(run.ID),
+	}
+	if err := spawn.WriteEnvFile(runDir, env); err != nil {
+		return nil, http.StatusInternalServerError, err.Error()
 	}
 
 	// announceHandoff posts the origin-channel note only once the run
@@ -389,7 +409,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 	run.Status = "running"
 	run.TmuxTarget = string(handle)
-	s.system(req.ChannelID, fmt.Sprintf("%s spawned in tmux %s", agentName, handle))
+	s.system(req.ChannelID, fmt.Sprintf("%s spawned in %s %s", agentName, spawnerKind, handle))
 	if paste {
 		go s.deliverPrompt(run, fullPrompt)
 	}
@@ -399,9 +419,10 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	return rj, 0, ""
 }
 
-// Reconcile marks tmux runs whose window no longer exists as failed, with a
-// system message. fg runs are left alone (their wrapper may still report).
-// Called by serve after SetRuntime; no-op when spawner is nil.
+// Reconcile marks spawner runs (tmux or wezterm) whose window/pane no
+// longer exists as failed, with a system message. fg runs are left alone
+// (their wrapper may still report). Called by serve after SetDriver;
+// no-op when spawner is nil.
 func (s *Server) Reconcile() error {
 	if s.spawner == nil {
 		return nil
@@ -411,8 +432,8 @@ func (s *Server) Reconcile() error {
 		return err
 	}
 	for _, r := range runs {
-		if r.Spawner != "tmux" || r.TmuxTarget == "" {
-			continue
+		if r.TmuxTarget == "" {
+			continue // fg runs: their wrapper may still report
 		}
 		ok, err := s.spawner.Alive(spawn.Handle(r.TmuxTarget))
 		if err != nil || ok {
@@ -421,7 +442,7 @@ func (s *Server) Reconcile() error {
 		if err := s.st.FinishRun(r.ID, "failed", -1); err != nil {
 			return err
 		}
-		s.system(r.ChannelID, fmt.Sprintf("%s is no longer alive (tmux %s) — marked failed", r.AgentName, r.TmuxTarget))
+		s.system(r.ChannelID, fmt.Sprintf("%s is no longer alive (%s %s) — marked failed", r.AgentName, r.Spawner, r.TmuxTarget))
 		if got, ok, _ := s.st.RunByID(r.ID); ok {
 			s.hub.Publish("run", toRunJSON(got))
 		}

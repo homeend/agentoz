@@ -58,7 +58,7 @@
     <details class="railsec" data-rail="tools" open>
     <summary><h3>Tools</h3></summary>
     {{range .Tools}}
-    <form class="toolrow" method="post" action="/ui/channels/{{$.Channel.ID}}/tools/{{.Name}}"{{if .Terminal}} target="tool:{{.Name}}:{{$.Channel.ID}}"{{end}}>
+    <form class="toolrow" method="post" action="/ui/channels/{{$.Channel.ID}}/tools/{{.Name}}"{{if .Target}} target="tool:{{.Name}}:{{$.Channel.ID}}"{{end}}>
       <span>{{.Name}}</span><button class="btn small" type="submit" title="{{if .Terminal}}opens in the web terminal, in this channel's directory{{else}}starts in this channel's directory{{end}}">Open</button>
     </form>
     {{end}}

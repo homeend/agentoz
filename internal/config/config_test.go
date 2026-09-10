@@ -22,8 +22,8 @@ func TestDefaults(t *testing.T) {
 	if g.Port != 7420 {
 		t.Errorf("Port = %d, want 7420", g.Port)
 	}
-	if g.Terminal != "tmux" {
-		t.Errorf("Terminal = %q, want tmux", g.Terminal)
+	if g.Terminal != "" {
+		t.Errorf("Terminal = %q, want empty (the platform default is NewDriver's call)", g.Terminal)
 	}
 	if g.SessionPattern != "erbrus-{project}" {
 		t.Errorf("SessionPattern = %q", g.SessionPattern)
@@ -53,8 +53,8 @@ func TestLoadGlobalMergesOverDefaults(t *testing.T) {
 	if g.Port != 9999 {
 		t.Errorf("Port = %d, want 9999", g.Port)
 	}
-	if g.Terminal != "tmux" {
-		t.Errorf("Terminal = %q, want default kept", g.Terminal)
+	if g.Terminal != "" {
+		t.Errorf("Terminal = %q, want default kept (empty)", g.Terminal)
 	}
 	if g.Providers["codex"].Command == "" {
 		t.Error("provider codex not loaded")
@@ -263,5 +263,22 @@ func TestGlobalSessionDefault(t *testing.T) {
 	}
 	if loaded.Session != "erbrus" {
 		t.Fatalf("loaded session = %q, want erbrus fallback", loaded.Session)
+	}
+}
+
+func TestTerminalValues(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "config.yaml")
+	os.WriteFile(p, []byte("terminal: wezterm\nwezterm_bin: C:/w/wezterm.exe\n"), 0o644)
+	g, err := LoadGlobal(p)
+	if err != nil || g.Terminal != "wezterm" || g.WeztermBin != "C:/w/wezterm.exe" {
+		t.Fatalf("g = %+v, %v", g, err)
+	}
+	os.WriteFile(p, []byte("terminal: screen\n"), 0o644)
+	if _, err := LoadGlobal(p); err == nil || !strings.Contains(err.Error(), "terminal") {
+		t.Fatalf("err = %v", err)
+	}
+	if Defaults().Terminal != "" {
+		t.Error("the platform default is the driver's call, not config's")
 	}
 }

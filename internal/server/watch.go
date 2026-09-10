@@ -46,7 +46,7 @@ func (s *Server) WatchScreens() error {
 	live := map[int64]bool{}
 	now := time.Now()
 	for _, r := range runs {
-		if r.Spawner != "tmux" || r.TmuxTarget == "" {
+		if r.TmuxTarget == "" {
 			continue
 		}
 		if s.isToolRun(r) {

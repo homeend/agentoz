@@ -91,10 +91,19 @@ type Tool struct {
 }
 
 // BuiltinTools are merged into every config; a user entry of the same
-// name wins.
+// name wins. shell's command is the posix default; the server overrides
+// it with the driver's ShellTool() when the user has not defined their
+// own (see BuiltinToolsFor).
 func BuiltinTools() map[string]Tool {
+	return BuiltinToolsFor("${SHELL:-bash}")
+}
+
+// BuiltinToolsFor is BuiltinTools with the shell tool's command set to
+// shell — the platform driver's ShellTool() ("${SHELL:-bash}" on posix,
+// "powershell" on Windows).
+func BuiltinToolsFor(shell string) map[string]Tool {
 	return map[string]Tool{
-		"shell": {Command: "${SHELL:-bash}", Terminal: true},
+		"shell": {Command: shell, Terminal: true},
 		"gg":    {Command: "{gg_bin}", Terminal: true},
 	}
 }
@@ -109,10 +118,13 @@ type Global struct {
 	Session string `yaml:"session"`
 	WtBin   string `yaml:"wt_bin"`
 	// GgBin is the gigagit binary erbrus runs for worktree creation.
-	GgBin     string              `yaml:"gg_bin"`
-	Providers map[string]Provider `yaml:"providers"`
-	Presets   map[string]Preset   `yaml:"presets"`
-	Tools     map[string]Tool     `yaml:"tools"`
+	GgBin string `yaml:"gg_bin"`
+	// WeztermBin is the wezterm binary erbrus runs when terminal is
+	// "wezterm" and wezterm is not on PATH.
+	WeztermBin string              `yaml:"wezterm_bin"`
+	Providers  map[string]Provider `yaml:"providers"`
+	Presets    map[string]Preset   `yaml:"presets"`
+	Tools      map[string]Tool     `yaml:"tools"`
 }
 
 type Repo struct {
@@ -124,8 +136,9 @@ type Repo struct {
 
 func Defaults() Global {
 	return Global{
-		Port:           7420,
-		Terminal:       "tmux",
+		Port: 7420,
+		// Terminal is left empty: "" means the platform default, applied
+		// by spawn.NewDriver (tmux on posix, wezterm on Windows).
 		SessionPattern: "erbrus-{project}",
 		Session:        "erbrus",
 		WtBin:          "wt",
@@ -179,6 +192,11 @@ func LoadGlobal(path string) (Global, error) {
 	}
 	if g.Session == "" {
 		g.Session = "erbrus"
+	}
+	switch g.Terminal {
+	case "", "tmux", "wezterm":
+	default:
+		return g, fmt.Errorf("%s: terminal %q: want tmux or wezterm", path, g.Terminal)
 	}
 	return g, nil
 }
