@@ -83,12 +83,14 @@ func (s *Server) handleUIChannelTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dir := firstNonEmpty(channel.WorktreePath, project.RepoPath)
-	command, err := tools.Render(name, tl.Command, s.toolVars(dir))
+	// Split first, render second: a directory with a space or a UNC
+	// backslash path lands in one argument untouched.
+	words, err := tools.Split(tl.Command)
 	if err != nil {
 		warn(err.Error())
 		return
 	}
-	argv, err := tools.Split(command)
+	argv, err := tools.RenderArgv(name, words, s.toolVars(dir))
 	if err != nil {
 		warn(err.Error())
 		return

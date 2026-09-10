@@ -419,7 +419,7 @@ func (s *Server) isToolRun(r store.AgentRun) bool {
 // "<agent>: queued message delivered / NOT delivered" note arrives.
 func (s *Server) sendToRun(run store.AgentRun, text string) (warning string, queued bool) {
 	if s.isToolRun(run) {
-		return fmt.Sprintf("%s is a shell, not an agent — nothing was typed", run.AgentName), false
+		return fmt.Sprintf("%s is a tool, not an agent — nothing was typed", run.AgentName), false
 	}
 	if s.spawner == nil || run.TmuxTarget == "" {
 		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName), false

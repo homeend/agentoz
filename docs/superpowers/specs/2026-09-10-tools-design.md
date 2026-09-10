@@ -147,3 +147,17 @@ one row per tool, sorted by name, name + "Open" button.
   card now reads "tool" (was "shell").
 - The optional `erbrus tool list` CLI was not built (YAGNI); the
   settings page's scaffold comment documents the section instead.
+- **Placeholder values survive spaces** (review finding). GUI tools split
+  the template FIRST and render each argv element (`tools.RenderArgv`),
+  so `/mnt/c/Users/Jan Kowalski/proj` reaches the editor as one argument
+  and a `\\wsl.localhost\…` value is never re-parsed for escapes.
+  Terminal tools render with the values single-quoted
+  (`tools.RenderShell`; cmd.sh now reads `exec '/opt/gg'`). Plain
+  `Render` stays verbatim for callers that quote themselves.
+- **WSL + Windows editor.** `exec.Command` resolves the program with
+  Linux rules, so from WSL the binary must be a Linux path
+  (`"/mnt/c/Program Files/JetBrains/IntelliJ IDEA/bin/idea64.exe"
+  {windir}`); a bare `idea64.exe` is only found if it is on the Windows
+  PATH that WSL interop appends. The scaffold shows the working form.
+- `sendToRun` refuses tool runs with "is a tool, not an agent" (was
+  "shell").

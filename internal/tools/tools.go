@@ -21,17 +21,44 @@ type Vars struct {
 // text like ${SHELL:-bash} does not match (':' and '-'), so it survives.
 var placeholderRe = regexp.MustCompile(`\{([a-z_]+)\}`)
 
-// Render substitutes {dir}, {windir}, {gg_bin}; any other token is an error.
+// Render substitutes {dir}, {windir}, {gg_bin} verbatim; any other token
+// is an error. Use RenderShell for shell text and RenderArgv for argv.
 func Render(name, template string, v Vars) (string, error) {
+	return render(name, template, v, func(s string) string { return s })
+}
+
+// RenderShell substitutes with the values single-quoted, for templates
+// that become shell text (terminal tools' cmd.sh): a directory with a
+// space or a quote stays one word.
+func RenderShell(name, template string, v Vars) (string, error) {
+	return render(name, template, v, shellQuote)
+}
+
+// RenderArgv substitutes inside each already-split argument, so a value
+// with spaces or backslashes lands intact in ONE argument — the order
+// for GUI tools: Split the template first, then render each element.
+func RenderArgv(name string, argv []string, v Vars) ([]string, error) {
+	out := make([]string, len(argv))
+	for i, a := range argv {
+		r, err := Render(name, a, v)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = r
+	}
+	return out, nil
+}
+
+func render(name, template string, v Vars, quote func(string) string) (string, error) {
 	var firstErr error
 	out := placeholderRe.ReplaceAllStringFunc(template, func(m string) string {
 		switch m {
 		case "{dir}":
-			return v.Dir
+			return quote(v.Dir)
 		case "{windir}":
-			return WinPath(v.Dir, v.Distro, v.GOOS)
+			return quote(WinPath(v.Dir, v.Distro, v.GOOS))
 		case "{gg_bin}":
-			return v.GgBin
+			return quote(v.GgBin)
 		}
 		if firstErr == nil {
 			firstErr = fmt.Errorf("unknown placeholder %s in tools.%s.command", m, name)
@@ -42,6 +69,12 @@ func Render(name, template string, v Vars) (string, error) {
 		return "", firstErr
 	}
 	return out, nil
+}
+
+// shellQuote wraps s in single quotes for POSIX sh; an embedded single
+// quote becomes '\” .
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // WinPath is dir as a Windows program would need it. On Windows builds

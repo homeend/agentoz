@@ -74,7 +74,7 @@ func TestTerminalToolSpawnsToolRunInChannelDir(t *testing.T) {
 		t.Fatalf("spec = %+v", fs.specs[0])
 	}
 	cmd := readCmdSh(t, testSrv.dataDir, runs[0].ID)
-	if !strings.Contains(cmd, "exec /opt/gg\n") || strings.Contains(cmd, "erbrus msg") {
+	if !strings.Contains(cmd, "exec '/opt/gg'\n") || strings.Contains(cmd, "erbrus msg") {
 		t.Fatalf("cmd.sh = %q", cmd)
 	}
 	// It is a tool run: badge, no composer entry, no delivery.

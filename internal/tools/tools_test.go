@@ -41,6 +41,42 @@ func TestRender(t *testing.T) {
 	}
 }
 
+// A directory with a space (or a UNC path full of backslashes) must reach
+// the program as ONE argument: split the template first, render second.
+func TestRenderArgvKeepsValuesWhole(t *testing.T) {
+	v := Vars{Dir: "/mnt/c/Users/Jan Kowalski/proj", Distro: "Ubuntu", GOOS: "linux"}
+	words, err := Split(`"/mnt/c/Program Files/idea64.exe" {windir} --dir={dir}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := RenderArgv("idea", words, v)
+	want := []string{"/mnt/c/Program Files/idea64.exe", `C:\Users\Jan Kowalski\proj`, "--dir=/mnt/c/Users/Jan Kowalski/proj"}
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("RenderArgv = %v, %v; want %v", got, err, want)
+	}
+	unc := Vars{Dir: "/home/u/my proj", Distro: "Ubuntu", GOOS: "linux"}
+	got, _ = RenderArgv("idea", []string{"idea64.exe", "{windir}"}, unc)
+	if !reflect.DeepEqual(got, []string{"idea64.exe", `\\wsl.localhost\Ubuntu\home\u\my proj`}) {
+		t.Fatalf("UNC value mangled: %q", got)
+	}
+	if _, err := RenderArgv("bad", []string{"x", "{nope}"}, v); err == nil {
+		t.Fatal("unknown placeholder must fail")
+	}
+}
+
+// Terminal tool templates become shell text, so values are single-quoted.
+func TestRenderShellQuotesValues(t *testing.T) {
+	v := Vars{Dir: "/mnt/c/Users/Jan Kowalski/it's", GgBin: "/opt/gg", GOOS: "linux"}
+	got, err := RenderShell("gg", "{gg_bin} -C {dir}", v)
+	want := `'/opt/gg' -C '/mnt/c/Users/Jan Kowalski/it'\''s'`
+	if err != nil || got != want {
+		t.Fatalf("RenderShell = %q, %v; want %q", got, err, want)
+	}
+	if got, _ := RenderShell("shell", "${SHELL:-bash}", v); got != "${SHELL:-bash}" {
+		t.Fatalf("shell text must stay untouched: %q", got)
+	}
+}
+
 func TestSplit(t *testing.T) {
 	for in, want := range map[string][]string{
 		`idea64.exe T:\p`:                    {"idea64.exe", `T:\p`},

@@ -173,7 +173,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 			return nil, http.StatusBadRequest, fmt.Sprintf("%s is not a terminal tool", req.Tool)
 		}
 		dir := firstNonEmpty(channel.WorktreePath, project.RepoPath)
-		rendered, err := tools.Render(req.Tool, tl.Command, s.toolVars(dir))
+		rendered, err := tools.RenderShell(req.Tool, tl.Command, s.toolVars(dir))
 		if err != nil {
 			return nil, http.StatusUnprocessableEntity, err.Error()
 		}

@@ -35,8 +35,13 @@ const globalScaffoldYAML = `# erbrus global settings. Everything is optional; bu
 # gg_bin: gg                            # path to gg (gigagit) binary for worktree creation from the sidebar
 #
 # tools:                                # opened from the channel page, in that channel's directory
-#   idea: {command: 'idea64.exe {windir}'}          # GUI: started detached; {windir} = Windows form of the path
-#   subl: {command: 'subl.exe {windir}'}
+#   # GUI tools start detached, no shell: quote a program path with spaces; placeholder
+#   # values are always one argument. {windir} = Windows form of the directory
+#   # (/mnt/c/x -> C:\x, else \\wsl.localhost\<WSL_DISTRO_NAME>\x). From WSL the program
+#   # itself must be a Linux-resolvable path (a bare idea64.exe is NOT on WSL's PATH):
+#   idea: {command: '"/mnt/c/Program Files/JetBrains/IntelliJ IDEA/bin/idea64.exe" {windir}'}
+#   subl: {command: '"/mnt/c/Program Files/Sublime Text/subl.exe" {windir}'}
+#   code: {command: 'code {dir}'}                          # a Linux program takes {dir}
 #   shell: {command: '${SHELL:-bash}', terminal: true}   # built-in; terminal: opens in the web terminal
 #   gg:    {command: '{gg_bin}', terminal: true}         # built-in
 #

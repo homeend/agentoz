@@ -117,7 +117,7 @@ func TestToolRunIsNotClassifiedAndNotATarget(t *testing.T) {
 	}
 
 	run, _, _ := st.RunByID(id)
-	if w, queued := testSrv.sendToRun(run, "hello"); queued || !strings.Contains(w, "is a shell, not an agent") {
+	if w, queued := testSrv.sendToRun(run, "hello"); queued || !strings.Contains(w, "is a tool, not an agent") {
 		t.Fatalf("sendToRun = %q %v", w, queued)
 	}
 	r, err := noRedirect().PostForm(fmt.Sprintf("%s/ui/channels/%d/messages", ts.URL, ch1),
