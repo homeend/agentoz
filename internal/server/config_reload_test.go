@@ -127,6 +127,13 @@ func TestReloadAppliesDriverShellToolUnlessUserDefinesShell(t *testing.T) {
 	if tl, ok := testSrv.toolCfg("shell"); !ok || tl.Command != "powershell" {
 		t.Fatalf("shell tool = %+v, %v; want driver's ShellTool() (powershell)", tl, ok)
 	}
+	// Same file again: the driver's shell override must not make an
+	// unrelated reload look "changed" forever (deviation #2 in the task
+	// report — shellToolOverride is applied to next.Tools before the
+	// DeepEqual comparison, not only after the swap).
+	if changed, _, err := testSrv.ReloadConfig(); err != nil || changed {
+		t.Fatalf("same file again under a non-posix driver: changed=%v err=%v", changed, err)
+	}
 
 	// The user defines their own shell tool: it wins over the driver.
 	os.WriteFile(cfgPath, []byte("providers:\n  codex:\n    command: codex\ntools:\n  shell:\n    command: bash\n    terminal: true\n"), 0o644)

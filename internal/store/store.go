@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -51,6 +52,9 @@ func migrate(db *sql.DB) error {
 			return err
 		}
 	}
+	if err := migrateSpawnerCheck(db); err != nil {
+		return err
+	}
 	// run_ids hands out run ids that are never reused. agent_runs.id is a
 	// plain INTEGER PRIMARY KEY (max+1), so deleting the newest run gave
 	// its id to the next spawn, and everything keyed by run id — the
@@ -67,6 +71,76 @@ func migrate(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+// migrateSpawnerCheck rebuilds agent_runs when its CHECK(spawner IN (...))
+// predates the wezterm spawner. schema.sql's CREATE TABLE IF NOT EXISTS
+// never touches an existing table, so a database created before this
+// task still has the old CHECK and a wezterm spawn's CreateRun would
+// fail. SQLite has no ALTER TABLE for CHECK constraints; this follows
+// SQLite's documented procedure for such schema changes: create a new
+// table, copy the rows, drop the old one, rename the new one into place.
+func migrateSpawnerCheck(db *sql.DB) error {
+	var ddl string
+	err := db.QueryRow(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'agent_runs'`).Scan(&ddl)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil // no agent_runs table yet — nothing to migrate
+	}
+	if err != nil {
+		return err
+	}
+	if strings.Contains(ddl, "wezterm") {
+		return nil // fresh database, or already migrated
+	}
+	newDDL, err := agentRunsDDL()
+	if err != nil {
+		return err
+	}
+	newDDL = strings.Replace(newDDL, "agent_runs", "agent_runs_new", 1)
+
+	// PRAGMA foreign_keys cannot be changed inside a transaction; restore
+	// it once the rebuild (which briefly drops the referenced table) is
+	// done, success or not.
+	if _, err := db.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		return err
+	}
+	defer db.Exec(`PRAGMA foreign_keys = ON`)
+
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(newDDL); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`INSERT INTO agent_runs_new SELECT * FROM agent_runs`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DROP TABLE agent_runs`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`ALTER TABLE agent_runs_new RENAME TO agent_runs`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// agentRunsDDL extracts the agent_runs CREATE TABLE statement out of the
+// embedded schema.sql, so the migration's rebuilt table can never drift
+// from schema.sql's column list and constraints.
+func agentRunsDDL() (string, error) {
+	const marker = "CREATE TABLE IF NOT EXISTS agent_runs ("
+	i := strings.Index(schema, marker)
+	if i < 0 {
+		return "", fmt.Errorf("schema.sql: agent_runs table not found")
+	}
+	rest := schema[i:]
+	j := strings.Index(rest, ");")
+	if j < 0 {
+		return "", fmt.Errorf("schema.sql: agent_runs table: no closing );")
+	}
+	return rest[:j+2], nil
 }
 
 func (s *Store) Close() error { return s.db.Close() }

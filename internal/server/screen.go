@@ -217,10 +217,8 @@ func (s *Server) handleUIScreen(w http.ResponseWriter, r *http.Request) {
 		sc, err := s.spawner.Capture(spawn.Handle(run.TmuxTarget))
 		page.Frame, _ = frameOf(sc, err, s.rulesFor(run.Provider))
 	}
-	if s.driver != nil {
-		if _, ok := s.driver.Viewer(); ok && page.Live && page.Note == "" {
-			page.Terminal = true
-		}
+	if _, ok := s.drv().Viewer(); ok && page.Live && page.Note == "" {
+		page.Terminal = true
 	}
 	page.Warning = r.URL.Query().Get("warning")
 	s.render(w, "screen", page)

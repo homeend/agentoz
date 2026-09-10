@@ -29,12 +29,10 @@ type toolView struct {
 
 // driverOpensTerminals reports whether the driver opens terminal tools in
 // a visible window of its own (WezTerm) rather than a tmux/browser-terminal
-// tool run.
+// tool run. Pure: empty dir, nil argv, no side effect — safe to call just
+// to decide which branch to take.
 func (s *Server) driverOpensTerminals() bool {
-	if s.driver == nil {
-		return false
-	}
-	_, ok := s.driver.OpenTerminal("", nil)
+	_, ok := s.drv().OpenTerminal("", nil)
 	return ok
 }
 
@@ -51,6 +49,17 @@ func (s *Server) toolViews() []toolView {
 
 func (s *Server) toolVars(dir string) tools.Vars {
 	return tools.Vars{Dir: dir, GgBin: s.ggBin(), Distro: os.Getenv("WSL_DISTRO_NAME"), GOOS: runtime.GOOS}
+}
+
+// toolArgv splits and renders a tool's Command into argv for dir: split
+// first, render second, so a directory with a space or a UNC backslash
+// path lands in one argument untouched.
+func (s *Server) toolArgv(name, command, dir string) ([]string, error) {
+	words, err := tools.Split(command)
+	if err != nil {
+		return nil, err
+	}
+	return tools.RenderArgv(name, words, s.toolVars(dir))
 }
 
 // handleUIChannelTool opens tools.<name> in the channel's directory.
@@ -89,30 +98,28 @@ func (s *Server) handleUIChannelTool(w http.ResponseWriter, r *http.Request) {
 	if tl.Terminal {
 		// A driver that opens terminals itself (WezTerm) launches the
 		// tool detached in its own window, before ever considering a
-		// tmux/browser-terminal tool run.
-		if s.driver != nil {
-			words, err := tools.Split(tl.Command)
+		// tmux/browser-terminal tool run. driverOpensTerminals is tested
+		// FIRST (it's pure — no Split/RenderArgv involved) so a tmux
+		// tool run's behavior on Linux never changes: a bad Command
+		// (unterminated quote, empty) must still fail inside the tmux
+		// pane as it always has, not warn-and-refuse here.
+		if s.driverOpensTerminals() {
+			argv, err := s.toolArgv(name, tl.Command, dir)
 			if err != nil {
 				warn(err.Error())
 				return
 			}
-			argv, err := tools.RenderArgv(name, words, s.toolVars(dir))
-			if err != nil {
+			launch, _ := s.drv().OpenTerminal(dir, argv)
+			if s.launcher == nil {
+				warn("no launcher configured")
+				return
+			}
+			if err := s.launcher.Start(dir, launch); err != nil {
 				warn(err.Error())
 				return
 			}
-			if launch, ok := s.driver.OpenTerminal(dir, argv); ok {
-				if s.launcher == nil {
-					warn("no launcher configured")
-					return
-				}
-				if err := s.launcher.Start(dir, launch); err != nil {
-					warn(err.Error())
-					return
-				}
-				http.Redirect(w, r, back, http.StatusFound)
-				return
-			}
+			http.Redirect(w, r, back, http.StatusFound)
+			return
 		}
 		if s.spawner == nil {
 			warn("terminal tools need tmux (not available here)")
@@ -128,14 +135,8 @@ func (s *Server) handleUIChannelTool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// GUI tool: split first, render second (a directory with a space or a
-	// UNC backslash path lands in one argument untouched), start detached.
-	words, err := tools.Split(tl.Command)
-	if err != nil {
-		warn(err.Error())
-		return
-	}
-	argv, err := tools.RenderArgv(name, words, s.toolVars(dir))
+	// GUI tool: split/render into argv (see toolArgv), start detached.
+	argv, err := s.toolArgv(name, tl.Command, dir)
 	if err != nil {
 		warn(err.Error())
 		return

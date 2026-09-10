@@ -274,10 +274,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 
 	// Step 4: create the run row.
-	spawnerKind := "tmux"
-	if s.driver != nil {
-		spawnerKind = s.driver.Name()
-	}
+	spawnerKind := s.drv().Name()
 	if req.Fg {
 		spawnerKind = "fg"
 	}
@@ -315,10 +312,7 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 		// types it in once the input box is up (see paste.go), or the
 		// driver's platform seam requires it (Windows: cmd.exe shims read
 		// one line, PowerShell 5.1 mangles quotes).
-		paste = pasteMode(providers[providerName])
-		if s.driver != nil {
-			paste = paste || s.driver.PromptByPaste()
-		}
+		paste = pasteMode(providers[providerName]) || s.drv().PromptByPaste()
 	}
 	cmdPrompt := fullPrompt
 	if paste {
@@ -333,15 +327,9 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	}
 
 	// Step 8: write the command file — cmd.sh (exec …) on posix, cmd.json
-	// (argv, no shell) on Windows; the driver decides. No driver (tests
-	// that never call SetRuntime/SetDriver, fg-only): posix behavior.
-	var cmdPath string
-	if s.driver != nil {
-		cmdPath, err = s.driver.WriteCommand(runDir, command)
-	} else {
-		cmdPath = filepath.Join(runDir, "cmd.sh")
-		err = os.WriteFile(cmdPath, []byte(fmt.Sprintf("#!/bin/sh\nexec %s\n", command)), 0o755)
-	}
+	// (argv, no shell) on Windows; the driver decides (drv(): posix
+	// default when no driver is wired yet, e.g. fg-only tests).
+	cmdPath, err := s.drv().WriteCommand(runDir, command)
 	if err != nil {
 		return nil, http.StatusInternalServerError, err.Error()
 	}

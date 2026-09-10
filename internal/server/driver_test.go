@@ -109,6 +109,9 @@ func TestReconcileAndWatcherCoverNonTmuxRuns(t *testing.T) {
 	ch1, _ := twoChannels(t, ts.URL, root)
 	withProvider(t, "claude-code", config.Provider{Command: "claude"})
 	postJSON(t, ts.URL+"/api/runs", map[string]any{"channel_id": ch1, "provider": "claude-code", "prompt": "x"})
+	if err := testSrv.WatchScreens(); err != nil {
+		t.Fatal(err)
+	}
 	if err := testSrv.Reconcile(); err != nil {
 		t.Fatal(err)
 	}

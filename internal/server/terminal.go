@@ -53,11 +53,7 @@ func (s *Server) handleUITerminal(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusNotFound, "run has no live tmux window")
 		return
 	}
-	if s.driver == nil {
-		httpError(w, http.StatusNotImplemented, "terminal not supported for this spawner")
-		return
-	}
-	viewer, ok := s.driver.Viewer()
+	viewer, ok := s.drv().Viewer()
 	if !ok {
 		httpError(w, http.StatusNotImplemented, "terminal not supported for this spawner")
 		return

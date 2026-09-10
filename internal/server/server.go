@@ -130,14 +130,25 @@ func (s *Server) SetDriver(d spawn.Driver, erbrusBin, baseURL string) {
 	s.applyShellTool()
 }
 
+// drv is the effective driver: s.driver, or a nil-safe zero driver
+// (DriverFor(nil): "tmux" name, posix host) when none is wired yet — a
+// Server without SetDriver/SetRuntime (fg-only tests). DriverFor(nil)'s
+// host methods (WriteCommand, PromptByPaste, AgentBin, ShellTool) never
+// touch the nil Spawner; Viewer()/OpenTerminal() type-assert it and get
+// ok=false, not a panic. Collapses every "driver may be nil" special
+// case into one place; never writes s.driver — s.spawner is unaffected.
+func (s *Server) drv() spawn.Driver {
+	if s.driver == nil {
+		return spawn.DriverFor(nil)
+	}
+	return s.driver
+}
+
 // agentBin is the erbrus path as agents should type it: the driver's
 // AgentBin (forward slashes on Windows, where Claude Code runs commands
 // through Git Bash), or the raw path when no driver is wired (tests).
 func (s *Server) agentBin() string {
-	if s.driver == nil {
-		return s.erbrusBin
-	}
-	return s.driver.AgentBin(s.erbrusBin)
+	return s.drv().AgentBin(s.erbrusBin)
 }
 
 // SetConfigPath wires the global config.yaml path (from cli's configPath())
