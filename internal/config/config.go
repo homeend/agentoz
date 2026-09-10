@@ -185,9 +185,16 @@ func LoadGlobal(path string) (Global, error) {
 
 // EncodeRepoPath maps an absolute repo path to its per-repo config dir
 // name: every "/" becomes "-", keeping the leading dash (the same scheme
-// Claude uses for project directories).
+// Claude uses for project directories). Windows paths lose their "\" the
+// same way and the drive colon, so T:\others\x is -T-others-x: a colon in
+// a directory NAME is invalid there ("The filename, directory name, or
+// volume label syntax is incorrect").
 func EncodeRepoPath(repoRoot string) string {
-	return strings.ReplaceAll(repoRoot, "/", "-")
+	s := strings.NewReplacer("/", "-", `\`, "-", ":", "").Replace(repoRoot)
+	if !strings.HasPrefix(s, "-") {
+		s = "-" + s
+	}
+	return s
 }
 
 // erbrusHome is ~/.erbrus, overridable via ERBRUS_HOME (tests).

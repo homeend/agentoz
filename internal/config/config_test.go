@@ -149,6 +149,13 @@ func TestEncodeRepoPath(t *testing.T) {
 	if got := EncodeRepoPath("/a/b/c"); got != "-a-b-c" {
 		t.Errorf("EncodeRepoPath = %q", got)
 	}
+	// Windows: no colon (invalid in a directory name), backslashes too.
+	if got := EncodeRepoPath(`T:\others\log-listener`); got != "-T-others-log-listener" {
+		t.Errorf("EncodeRepoPath(windows) = %q", got)
+	}
+	if got := EncodeRepoPath(`\\wsl.localhost\Ubuntu\home\u\p`); got != "--wsl.localhost-Ubuntu-home-u-p" {
+		t.Errorf("EncodeRepoPath(unc) = %q", got)
+	}
 }
 
 func TestRepoConfigPathUsesErbrusHome(t *testing.T) {
