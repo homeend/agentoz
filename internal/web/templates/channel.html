@@ -15,7 +15,7 @@
 <div class="shell">
   <nav class="sidebar">
     {{range .Sidebar}}
-    <div class="proj">{{.Project.Name}}</div>
+    <div class="proj">{{.Project.Name}} <a class="plus" href="/ui/projects/{{.Project.ID}}/worktree" title="new worktree for {{.Project.Name}}">+</a></div>
     {{range .Channels}}
     <a class="chan{{if eq .ID $.Channel.ID}} active{{end}}" href="/ui/channels/{{.ID}}" title="{{.Workdir}}"># {{.Name}}{{if .PathMissing}}<span class="pathwarn" title="directory missing: {{.Workdir}}">!</span>{{end}}{{if .ActiveRuns}}<span class="agentdot" title="{{.ActiveRuns}} agent(s) running"></span>{{end}}{{if .Unread}}<span class="unreadb{{if .Attention}} attn{{end}}" data-unread="{{.ID}}">{{.Unread}}</span>{{end}}</a>
     {{end}}

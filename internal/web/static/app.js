@@ -488,3 +488,16 @@ setInterval(function () {
     if (Date.now() - lastSeen > 45000) { alive(); connect(); }
   }, 15000);
 })();
+
+// New-worktree form: only the block for the checked mode is visible.
+(function () {
+  var form = document.getElementById('wtform');
+  if (!form) return;
+  function apply() {
+    var checked = form.querySelector('input[name="mode"]:checked');
+    var mode = checked ? checked.value : 'new';
+    form.querySelectorAll('[data-mode]').forEach(function (el) { el.hidden = el.dataset.mode !== mode; });
+  }
+  form.querySelectorAll('input[name="mode"]').forEach(function (r) { r.addEventListener('change', apply); });
+  apply();
+})();

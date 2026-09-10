@@ -1,0 +1,49 @@
+{{define "title"}}new worktree · erbrus{{end}}
+{{define "content"}}
+<header class="topbar">
+  <a class="brand" href="/ui/projects">erbrus</a>
+  <span class="crumb">/ {{.Project.Name}} / new worktree</span>
+  <span class="spacer"></span>
+</header>
+<main class="page">
+  <div class="dialog">
+    <h1>New worktree for {{.Project.Name}}</h1>
+    <div class="muted small mono">{{.Project.RepoPath}}</div>
+    {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+    {{if or .Error .ListError}}
+    <form method="post" action="/ui/projects/{{.Project.ID}}/shell" class="inlineform">
+      <button class="btn" type="submit" title="opens a shell in the main repository in the web terminal">Open a terminal in {{.Project.RepoPath}}</button>
+    </form>
+    {{end}}
+    {{if not .ListError}}
+    <form method="post" action="/ui/projects/{{.Project.ID}}/worktree" id="wtform">
+      <div class="modes">
+        <label class="toggle"><input type="radio" name="mode" value="new"{{if eq .Mode "new"}} checked{{end}}> New branch</label>
+        <label class="toggle"><input type="radio" name="mode" value="existing"{{if eq .Mode "existing"}} checked{{end}}> Existing branch</label>
+      </div>
+
+      <div data-mode="new">
+        <label>Branch name</label>
+        <input type="text" name="name" value="{{index .Form "name"}}" placeholder="feat/thing">
+        <label>Base branch</label>
+        <select name="base">
+          {{range .Branches}}<option value="{{.Name}}"{{if eq .Name (or (index $.Form "base") $.Current)}} selected{{end}}>{{.Name}}</option>{{end}}
+        </select>
+      </div>
+      <div data-mode="existing">
+        <label>Branch</label>
+        <select name="branch">
+          {{range .Branches}}{{if .CheckedOut}}<option value="{{.Name}}" disabled>{{.Name}} (checked out in {{.CheckedOut}})</option>{{else}}<option value="{{.Name}}"{{if eq .Name (index $.Form "branch")}} selected{{end}}>{{.Name}}</option>{{end}}{{end}}
+        </select>
+      </div>
+      <div class="muted small">gg decides where the worktree goes (its <span class="mono">[worktree] path_template</span>); the new channel takes the branch's short name.</div>
+
+      <div class="foot">
+        <a class="btn" href="/ui/channels/{{.MainID}}">Cancel</a>
+        <button class="btn primary" type="submit">Create worktree</button>
+      </div>
+    </form>
+    {{end}}
+  </div>
+</main>
+{{end}}
