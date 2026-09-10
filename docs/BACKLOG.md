@@ -27,6 +27,12 @@ items as they land.
 
 ## Ideas agreed but not built
 
+- `tools.Split` (the Windows argv path) does not reassemble
+  `provider.ShellQuote`'s `'\''` escape: a value with an embedded single
+  quote comes out as `it\s`. Only paths reach argv on Windows (the prompt
+  is pasted), so it bites on a directory named with an apostrophe. Teach
+  `Split` the POSIX rule (adjacent quoted segments concatenate, `\` outside
+  quotes escapes the next character). Seen in the round-7 final review.
 - Built-in agents as implicit providers: if config has no entry for a
   registry id and the binary is on PATH, the server uses the registry
   definition. A fresh machine could spawn any of the five with no
