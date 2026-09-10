@@ -38,7 +38,7 @@
       <textarea name="body" placeholder="Message # {{.Channel.Name}} as human…" required></textarea>
       <select name="target">
         <option value="memo">memo</option>
-        {{range .Runs}}{{if .Running}}<option value="r{{.ID}}">→ {{.AgentName}}</option>{{end}}{{end}}
+        {{range .Runs}}{{if and .Running (not .Tool)}}<option value="r{{.ID}}">→ {{.AgentName}}</option>{{end}}{{end}}
       </select>
       <button class="btn primary" type="submit">Send</button>
     </form>

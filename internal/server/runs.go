@@ -181,6 +181,12 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 	argsStr := firstNonEmpty(req.Args, presetCfg.Args)
 	promptText := firstNonEmpty(req.Prompt, presetCfg.Prompt)
 	agentName := firstNonEmpty(req.Name, presetCfg.Name, req.Preset, providerName)
+	// A tool (provider type "tool", e.g. the built-in shell) is a terminal
+	// program for the human: no prompt, no preamble, no hook, no paste.
+	tool := providers[providerName].IsTool()
+	if tool {
+		promptText = ""
+	}
 
 	// model/args (the overlaid, request-or-preset values, BEFORE server-
 	// generated hook args are appended) land unquoted in the rendered
@@ -260,16 +266,23 @@ func (s *Server) spawnRunCore(req runRequest) (payload any, status int, errMsg s
 		return nil, http.StatusInternalServerError, err.Error()
 	}
 
-	// Step 6: provider hook + args.
-	hookArgs, _ := integrate.ProviderHook(providerName, runDir, s.erbrusBin)
+	// Step 6: provider hook + args (agents only).
+	hookArgs := ""
+	if !tool {
+		hookArgs, _ = integrate.ProviderHook(providerName, runDir, s.erbrusBin)
+	}
 	fullArgs := joinNonEmpty(argsStr, hookArgs, " ")
 
-	// Step 7: assemble prompt, render command.
-	preamble := integrate.Preamble(s.erbrusBin, agentName, channel.Name)
-	fullPrompt := integrate.AssemblePrompt(preamble, promptText, handoffContext)
-	// Paste mode: the CLI starts without the prompt and deliverPrompt
-	// types it in once the input box is up (see paste.go).
-	paste := pasteMode(providers[providerName])
+	// Step 7: assemble prompt, render command. A tool gets neither a
+	// preamble nor a prompt: its command renders bare.
+	fullPrompt, paste := "", false
+	if !tool {
+		preamble := integrate.Preamble(s.erbrusBin, agentName, channel.Name)
+		fullPrompt = integrate.AssemblePrompt(preamble, promptText, handoffContext)
+		// Paste mode: the CLI starts without the prompt and deliverPrompt
+		// types it in once the input box is up (see paste.go).
+		paste = pasteMode(providers[providerName])
+	}
 	cmdPrompt := fullPrompt
 	if paste {
 		cmdPrompt = ""

@@ -49,6 +49,9 @@ func (s *Server) WatchScreens() error {
 		if r.Spawner != "tmux" || r.TmuxTarget == "" {
 			continue
 		}
+		if s.isToolRun(r) {
+			continue // a shell has no working/waiting/question states
+		}
 		live[r.ID] = true
 		sc, err := s.spawner.Capture(spawn.Handle(r.TmuxTarget))
 		if err != nil {

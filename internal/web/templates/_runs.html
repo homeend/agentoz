@@ -3,7 +3,7 @@
 <div class="runcard st-{{.Status}}{{if .Running}} running{{end}}{{if .StateName}} agent-{{.StateName}}{{end}}{{if .Stalled}} stalled{{end}}">
   <span class="dot"></span><strong>{{.AgentName}}</strong>
   {{if .Running}}
-  {{if .StateLabel}}<span class="{{.StateClass}}"{{if .StateSince}} data-since="{{.StateSince}}" data-label="{{.StateName}}"{{end}}>{{.StateLabel}}</span>{{else}}<span class="state">detecting…</span>{{end}}
+  {{if .Tool}}<span class="badge tool" title="a shell for you, not an agent">shell</span>{{else if .StateLabel}}<span class="{{.StateClass}}"{{if .StateSince}} data-since="{{.StateSince}}" data-label="{{.StateName}}"{{end}}>{{.StateLabel}}</span>{{else}}<span class="state">detecting…</span>{{end}}
   <div class="muted small">{{.Provider}} · up since {{.Started}}{{if .TmuxTarget}} · {{.TmuxTarget}}{{end}}</div>
   {{if eq .StateName "question"}}
   {{if .Thumb}}<a class="thumb" href="/ui/runs/{{.ID}}/screen" target="screen:{{.TmuxTarget}}" title="the agent is showing a dialog — click to open the live screen with the keypad"><pre>{{.Thumb}}</pre></a>{{end}}

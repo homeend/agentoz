@@ -42,6 +42,9 @@ func (s *Server) forwardTargets(sourceChannel int64) ([]targetOption, error) {
 		return nil, err
 	}
 	for _, r := range running {
+		if s.isToolRun(r) {
+			continue // a shell takes no forwarded text
+		}
 		ch, ok, err := s.st.ChannelByID(r.ChannelID)
 		if err != nil || !ok {
 			continue

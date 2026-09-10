@@ -43,10 +43,12 @@ type runView struct {
 	Status     string
 	TmuxTarget string
 	Running    bool
-	Started    string // localtime spawn moment
-	Finished   string // localtime finish moment, "" while running
-	HasExit    bool
-	ExitCode   int64
+	// Tool: provider type "tool" (shell) — no state badge, not a chat target.
+	Tool     bool
+	Started  string // localtime spawn moment
+	Finished string // localtime finish moment, "" while running
+	HasExit  bool
+	ExitCode int64
 	// StateLabel/StateClass: the watcher's badge ("working 7m",
 	// "needs input"); empty until the first classification.
 	StateLabel string
@@ -182,6 +184,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 			Status:     r.Status,
 			TmuxTarget: r.TmuxTarget,
 			Running:    r.Status == "starting" || r.Status == "running",
+			Tool:       s.isToolRun(r),
 			Started:    r.CreatedAt.Local().Format("Jan _2 15:04"),
 			HasExit:    r.HasExit,
 			ExitCode:   r.ExitCode,
@@ -189,7 +192,7 @@ func (s *Server) buildChannelPage(chID int64) (channelPage, int, string) {
 		if !v.Running && !r.FinishedAt.IsZero() {
 			v.Finished = r.FinishedAt.Local().Format("Jan _2 15:04")
 		}
-		if v.Running {
+		if v.Running && !v.Tool {
 			if rs, ok := s.stateOf(r.ID); ok {
 				label, class, timed := rs.badge(time.Now())
 				v.StateLabel, v.StateClass = label, class
@@ -389,6 +392,13 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, target, http.StatusFound)
 }
 
+// isToolRun: the run's provider is a tool (shell), keyed on Provider.Type,
+// never on the provider name.
+func (s *Server) isToolRun(r store.AgentRun) bool {
+	p, ok := s.providerCfg(r.Provider)
+	return ok && p.IsTool()
+}
+
 // sendToRun types text into a run's terminal; returns a warning string ("" on
 // success) instead of an error — the caller has already recorded the message.
 // An agent that cannot take text right now (still starting, or showing a
@@ -397,6 +407,9 @@ func (s *Server) handleUIComposeMessage(w http.ResponseWriter, r *http.Request) 
 // is true for that case, so the page can retire the notice when the
 // "<agent>: queued message delivered / NOT delivered" note arrives.
 func (s *Server) sendToRun(run store.AgentRun, text string) (warning string, queued bool) {
+	if s.isToolRun(run) {
+		return fmt.Sprintf("%s is a shell, not an agent — nothing was typed", run.AgentName), false
+	}
 	if s.spawner == nil || run.TmuxTarget == "" {
 		return fmt.Sprintf("%s has no reachable terminal — posted to channel only", run.AgentName), false
 	}
